@@ -1,7 +1,6 @@
 import { E } from "../lib/util.js";
 import { t, tn, lang, LANGS, fDate, fDateTime } from "../i18n/index.js";
 import { isOwner, configured, myTill, canWrite } from "../data/store.js";
-import { marketKipPer } from "../lib/rates.js";
 import { describe, tillQr, qrSvg } from "../lib/payqr.js";
 
 // Owner only: the shop's bank QR, which the till shows for transfer payments.
@@ -75,22 +74,13 @@ function staff(s) {
   }<div class="row mt"><button class="g" data-act="addStaff">${t("sys.addStaff")}</button></div></div>`;
 }
 
-// VAT inside the shelf price, and the shop's exchange rates (Kip per 1 unit),
-// used for costs typed in another currency and the dashboard. An empty rate
-// means "use today's internet rate", shown as the placeholder.
+// VAT inside the shelf price. Exchange rates are not set here: costs in
+// another currency and the dashboard use today's internet rate (rates.js).
 function prices(s) {
-  const own = !isOwner() ? " disabled" : "",
-    rates = s.settings.rates || {};
+  const own = !isOwner() ? " disabled" : "";
   return `<div class="card"><h3>${t("sys.prices")}</h3><label class="mt">${t("sys.vatRate")}<input type="number" min="0" max="100" step="any" data-input="setting" data-key="vat_rate" data-num="1" value="${E(
     s.settings.vat_rate ?? 10,
-  )}"${own}></label><p class="mut">${t("sys.vatNote")}</p><p class="mt"><b>${t("sys.rates")}</b></p><div class="row">${["THB", "USD", "CNY"]
-    .map(
-      (c) =>
-        `<label style="flex:1 1 140px">1 ${c} = (₭)<input type="number" min="0" step="any" data-input="setting" data-key="rates" data-cur="${c}" value="${E(
-          rates[c] ?? "",
-        )}" placeholder="${E(marketKipPer(c))}"${own}></label>`,
-    )
-    .join("")}</div><p class="mut">${t("sys.ratesNote")}</p></div>`;
+  )}"${own}></label><p class="mut">${t("sys.vatNote")}</p></div>`;
 }
 
 export default function sys(s) {

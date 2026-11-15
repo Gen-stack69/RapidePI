@@ -23,7 +23,7 @@ export function keepOwnerPrices(row, id, owner) {
 }
 
 /** The product form's unit and cost. A cost typed in THB, USD or CNY is
- * stored in Kip at the shop's rate; what was typed is kept beside it. */
+ * stored in Kip at today's internet rate; what was typed is kept beside it. */
 export function costFields(f) {
   const cur = ["THB", "USD", "CNY"].includes(f.cost_currency) ? f.cost_currency : "LAK",
     typed = amount(f.cost),

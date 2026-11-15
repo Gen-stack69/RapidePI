@@ -16,7 +16,7 @@ export const fmt = (n) =>
     maximumFractionDigits: 2,
   });
 
-/** A Kip amount shown in another currency at the shop's rate (lib/rates.js). */
+/** A Kip amount shown in another currency at today's internet rate (lib/rates.js). */
 export const fmtIn = (kip, cur) =>
   cur == "LAK" || !cur
     ? fmt(kip)

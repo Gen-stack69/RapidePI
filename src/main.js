@@ -618,12 +618,11 @@ const INPUT = {
     $("#tb").innerHTML = invRows(state);
   },
   conv,
-  // Checkboxes, number boxes (data-num) and one exchange rate (data-cur).
+  // Checkboxes and number boxes (data-num).
   async setting(el) {
     const k = el.dataset.key;
-    let v = el.type == "checkbox" ? el.checked : el.dataset.num ? +el.value : el.value;
+    const v = el.type == "checkbox" ? el.checked : el.dataset.num ? +el.value : el.value;
     if (k == "vat_rate" && !(v >= 0 && v <= 100)) return toast(t("err.vatRate"), true);
-    if (el.dataset.cur) v = { ...(state.settings.rates || {}), [el.dataset.cur]: Math.max(0, +el.value || 0) || undefined };
     await store.setSetting(k, v);
     toast(t("msg.saved"));
   },
