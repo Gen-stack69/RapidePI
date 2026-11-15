@@ -190,6 +190,8 @@ update shops set plan = 'paid', plan_until = now() + interval '1 month', max_til
 
 **Customers and import (`007_customers_import.sql`).** `customers` (any member adds or edits, the owner deletes; phone unique per shop) and `sales.customer_id`. 006's `create_sale` is renamed `create_sale_core` (no longer callable) and wrapped by a `create_sale` with an 11th argument `p_customer`; a customer from another shop, or one deleted while the sale waited offline, is ignored and the sale still goes through. `customer_totals(shop)` gives visits and spending over all time (the app loads only 30 days of sales). `import_sales(shop, rows)` (owner, 500 per call) adds past sales as history: till `IMP`, flag `imported`, **no stock movement**, matched to products by SKU then name, customers found by phone then name or added, and the same receipt number twice is added once. One bad receipt stops the whole call. `erase_shop_data` also clears customers. Covered by 21 database checks.
 
+**Hardening (`008_hardening.sql`, from a security review on 2026-11-15).** Two holes closed. (1) Postgres `numeric` accepts `'NaN'` and `'Infinity'`, and nothing refused them: any member could call `adjust_stock(item, 'NaN')` and that product's stock stayed NaN forever, and an `Infinity` cost broke every stock-value total. Every quantity and money column now has a `*_finite` check. (2) Item prices and costs were editable by staff (pack and batch prices were already owner-only), so a cashier could set a product to 1 ₭, sell it as a normal unflagged sale, and put the price back, leaving no trace. The `items_price_guard` trigger now lets only the owner change `price`, `price_wholesale`, `wholesale_min_qty`, `cost`, `cost_orig` and `cost_currency`; staff still add products (with prices) and edit names, barcodes, units and stock. The product form hides those fields from staff when editing. Covered by 12 database checks.
+
 **Staff (`005_staff.sql`).** Each cashier has their own login. The owner taps “Add a cashier” in Shop & backup and gets a one-time code (8 characters, 24 hours, at most 10 open per shop). The cashier creates an account and, on the screen that would otherwise create a shop, types the code under “Join a shop”; they join as staff. The owner's Staff card lists everyone with their email and can cancel codes or remove a cashier (whose till is then retired separately). The `invites` table is reachable only through the functions. Covered by 15 database checks.
 
 ---
@@ -260,7 +262,7 @@ The full written plan is kept outside the repo; this table is the summary.
 
 ## 10. Next steps
 
-1. **Run `003_offline.sql` to `007_customers_import.sql` on the Supabase project** (002 is already applied), then set each shop's `max_tills` to its plan and test with two phones: airplane mode on both, sell, reconnect, and compare with the cash count.
+1. **Run `003_offline.sql` to `008_hardening.sql` on the Supabase project** (002 is already applied), then set each shop's `max_tills` to its plan and test with two phones: airplane mode on both, sell, reconnect, and compare with the cash count.
 2. **Phone test in a real shop:** scan real products at odd angles and read real expiry labels on a cheap Android. The numbers in section 5 are from a PC.
 3. **Still to build for the till:** customers and credit sales, shifts with cash count, refunds of part of a sale, Bluetooth thermal printing.
 4. **Shared team testing:** create the Supabase project (section 3) so the team works on the same stock.

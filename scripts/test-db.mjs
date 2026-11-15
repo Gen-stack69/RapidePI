@@ -631,6 +631,34 @@ await ok("the owner removes a cashier, who then sees nothing", async () => {
   eq((await one(D, "select count(*) n from items")).n, 0, "rows");
 });
 
+// 008_hardening.sql. Shop B again: B is the owner, C is staff.
+console.log("Hardening");
+const gin = (
+  await one(B, "insert into items (shop_id, sku, name, price, cost) values ($1, 'GIN', 'Gin', 500000, 400000) returning id", [shopB])
+).id;
+await as(B, "select adjust_stock($1, 10)", [gin]);
+await rejects("staff cannot change a price", () => as(C, "update items set price = 1 where id = $1", [gin]));
+await rejects("staff cannot change a wholesale price", () =>
+  as(C, "update items set price_wholesale = 1, wholesale_min_qty = 1 where id = $1", [gin]));
+await rejects("staff cannot change a cost", () => as(C, "update items set cost = 0 where id = $1", [gin]));
+await ok("staff can still rename a product and set its unit", async () =>
+  eq((await one(C, "update items set name = 'Gin 70cl', unit = 'bottle' where id = $1 returning name", [gin])).name, "Gin 70cl", "name"));
+await ok("staff can still add a product with a price", async () =>
+  eq((await one(C, "insert into items (shop_id, sku, name, price) values ($1, 'TONIC', 'Tonic', 9000) returning price", [shopB])).price, 9000, "price"));
+await ok("the owner changes a price", async () =>
+  eq((await one(B, "update items set price = 450000 where id = $1 returning price", [gin])).price, 450000, "price"));
+await rejects("stock cannot become NaN", () => as(C, "select adjust_stock($1, 'NaN'::numeric)", [gin]));
+await rejects("stock cannot become Infinity", () => as(C, "select adjust_stock($1, 'Infinity'::numeric)", [gin]));
+await rejects("a sale line cannot be NaN units", () =>
+  as(C, "select create_sale($1, 'nan-sale-1', $2::jsonb, 0, 'transfer', 0, null, 'A', 900)",
+    [shopB, JSON.stringify([{ item_id: gin, qty: "NaN" }])]));
+await rejects("an offline sale cannot carry an Infinity price", () =>
+  as(C, "select create_sale($1, 'inf-sale-1', $2::jsonb, 0, 'transfer', 0, now(), 'A', 901, true)",
+    [shopB, JSON.stringify([{ item_id: gin, qty: 1, price: "Infinity" }])]));
+await rejects("the owner cannot set an Infinity price either", () =>
+  as(B, "update items set price = 'Infinity' where id = $1", [gin]));
+await ok("the gin's stock is untouched by all of that", async () => eq(await qtyOf(gin), 10, "qty"));
+
 console.log("Billing");
 await rejects("owner cannot extend own plan", () =>
   as(A, "update shops set plan_until = now() + interval '10 years' where id = $1", [shopA]));

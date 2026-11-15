@@ -8,7 +8,7 @@ import { pageAll } from "./page.js";
 import * as apply from "./apply.js";
 import * as Q from "./queue.js";
 import * as C from "./cache.js";
-import { costFields, packRow, custRow, newCustomers } from "./fields.js";
+import { costFields, packRow, custRow, newCustomers, amount, keepOwnerPrices } from "./fields.js";
 
 const url = import.meta.env.VITE_SUPABASE_URL,
   key = import.meta.env.VITE_SUPABASE_ANON_KEY;
@@ -207,13 +207,13 @@ export async function saveItem(id, f) {
     category: f.category.trim() || "General",
     kind: f.kind == "consumable" ? "consumable" : "durable",
     barcode: f.barcode.trim() || f.sku.trim(),
-    min_qty: +f.min_qty || 0,
-    cost: +f.cost || 0,
-    price: +f.price || 0,
-    price_wholesale: +f.price_wholesale || 0,
-    wholesale_min_qty: +f.wholesale_min_qty || 0,
+    min_qty: amount(f.min_qty),
+    price: amount(f.price),
+    price_wholesale: amount(f.price_wholesale),
+    wholesale_min_qty: amount(f.wholesale_min_qty),
     ...costFields(f),
   };
+  keepOwnerPrices(row, id, state.role == "owner");
   let itemId = id;
   if (id) await must(sb.from("items").update({ ...row, updated_at: new Date().toISOString() }).eq("id", id));
   else itemId = (await must(sb.from("items").insert({ ...row, shop_id: state.shop.id }).select("id").single())).id;

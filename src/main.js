@@ -11,6 +11,7 @@ import { readTable, guessKind, guessColumns, build, KINDS } from "./lib/importer
 import { exportSet, exportZip } from "./lib/export.js";
 import * as store from "./data/store.js";
 import { state, canWrite, isOwner } from "./data/store.js";
+import { PRICE_KEYS } from "./data/fields.js";
 import { showAuth, showCreateShop, showNewPassword } from "./auth.js";
 import * as scanner from "./scanner.js";
 import dash, { ui as dashUi } from "./views/dash.js";
@@ -223,7 +224,8 @@ async function itemForm(id, code) {
     { k: "price", label: t("f.price"), type: "number", value: +i.price || 0 },
     { k: "price_wholesale", label: t("f.wprice"), type: "number", value: +i.price_wholesale || 0 },
     { k: "wholesale_min_qty", label: t("f.wmin"), type: "number", value: +i.wholesale_min_qty || 0 },
-  ]);
+    // Staff add products with prices, but only the owner changes them later.
+  ].filter((x) => !id || isOwner() || !PRICE_KEYS.includes(x.k)));
   if (!f) return;
   await store.saveItem(id, f);
   toast(t(id ? "msg.itemSaved" : "msg.itemAdded"));

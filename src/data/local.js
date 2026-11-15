@@ -6,7 +6,7 @@
 import { state, emit, canWrite } from "./state.js";
 import { err } from "../i18n/index.js";
 import * as apply from "./apply.js";
-import { costFields, packRow, custRow, newCustomers } from "./fields.js";
+import { costFields, packRow, custRow, newCustomers, amount, keepOwnerPrices } from "./fields.js";
 
 const KEY = "rapidewms.local";
 const uid = () => crypto.randomUUID();
@@ -158,14 +158,14 @@ export async function saveItem(id, f) {
     category: f.category.trim() || "General",
     kind: f.kind == "consumable" ? "consumable" : "durable",
     barcode: f.barcode.trim() || f.sku.trim(),
-    min_qty: Math.max(0, +f.min_qty || 0),
-    cost: Math.max(0, +f.cost || 0),
-    price: Math.max(0, +f.price || 0),
-    price_wholesale: Math.max(0, +f.price_wholesale || 0),
-    wholesale_min_qty: Math.max(0, +f.wholesale_min_qty || 0),
+    min_qty: amount(f.min_qty),
+    price: amount(f.price),
+    price_wholesale: amount(f.price_wholesale),
+    wholesale_min_qty: amount(f.wholesale_min_qty),
     ...costFields(f),
     updated_at: nowIso(),
   };
+  keepOwnerPrices(row, id, state.role == "owner");
   if (!row.sku || !row.name) fail("err.needSkuName");
   if (skuTaken(row.sku, id)) fail("err.dupSku");
   let it = id && db.items.find((i) => i.id == id && i.shop_id == shopId());

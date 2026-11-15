@@ -6,11 +6,27 @@ const fail = (code, params) => {
   throw err(code, params);
 };
 
+/** A typed amount as a number of 0 or more. "1e999" is Infinity in JavaScript,
+ * which the database refuses (008_hardening.sql), so it counts as 0 like any
+ * other unreadable entry. */
+export const amount = (v) => {
+  const n = +v;
+  return Number.isFinite(n) && n > 0 ? n : 0;
+};
+
+/** Prices and cost belong to the owner (008_hardening.sql). Staff editing a
+ * product send none of them, so the database never sees them try. */
+export const PRICE_KEYS = ["price", "price_wholesale", "wholesale_min_qty", "cost", "cost_orig", "cost_currency"];
+export function keepOwnerPrices(row, id, owner) {
+  if (id && !owner) for (const k of PRICE_KEYS) delete row[k];
+  return row;
+}
+
 /** The product form's unit and cost. A cost typed in THB, USD or CNY is
  * stored in Kip at the shop's rate; what was typed is kept beside it. */
 export function costFields(f) {
   const cur = ["THB", "USD", "CNY"].includes(f.cost_currency) ? f.cost_currency : "LAK",
-    typed = Math.max(0, +f.cost || 0),
+    typed = amount(f.cost),
     rate = kipPer(cur);
   if (cur != "LAK" && !(rate > 0)) fail("err.noRate", { cur });
   return {
@@ -56,5 +72,6 @@ export function packRow(f) {
     size = +f.size;
   if (!name) fail("err.packName");
   if (!(size > 1)) fail("err.packSize");
-  return { name, size, barcode: String(f.barcode || "").trim() || null, price: Math.max(0, +f.price || 0) };
+  if (!Number.isFinite(size)) fail("err.packSize");
+  return { name, size, barcode: String(f.barcode || "").trim() || null, price: amount(f.price) };
 }
