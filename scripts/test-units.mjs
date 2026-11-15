@@ -523,5 +523,55 @@ await ok("a till sale keeps its customer, or drops one from another shop", async
   eq(AP.sale(d, C0, { client_id: "cs2", paid: 1e9, customer_id: "c2", lines: [{ item_id: "i1", qty: 1 }] }).customer_id, null, "other shop");
 });
 
+console.log("QR payment");
+const PQ = await import("../src/lib/payqr.js");
+// The worked example from the EMVCo merchant QR specification (yuan, with Chinese text).
+const SPEC =
+  "00020101021229300012D156000000000510A93FO3230Q31280012D15600000001030812345678520441115802CN5914BEST TRANSPORT6007BEIJING64200002ZH0104最佳运输0202北京540523.7253031565502016233030412340603***0708A60086670902ME91320016A0112233449988770708123456786304A13A";
+// A kip shop QR built the same way.
+const fld = (id, v) => id + String(v.length).padStart(2, "0") + v;
+const lakBody =
+  fld("00", "01") + fld("01", "11") + fld("38", fld("00", "A005000000000001") + fld("01", "BCEL") + fld("02", "0300123456789")) +
+  fld("52", "5411") + fld("53", "418") + fld("58", "LA") + fld("59", "NOY SHOP") + fld("60", "VIENTIANE") + "6304";
+const LAKQR = lakBody + PQ.crc16(lakBody);
+await ok("the checksum matches the EMVCo specification's example", async () => {
+  eq(PQ.crc16(SPEC.slice(0, -4)), "A13A", "crc");
+  eq(PQ.parseEmv(SPEC)?.length, 15, "fields");
+});
+await ok("a QR with a wrong checksum, or not EMVCo, is not read as one", async () => {
+  eq(PQ.parseEmv(SPEC.slice(0, -4) + "0000"), null, "bad crc");
+  eq(PQ.parseEmv("https://example.com/pay"), null, "url");
+  eq(PQ.parseEmv(""), null, "empty");
+});
+await ok("the merchant name and kip currency are recognised", async () => {
+  const d = PQ.describe(LAKQR);
+  eq(`${d.emv} ${d.amountable} ${d.merchant}`, "true true NOY SHOP", "describe");
+  eq(PQ.describe(SPEC).amountable, false, "yuan QR takes no kip amount");
+});
+await ok("the total goes into field 54 with a fresh, valid checksum", async () => {
+  const s = PQ.withAmount(LAKQR, 125000);
+  const f = PQ.parseEmv(s);
+  if (!f) throw new Error("result is not a valid QR");
+  eq(f.find((x) => x.id == "54").value, "125000", "amount");
+  eq(f.find((x) => x.id == "01").value, "12", "one-payment QR");
+  eq(f.map((x) => x.id).join(","), "00,01,38,52,53,54,58,59,60,63", "field order");
+  // Filling in again replaces the amount rather than adding a second one.
+  eq(PQ.parseEmv(PQ.withAmount(s, 9000)).filter((x) => x.id == "54").map((x) => x.value).join(), "9000", "replaced");
+});
+await ok("no amount is forced into a QR that can't carry one", async () => {
+  eq(PQ.withAmount(SPEC, 1000), null, "other currency");
+  eq(PQ.withAmount("not a bank qr", 1000), null, "plain text");
+  eq(PQ.withAmount(LAKQR, 0), null, "zero");
+  eq(PQ.withAmount(LAKQR, Infinity), null, "infinite");
+  const t = PQ.tillQr("not a bank qr", 5000);
+  eq(`${t.text} ${t.hasAmount}`, "not a bank qr false", "shown as scanned");
+  eq(PQ.tillQr(LAKQR, 5000, false).text, LAKQR, "owner turned the amount off");
+});
+await ok("the QR picture is drawn black on white", async () => {
+  const svg = PQ.qrSvg(PQ.withAmount(LAKQR, 125000));
+  if (!svg.startsWith("<svg") || !svg.includes('fill="#fff"') || !svg.includes('fill="#000"')) throw new Error("bad svg");
+  PQ.qrSvg("ຮ້ານນ້ອຍ"); // Lao text encodes without throwing
+});
+
 console.log(fails ? `\n${fails} FAILED` : "\nAll unit checks passed");
 process.exit(fails ? 1 : 0);

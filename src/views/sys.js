@@ -2,6 +2,31 @@ import { E } from "../lib/util.js";
 import { t, tn, lang, LANGS, fDate, fDateTime } from "../i18n/index.js";
 import { isOwner, configured, myTill, canWrite } from "../data/store.js";
 import { marketKipPer } from "../lib/rates.js";
+import { describe, tillQr, qrSvg } from "../lib/payqr.js";
+
+// Owner only: the shop's bank QR, which the till shows for transfer payments.
+// Staff never see this card, so they can't point payments at another account
+// (the database refuses that too).
+function payQr(s) {
+  if (!isOwner()) return "";
+  const qr = s.settings.pay_qr;
+  if (!qr)
+    return `<div class="card"><h3>${t("sys.payQr")}</h3><p class="mut">${t("sys.payQrNote")}</p><div class="row mt"><button class="g" data-act="payQrSet">${t(
+      "sys.payQrAdd",
+    )}</button></div></div>`;
+  const d = describe(qr),
+    on = s.settings.pay_qr_amount !== false,
+    sample = tillQr(qr, 1000, on);
+  return `<div class="card"><h3>${t("sys.payQr")}</h3><div class="payqr-set"><div class="payqr sm">${qrSvg(sample.text)}</div><div><p>${
+    d.merchant ? `<b>${E(d.merchant)}</b>` : t("sys.payQrSaved")
+  }</p><p class="mut">${t(d.amountable ? "sys.payQrAmountable" : "sys.payQrStatic")}</p>${
+    d.amountable
+      ? `<label class="chk mt"><input type="checkbox" data-input="setting" data-key="pay_qr_amount"${on ? " checked" : ""}> ${t("sys.payQrPutAmount")}</label>`
+      : ""
+  }</div></div><p class="mut mt">${t("sys.payQrTest")}</p><div class="row mt"><button class="g" data-act="payQrSet">${t(
+    "sys.payQrChange",
+  )}</button><button class="g" data-act="payQrDel">${t("sys.payQrDel")}</button></div></div>`;
+}
 
 // The devices that sell. The plan sets how many can be in use; the owner
 // retires an old phone to make room for a new one.
@@ -83,7 +108,7 @@ export default function sys(s) {
     configured
       ? `<div class="row mt"><button class="g" data-act="signOut">${t("sys.signOut")}</button></div>`
       : `<p class="mut mt">${t("sys.localNote")}</p>`
-  }</div>${prices(s)}${staff(s)}${tills(s)}
+  }</div>${prices(s)}${payQr(s)}${staff(s)}${tills(s)}
 <div class="card"><h3>${t("sys.lang")}</h3><div class="row mt"><select data-input="lang">${LANGS.map(
     ([c, n]) => `<option value="${c}" ${c == lang() ? "selected" : ""}>${n}</option>`,
   ).join("")}</select></div></div>

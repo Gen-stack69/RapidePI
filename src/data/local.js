@@ -12,7 +12,7 @@ const KEY = "rapidewms.local";
 const uid = () => crypto.randomUUID();
 const nowIso = () => new Date().toISOString();
 
-const SETTINGS = { low_alert: true, auto_reorder: false, vat_rate: 10, expiry_days: 30, rates: {} };
+const SETTINGS = { low_alert: true, auto_reorder: false, vat_rate: 10, expiry_days: 30, rates: {}, pay_qr: null, pay_qr_amount: true };
 let db = load();
 function load() {
   let d = null;

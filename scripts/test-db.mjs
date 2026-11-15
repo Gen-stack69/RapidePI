@@ -659,6 +659,31 @@ await rejects("the owner cannot set an Infinity price either", () =>
   as(B, "update items set price = 'Infinity' where id = $1", [gin]));
 await ok("the gin's stock is untouched by all of that", async () => eq(await qtyOf(gin), 10, "qty"));
 
+// 009_pay_qr.sql. Shop B: B is the owner, C is staff.
+console.log("QR payment");
+await ok("the owner saves the shop's bank QR; the amount is on by default", async () => {
+  const r = await one(B, "update settings set pay_qr = '000201SHOPQR' where shop_id = $1 returning pay_qr, pay_qr_amount", [shopB]);
+  eq(`${r.pay_qr} ${r.pay_qr_amount}`, "000201SHOPQR true", "settings");
+});
+await ok("a cashier's till can read it", async () =>
+  eq((await one(C, "select pay_qr from settings where shop_id = $1", [shopB])).pay_qr, "000201SHOPQR", "qr"));
+await ok("a cashier cannot swap in their own QR (0 rows)", async () => {
+  const r = await as(C, "update settings set pay_qr = 'CASHIER-OWN-ACCOUNT' where shop_id = $1 returning 1", [shopB]);
+  eq(r.rows.length, 0, "rows");
+  eq((await one(B, "select pay_qr from settings where shop_id = $1", [shopB])).pay_qr, "000201SHOPQR", "unchanged");
+});
+await rejects("another shop cannot read or change it", async () => {
+  const r = await as(A, "update settings set pay_qr = 'X' where shop_id = $1 returning 1", [shopB]);
+  if (!r.rows.length) throw new Error("no rows");
+});
+await rejects("an empty or oversized QR is refused", () =>
+  as(B, "update settings set pay_qr = repeat('x', 513) where shop_id = $1", [shopB]));
+await ok("the owner turns the amount off and removes the QR", async () => {
+  await as(B, "update settings set pay_qr_amount = false, pay_qr = null where shop_id = $1", [shopB]);
+  const r = await one(B, "select pay_qr, pay_qr_amount from settings where shop_id = $1", [shopB]);
+  eq(`${r.pay_qr} ${r.pay_qr_amount}`, "null false", "settings");
+});
+
 console.log("Billing");
 await rejects("owner cannot extend own plan", () =>
   as(A, "update shops set plan_until = now() + interval '10 years' where id = $1", [shopA]));

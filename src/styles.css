@@ -643,6 +643,63 @@ tr.void td {
   background: #6d33e8;
   border-color: #8b5cf6;
 }
+/* Bank QR: always black on white with a white border, or bank apps can't read it in the dark theme. */
+.payqr {
+  background: #fff;
+  border-radius: 12px;
+  padding: 6px;
+  margin: 12px auto 0;
+  width: min(100%, 240px);
+  line-height: 0;
+}
+.payqr svg {
+  width: 100%;
+  height: auto;
+}
+.payqr.sm {
+  width: 132px;
+  margin: 0;
+  flex: 0 0 132px;
+}
+.payqr.big {
+  width: min(100%, 62vh, 420px);
+}
+#pqrbox {
+  text-align: center;
+}
+#pqrbox > .g {
+  width: 100%;
+  justify-content: center;
+  margin-top: 8px;
+}
+.payqr-set {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  margin-top: 10px;
+}
+.chk {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.chk input {
+  flex: 0 0 22px;
+  width: 22px;
+  height: 22px;
+}
+.qrdlg {
+  text-align: center;
+}
+.qrdlg h3,
+.qrdlg .row {
+  justify-content: center;
+}
+.qrdlg .n.big {
+  font-size: clamp(30px, 8vw, 48px);
+  margin-top: 10px;
+}
 .quick {
   margin-top: 8px;
 }

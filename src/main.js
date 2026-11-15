@@ -483,6 +483,31 @@ const A = {
   posCut: (el) => till.toggleCut(el.dataset.id),
   posClear: () => till.clear(),
   posMethod: (el) => till.setMethod(el.dataset.m),
+  posQrBig: () => till.showQr(),
+  // ---- bank QR (owner, in Shop & backup) ----
+  // A photo or screenshot of the shop's QR sticker. On a phone this opens the
+  // camera; on a PC, the file picker (a screenshot from the bank app works).
+  async payQrSet(el) {
+    if (!needWrite()) return;
+    const photo = await pickPhoto();
+    if (!photo) return;
+    const label = el.textContent;
+    el.textContent = t("sys.payQrReading");
+    try {
+      const { detectImage, isQr } = await import("./lib/camera.js");
+      const code = (await detectImage(photo)).find((c) => isQr(c.format) && c.rawValue)?.rawValue;
+      if (!code) return toast(t("sys.payQrNone"), true);
+      if (code.length > 512) return toast(t("sys.payQrLong"), true);
+      await store.setSetting("pay_qr", code);
+      toast(t("sys.payQrDone"));
+    } finally {
+      el.textContent = label;
+    }
+  },
+  async payQrDel() {
+    if (!needWrite() || !confirm(t("ask.payQrDel"))) return;
+    await store.setSetting("pay_qr", null);
+  },
   posQuick: (el) => till.quick(el.dataset.v),
   async posCharge() {
     try {

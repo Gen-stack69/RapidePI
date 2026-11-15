@@ -10,6 +10,40 @@ import { lookupCode, status } from "../lib/expiry.js";
 import { receiptHtml, printReceipt } from "../lib/receipt.js";
 import { isQr } from "../lib/camera.js";
 import { linePrice, priceOf, vatOf, saleNo } from "../data/apply.js";
+import { describe, tillQr, qrSvg } from "../lib/payqr.js";
+
+// The shop's bank QR for this total, or null when there is nothing to show.
+function payQr(total) {
+  const code = state.settings.pay_qr;
+  if (st.method != "transfer" || !code || !(total > 0)) return null;
+  return { ...tillQr(code, total, state.settings.pay_qr_amount !== false), merchant: describe(code).merchant };
+}
+
+// Redrawn only when the QR or the total changes: refresh() runs on every keystroke.
+function qrBoxHtml(total) {
+  const q = payQr(total);
+  if (!q)
+    return st.method == "transfer" && !state.settings.pay_qr && isOwner() ? `<p class="mut mt">${t("pos.qrSetUp")}</p>` : "";
+  return `<div class="payqr">${qrSvg(q.text)}</div>${q.merchant ? `<p class="mt"><b>${E(q.merchant)}</b></p>` : ""}<p class="mut">${t(
+    q.hasAmount ? "pos.qrHasAmount" : "pos.qrTypeAmount",
+    { total: fmt(total) },
+  )}</p><button class="g" data-act="posQrBig">${t("pos.qrBig")}</button>`;
+}
+
+/** The QR full-screen, to turn towards the customer. */
+export function showQr() {
+  const total = totals().total,
+    q = payQr(total);
+  if (!q) return;
+  const dlg = $("#dlg");
+  dlg.innerHTML = `<div class="qrdlg">${q.merchant ? `<h3>${E(q.merchant)}</h3>` : ""}<div class="payqr big">${qrSvg(
+    q.text,
+  )}</div><b class="n big">${fmt(total)}</b><p class="mut">${t(q.hasAmount ? "pos.qrHasAmount" : "pos.qrTypeAmount", {
+    total: fmt(total),
+  })}</p><div class="row mt"><button class="b" data-act="closeDlg">${t("btn.close")}</button></div></div>`;
+  dlg.showModal();
+  dlg.querySelector(".b").focus();
+}
 
 // cid: this sale's id for the database, made once and kept across retries, so
 // a sale resent after a dropped connection is not sold twice. Any change to
@@ -343,6 +377,12 @@ export function refresh() {
   $("#pchg").textContent = tt.change >= 0 ? fmt(tt.change) : "−" + fmt(-tt.change);
   $("#pchg").className = "n " + (tt.change >= 0 ? "in" : "bad");
   $("#pcashbox").hidden = st.method != "cash";
+  const qb = $("#pqrbox"),
+    qrHtml = st.cart.length ? qrBoxHtml(tt.total) : "";
+  if (qb && qb.dataset.html != qrHtml) {
+    qb.innerHTML = qrHtml;
+    qb.dataset.html = qrHtml;
+  }
   $("#pquick").innerHTML = quickHtml(tt.total);
   document.querySelectorAll("[data-act=posMethod]").forEach((b) => b.classList.toggle("on", b.dataset.m == st.method));
   $("#ptill").hidden = !noTill();
@@ -388,7 +428,7 @@ export default function pos() {
     "pos.cash",
   )}</button><button class="g" data-act="posMethod" data-m="transfer">${t(
     "pos.transfer",
-  )}</button></div><div id="pcashbox"><label class="mt">${t(
+  )}</button></div><div id="pqrbox"></div><div id="pcashbox"><label class="mt">${t(
     "pos.received",
   )}<input id="ppaid" type="number" min="0" step="any" data-input="pos" value="${E(
     st.paid,
