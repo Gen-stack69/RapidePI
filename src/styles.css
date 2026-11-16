@@ -642,6 +642,12 @@ tr.void td {
 .pos > div:first-child > * + * {
   margin-top: 22px;
 }
+/* The payment card's own column, as tall as the cart beside it. The card
+   stays in view while the cart scrolls, but only within this column, so it
+   can never slide down over Today's sales below. */
+.paycol {
+  align-self: stretch;
+}
 .pos .wide {
   grid-column: 1 / -1;
 }

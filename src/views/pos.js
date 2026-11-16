@@ -420,7 +420,7 @@ export default function pos() {
     t("pos.search"),
   )}" value="${E(st.q)}"><button class="g" data-act="posCam">${t("pos.cam")}</button></div><div id="psug" class="sug"></div><div id="rd"></div></div><div class="card ts"><h3>${t(
     "pos.cart",
-  )}<small id="pcount"></small></h3><div id="cart"></div></div></div><div class="card pay"><div id="pcustbox"></div><div class="sh">${t(
+  )}<small id="pcount"></small></h3><div id="cart"></div></div></div><div class="paycol"><div class="card pay"><div id="pcustbox"></div><div class="sh">${t(
     "pos.subtotal",
   )}<b id="psub"></b></div><label class="mt">${t("pos.discount")}<input id="pdisc" type="number" min="0" step="any" data-input="pos" value="${E(
     st.discount,
@@ -436,5 +436,5 @@ export default function pos() {
     "pos.change",
   )}</div><b class="n" id="pchg"></b></div><p class="plan expired mt" id="ptill" hidden></p><button class="b charge" id="pcharge" data-act="posCharge">${t(
     "pos.charge",
-  )}</button><button class="g mt" data-act="posClear">${t("pos.clear")}</button></div><div class="card ts wide" id="psales"></div></div>`;
+  )}</button><button class="g mt" data-act="posClear">${t("pos.clear")}</button></div></div><div class="card ts wide" id="psales"></div></div>`;
 }
