@@ -519,7 +519,9 @@ const A = {
   posReceipt: (el) => till.showReceipt(el.dataset.id),
   posPrint: (el) => till.printSale(el.dataset.id),
   posVoid: (el) => till.voidIt(el.dataset.id),
-  posCam: () => (scanner.active() ? scanner.cam(false) : scanner.cam(true, till.addCode)),
+  // The till reads one aimed code at a time, so a barcode in the background
+  // is never rung up by mistake.
+  posCam: () => (scanner.active() ? scanner.cam(false) : scanner.cam(true, till.addCode, { single: true })),
   closeDlg: () => $("#dlg").close(),
   quickScan: () => go("scan", true),
   scanView: () => go("scan"),

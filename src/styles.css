@@ -631,6 +631,28 @@ tr.void td {
   right: 10px;
   bottom: 10px;
 }
+/* Single-scan mode (the till): what the aim box is for, or why nothing was read. */
+/* At the top, in the dimmed strip above the aim box, so it never covers a barcode. */
+.cam .camhint {
+  position: absolute;
+  left: 50%;
+  top: 8px;
+  transform: translateX(-50%);
+  max-width: calc(100% - 24px);
+  padding: 4px 12px;
+  border-radius: 99px;
+  background: rgba(6, 4, 13, 0.78);
+  border: 1px solid #5b3fb5;
+  color: #ece8f8;
+  font-size: 12px;
+  line-height: 1.4;
+  text-align: center;
+  pointer-events: none;
+}
+.cam .camhint.warn {
+  border-color: #fbbf24;
+  color: #fbbf24;
+}
 
 /* ---------- the till ---------- */
 .pos {

@@ -10,14 +10,17 @@ let last = "",
 
 export const active = camera.active;
 
-/** Camera on or off in the #rd box of the current screen. `handler` gets each code. */
-export async function cam(on, handler = onScan) {
+/**
+ * Camera on or off in the #rd box of the current screen. `handler` gets each
+ * code. `opts.single` reads one aimed code at a time (the till); see camera.js.
+ */
+export async function cam(on, handler = onScan, opts = {}) {
   await camera.stop();
   if (!on) return;
   const host = $("#rd");
   if (!host) return;
   try {
-    await camera.start(host, handler);
+    await camera.start(host, handler, opts);
   } catch {
     host.innerHTML = "";
     toast(t("scan.blocked"), true);
@@ -59,13 +62,42 @@ export async function askExpiry(it, current = "") {
 const kindTag = (format) =>
   format ? `<span class="tag">${camera.isQr(format) ? t("scan.qr") : t("scan.barcode", { f: camera.formatName(format) })}</span> ` : "";
 
-export async function onScan(c, format) {
+// Scans are handled one at a time, in the order they were read. The camera can
+// read several codes in one frame, and receiving a consumable stops to ask for
+// its expiry date; codes read meanwhile used to be dropped without a word
+// (3 cans scanned, 1 received). Now they wait here until the dialog closes.
+let queue = Promise.resolve(),
+  pending = 0; // scans read but not yet handled, including the one in progress
+const dialogClosed = () =>
+  new Promise((res) => {
+    const d = $("#dlg");
+    if (!d?.open) return res();
+    d.addEventListener("close", () => setTimeout(res), { once: true });
+  });
+
+export function onScan(c, format) {
   c = String(c).trim();
   const n = Date.now();
-  if (!c || (c == last && n - lt < 2500) || $("#dlg").open) return;
+  if (!c || (c == last && n - lt < 2500)) return queue;
   last = c;
   lt = n;
   navigator.vibrate?.(90);
+  // Say so when a code has to wait behind another one or behind an open
+  // dialog, so nobody scans it a second time.
+  if (pending || $("#dlg").open) log(`<span class="mut">${t("scan.waiting", { code: `<b>${E(c)}</b>` })}</span>`);
+  pending++;
+  queue = queue
+    .then(async () => {
+      // Wait until no dialog is open, including one opened by the previous scan.
+      while ($("#dlg").open) await dialogClosed();
+      await handle(c, format);
+    })
+    .catch(() => {})
+    .finally(() => pending--);
+  return queue;
+}
+
+async function handle(c, format) {
   const { item: it, pack, code, expiry: printed } = lookupCode(state.items, c, state.packs),
     m = $("#mode").value,
     // A carton's barcode moves the carton's worth of units.

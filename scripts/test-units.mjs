@@ -573,5 +573,60 @@ await ok("the QR picture is drawn black on white", async () => {
   PQ.qrSvg("ຮ້ານນ້ອຍ"); // Lao text encodes without throwing
 });
 
+console.log("Till single-scan aim box");
+{
+  const { aimed } = await import("../src/lib/aim.js");
+  // A 1280×720 frame: the aim box runs from (192,180) to (1088,540).
+  const W = 1280,
+    H = 720;
+  const code = (rawValue, cx, cy) => ({
+    rawValue,
+    format: "ean_13",
+    boundingBox: { x: cx - 100, y: cy - 40, width: 200, height: 80 },
+  });
+  const names = (l) => l.map((b) => b.rawValue).join(",");
+
+  await ok("one product in the box is read", async () => {
+    const a = aimed([code("A", 640, 360)], W, H);
+    eq(names(a.inBox), "A", "in the box");
+    eq(a.many, false, "not ambiguous");
+  });
+  await ok("a barcode outside the box is ignored, the aimed one still read", async () => {
+    // The shelf behind the product: top-left corner of the picture.
+    const a = aimed([code("SHELF", 90, 60), code("A", 640, 360)], W, H);
+    eq(names(a.inBox), "A", "aimed");
+    eq(names(a.ignored), "SHELF", "ignored");
+    eq(a.many, false, "not ambiguous");
+  });
+  await ok("two different products in the box read nothing", async () => {
+    const a = aimed([code("A", 500, 360), code("B", 800, 360)], W, H);
+    eq(a.many, true, "ambiguous");
+  });
+  await ok("the same code twice in the box (two identical cans) is one product", async () => {
+    const a = aimed([code("A", 500, 360), code("A", 800, 360)], W, H);
+    eq(a.many, false, "not ambiguous");
+  });
+  await ok("the box edge goes by the barcode's centre, and corner points win", async () => {
+    eq(aimed([code("EDGE", 1088, 540)], W, H).inBox.length, 1, "centre on the edge counts");
+    eq(aimed([code("OUT", 1089, 360)], W, H).inBox.length, 0, "centre just outside");
+    // A tilted code: corner points say it sits in the middle, whatever its box says.
+    const tilted = {
+      rawValue: "T",
+      boundingBox: { x: 0, y: 0, width: 10, height: 10 },
+      cornerPoints: [
+        { x: 600, y: 330 },
+        { x: 700, y: 340 },
+        { x: 690, y: 400 },
+        { x: 590, y: 390 },
+      ],
+    };
+    eq(aimed([tilted], W, H).inBox.length, 1, "tilted code in the middle");
+  });
+  await ok("empty and unreadable codes are skipped", async () => {
+    const a = aimed([{ rawValue: "", boundingBox: { x: 600, y: 330, width: 50, height: 20 } }], W, H);
+    eq(a.inBox.length + a.ignored.length, 0, "nothing kept");
+  });
+}
+
 console.log(fails ? `\n${fails} FAILED` : "\nAll unit checks passed");
 process.exit(fails ? 1 : 0);

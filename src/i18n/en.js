@@ -602,4 +602,7 @@ export default {
   "pos.qrHasAmount": "The customer scans with their bank app; {total} is filled in. Tap Charge once you see the payment.",
   "pos.qrTypeAmount": "The customer scans with their bank app and types {total}. Tap Charge once you see the payment.",
   "pos.qrBig": "⛶ Show the customer",
+  "scan.waiting": "⏳ {code} read – waiting its turn",
+  "cam.aim": "Aim at one product, inside the box",
+  "cam.many": "2 codes in the box – aim at one product",
 };

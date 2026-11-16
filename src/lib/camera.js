@@ -8,6 +8,8 @@
 // turned 45° (see turned()). The WebAssembly file ships
 // with the app, so scanning works offline.
 import wasmUrl from "zxing-wasm/reader/zxing_reader.wasm?url";
+import { t } from "../i18n/index.js";
+import { AIM, aimed, corners } from "./aim.js";
 
 // Everything a shop meets: retail barcodes, shipping labels, QR, and the
 // GS1 DataMatrix that carries expiry dates on medicine.
@@ -105,13 +107,28 @@ export const active = () => !!cur;
  * barcode comes into view. The same code is reported again only after it has
  * been out of view for a moment, so holding a product still adds it once, and
  * taking it away and back adds it again — how a supermarket scanner behaves.
+ *
+ * Normally every code in view is read, which makes receiving a pallet fast.
+ * With `single`, as at the till, only a code inside the aim box is read, and
+ * nothing is read while two different codes are in it, so a barcode in the
+ * background can never be rung up by mistake.
  */
-export async function start(host, onCode) {
+export async function start(host, onCode, { single = false } = {}) {
   await stop();
-  host.innerHTML = `<div class="cam"><video playsinline muted></video><canvas></canvas><button type="button" class="g torch" hidden>🔦</button></div>`;
+  host.innerHTML = `<div class="cam${single ? " cam--single" : ""}"><video playsinline muted></video><canvas></canvas>${
+    single ? `<div class="camhint" aria-live="polite"></div>` : ""
+  }<button type="button" class="g torch" hidden>🔦</button></div>`;
   const video = host.querySelector("video"),
     overlay = host.querySelector("canvas"),
-    torch = host.querySelector(".torch");
+    torch = host.querySelector(".torch"),
+    hint = host.querySelector(".camhint");
+  const say = (key) => {
+    if (!hint || hint.dataset.key == key) return;
+    hint.dataset.key = key;
+    hint.textContent = t(key);
+    hint.classList.toggle("warn", key == "cam.many");
+  };
+  say("cam.aim");
   const stream = await navigator.mediaDevices.getUserMedia({
     audio: false,
     video: { facingMode: { ideal: "environment" }, width: { ideal: 1280 }, height: { ideal: 720 } },
@@ -143,7 +160,23 @@ export async function start(host, onCode) {
         if (!found.length && engine.name == "zxing") found = await turned(det, video, 45);
       } catch {}
       const now = performance.now();
-      for (const b of found) {
+      let read = found;
+      if (single) {
+        const a = aimed(found, video.videoWidth, video.videoHeight);
+        for (const b of a.ignored) boxes.push({ ...b, at: now, look: "ignored" });
+        if (a.many) {
+          // Read nothing, but keep codes that were already read "in view", so
+          // the product already rung up is not rung up again once the other
+          // one leaves the box.
+          for (const b of a.inBox) {
+            if (seen.has(b.rawValue)) seen.set(b.rawValue, now);
+            boxes.push({ ...b, at: now, look: "many" });
+          }
+          read = [];
+        } else read = a.inBox;
+        say(a.many ? "cam.many" : "cam.aim");
+      }
+      for (const b of read) {
         if (!b.rawValue) continue;
         const last = seen.get(b.rawValue);
         seen.set(b.rawValue, now);
@@ -154,7 +187,7 @@ export async function start(host, onCode) {
         }
       }
       for (const [k, t] of seen) if (now - t > GONE) seen.delete(k);
-      draw(overlay, video, boxes.filter((b) => now - b.at < 350));
+      draw(overlay, video, boxes.filter((b) => now - b.at < 350), single);
       boxes.splice(0, boxes.length, ...boxes.filter((b) => now - b.at < 350));
     }
     // Fast enough to feel instant, slow enough to leave a cheap phone breathing.
@@ -173,8 +206,16 @@ export async function stop() {
   c.video.srcObject = null;
 }
 
+// How each kind of box looks: green = read, amber = in the aim box with another
+// code (not read), grey = outside the aim box (not read).
+const LOOK = {
+  read: { fill: "rgba(74,222,128,.22)", line: "#4ade80" },
+  many: { fill: "rgba(251,191,36,.22)", line: "#fbbf24" },
+  ignored: { fill: "rgba(236,232,248,.08)", line: "#cfc8ea", dash: true },
+};
+
 // Outline each barcode where it sits in the picture, at whatever angle.
-function draw(canvas, video, found) {
+function draw(canvas, video, found, single = false) {
   const w = video.videoWidth,
     h = video.videoHeight;
   if (canvas.width != w) canvas.width = w;
@@ -182,16 +223,48 @@ function draw(canvas, video, found) {
   const g = canvas.getContext("2d");
   g.clearRect(0, 0, w, h);
   const lw = Math.max(3, w / 220);
+  if (single) {
+    // The aim box: dim everything outside it, then mark its corners.
+    const x = AIM.x * w,
+      y = AIM.y * h,
+      bw = AIM.w * w,
+      bh = AIM.h * h,
+      k = Math.min(bw, bh) * 0.14;
+    g.fillStyle = "rgba(6,4,13,.45)";
+    g.fillRect(0, 0, w, y);
+    g.fillRect(0, y + bh, w, h - y - bh);
+    g.fillRect(0, y, x, bh);
+    g.fillRect(x + bw, y, w - x - bw, bh);
+    g.lineWidth = lw;
+    g.strokeStyle = "#c4b5fd";
+    g.beginPath();
+    for (const [cx, cy, dx, dy] of [
+      [x, y, 1, 1],
+      [x + bw, y, -1, 1],
+      [x + bw, y + bh, -1, -1],
+      [x, y + bh, 1, -1],
+    ]) {
+      g.moveTo(cx + dx * k, cy);
+      g.lineTo(cx, cy);
+      g.lineTo(cx, cy + dy * k);
+    }
+    g.stroke();
+  }
   for (const b of found) {
+    const look = LOOK[b.look] || LOOK.read;
     const p = b.cornerPoints?.length == 4 ? b.cornerPoints : corners(b.boundingBox);
     g.beginPath();
     p.forEach((q, i) => (i ? g.lineTo(q.x, q.y) : g.moveTo(q.x, q.y)));
     g.closePath();
-    g.fillStyle = "rgba(74,222,128,.22)";
+    g.fillStyle = look.fill;
     g.fill();
     g.lineWidth = lw;
-    g.strokeStyle = "#4ade80";
+    g.strokeStyle = look.line;
+    g.setLineDash(look.dash ? [lw * 3, lw * 2] : []);
     g.stroke();
+    g.setLineDash([]);
+    // Only codes that count get a label; a dashed one is just "seen, ignored".
+    if (b.look == "ignored") continue;
     const top = p.reduce((a, q) => (q.y < a.y ? q : a));
     g.font = `600 ${Math.round(lw * 6)}px system-ui, sans-serif`;
     const label = b.rawValue.length > 24 ? b.rawValue.slice(0, 23) + "…" : b.rawValue,
@@ -199,19 +272,12 @@ function draw(canvas, video, found) {
       th = lw * 9,
       x = Math.min(Math.max(top.x - tw / 2, 0), w - tw),
       y = Math.max(top.y - th - lw * 2, 0);
-    g.fillStyle = "#4ade80";
+    g.fillStyle = look.line;
     g.fillRect(x, y, tw, th);
     g.fillStyle = "#06040d";
     g.fillText(label, x + lw * 2, y + th - lw * 2.5);
   }
 }
-
-const corners = (r) => [
-  { x: r.x, y: r.y },
-  { x: r.x + r.width, y: r.y },
-  { x: r.x + r.width, y: r.y + r.height },
-  { x: r.x, y: r.y + r.height },
-];
 
 // A short till beep, so the cashier knows without looking at the screen.
 let audio = null;
