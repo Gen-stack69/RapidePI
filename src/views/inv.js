@@ -45,7 +45,7 @@ export function rows(s) {
     const low = +i.qty < +i.min_qty,
       id = E(i.id),
       e = next.get(i.id),
-      td = (j, v, cls) => `<td data-l="${l[j]}"${cls ? ` class="${cls}"` : ""}>${v}</td>`,
+      td = (j, v, cls) => `<td data-l="${l[j]}"${cls ? ` class="${cls}"` : ""}><span class="v">${v}</span></td>`,
       kind = i.kind == "consumable" ? "consumable" : "durable";
     // Its packs ("Carton × 24 · ₭210,000"); the owner taps one to change it.
     const packs = s.packs
@@ -65,7 +65,7 @@ export function rows(s) {
     const cost =
       fmt(i.cost) +
       (i.cost_currency && i.cost_currency != "LAK" ? `<br><small class="mut">${SIGN[i.cost_currency]}${num(i.cost_orig)}</small>` : "");
-    return `<tr>${td(0, `<b>${E(i.sku)}</b>`)}${td(1, name, "nm")}${td(2, E(i.category))}${td(
+    return `<tr>${td(0, `<b>${E(i.sku)}</b>`, "sku")}${td(1, name, "nm")}${td(2, E(i.category))}${td(
       3,
       num(i.qty) + (i.unit ? " " + E(i.unit) : "") + (low ? " ⚠" : ""),
       low ? "warn" : "",

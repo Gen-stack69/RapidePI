@@ -7,7 +7,7 @@ const COLS = ["th.date", "th.type", "th.sku", "th.qty", "th.party", "th.status"]
 export default function ord(s) {
   const sku = (id) => s.items.find((i) => i.id == id)?.sku ?? t("ord.deletedItem"),
     l = COLS.map((k) => E(t(k))),
-    td = (j, v) => `<td data-l="${l[j]}">${v}</td>`;
+    td = (j, v) => `<td data-l="${l[j]}"><span class="v">${v}</span></td>`;
   const list = s.orders.length
     ? s.orders
         .map(

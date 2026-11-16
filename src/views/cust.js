@@ -11,7 +11,7 @@ const COLS = ["cust.name", "cust.phone", "cust.visits", "cust.spent", "cust.last
 export function rows(s) {
   const q = ui.q.trim().toLowerCase(),
     l = COLS.map((k) => E(t(k))),
-    td = (j, v) => `<td data-l="${l[j]}">${v}</td>`,
+    td = (j, v) => `<td data-l="${l[j]}"><span class="v">${v}</span></td>`,
     list = s.customers.filter(
       (c) => !q || c.name.toLowerCase().includes(q) || (c.phone || "").replace(/\s/g, "").includes(q.replace(/\s/g, "")),
     );

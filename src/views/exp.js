@@ -19,7 +19,7 @@ export default function exp(s) {
         +i.qty > lots.filter((l) => l.item_id == i.id).reduce((a, l) => a + +l.qty, 0),
     ),
     l = COLS.map((k) => E(t(k))),
-    td = (j, v, cls) => `<td data-l="${l[j]}"${cls ? ` class="${cls}"` : ""}>${v}</td>`;
+    td = (j, v, cls) => `<td data-l="${l[j]}"${cls ? ` class="${cls}"` : ""}><span class="v">${v}</span></td>`;
   const row = (lot) => {
     const it = byId.get(lot.item_id),
       d = daysLeft(lot.expiry),

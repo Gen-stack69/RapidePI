@@ -271,6 +271,25 @@ td {
   border-bottom: 1px solid #1d1538;
   white-space: nowrap;
 }
+/* A long product name wraps and the row's buttons fold onto two lines, so the
+   whole inventory table, buttons included, fits a 1280px laptop without
+   scrolling sideways. */
+.rt td.nm {
+  white-space: normal;
+  min-width: 190px;
+}
+.rt td.nm .tag {
+  white-space: nowrap;
+}
+.rt td.act {
+  white-space: normal;
+  min-width: 168px;
+}
+/* Long SKUs (YOG-STRAWBERRY-500) break after a dash. */
+.rt td.sku {
+  white-space: normal;
+  max-width: 130px;
+}
 th {
   color: #9a90bd;
   font-weight: 500;
@@ -434,7 +453,14 @@ pre {
     white-space: normal;
     text-align: right;
   }
+  /* One block on the right: a name with its tag, pack and date stays together
+     instead of each piece becoming its own squeezed column. */
+  .rt td > .v {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
   .rt td:before {
+    flex: 0 0 auto;
     content: attr(data-l);
     color: #9a90bd;
     font-size: 12px;
