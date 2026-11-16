@@ -159,6 +159,11 @@ export const clear = () => {
   st.cart = [];
   st.discount = st.paid = "";
   st.cust = null;
+  // Every sale starts on Cash. Left on Transfer / QR, a cash sale would be
+  // recorded as a transfer without asking for the cash, and the drawer would
+  // not match the day's cash total. Forgetting to pick QR is harmless by
+  // comparison: Charge stays blocked until cash received is filled in.
+  st.method = "cash";
   changed();
   for (const s of ["#pdisc", "#ppaid"]) if ($(s)) $(s).value = "";
 };
