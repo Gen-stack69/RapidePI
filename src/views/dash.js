@@ -5,6 +5,8 @@ import { status } from "../lib/expiry.js";
 import { dt } from "../lib/util.js";
 import { saleNo } from "../data/apply.js";
 import { errText } from "../i18n/index.js";
+import { isOwner } from "../data/store.js";
+import { waitingBoxes } from "../data/fields.js";
 
 // What needs a person after work done offline: stock that went below zero,
 // sales the server flagged, and queued work it refused.
@@ -39,6 +41,23 @@ function checks(s) {
         )}</button> <button class="g" data-act="discardFailed" data-id="${E(r.id)}">${t("sync.discard")}</button></td></tr>`,
     ),
   ].join("")}</table></div>`;
+}
+
+// Boxes received before anyone counted what is inside one: not in stock yet.
+// Counting one box puts every waiting box of that kind into stock.
+function waiting(s) {
+  const packs = s.packs
+    .map((p) => ({ p, n: waitingBoxes(s.packReceipts, p.id), it: s.items.find((i) => i.id == p.item_id) }))
+    .filter((x) => x.n && x.it);
+  if (!packs.length) return "";
+  return `<div class="card ts"><h3>${t("box.title")}<small>${t("box.sub")}</small></h3><table class="rt">${packs
+    .map(
+      ({ p, n, it }) =>
+        `<tr><td><b>${E(it.sku)}</b> ${E(it.name)}</td><td class="warn">${t("box.row", { n: num(n), pack: E(p.name) })}</td><td class="act">${
+          isOwner() || !+p.price ? `<button class="g" data-act="countPack" data-id="${E(p.id)}">${t("box.count")}</button>` : ""
+        }</td></tr>`,
+    )
+    .join("")}</table></div>`;
 }
 
 // Which currency the money tiles show (this device only).
@@ -97,6 +116,7 @@ export default function dash(s) {
     )
     .join("")}</div>
 ${checks(s)}
+${waiting(s)}
 <div class="charts"><div class="card"><h3>${t("dash.byCat")}<small>${t(
     "dash.unitsWord",
   )}</small></h3><svg viewBox="0 0 100 100" style="width:min(260px,70%);display:block;margin:20px auto">${seg}<circle r="27" cx="50" cy="50" fill="#0b0718"/></svg><div class="mut" style="text-align:center">${

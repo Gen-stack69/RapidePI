@@ -446,6 +446,56 @@ await ok("lookupCode finds a product by its pack's barcode", async () => {
   eq(X.lookupCode(d.items, "CR-1").item, undefined, "not without packs");
 });
 
+console.log("Receiving boxes (apply.js = receive_pack / set_pack_size)");
+const FB = await import("../src/data/fields.js");
+const boxDb = () => {
+  const d = packDb();
+  d.packs.push({ id: "p2", shop_id: "s", item_id: "i1", name: "Box", size: null, barcode: "BX-1", price: 0 });
+  d.pack_receipts = [];
+  return d;
+};
+const failsWith = (fn) => {
+  try {
+    fn();
+  } catch (e) {
+    return e.code;
+  }
+  return "no error";
+};
+await ok("boxes with no count wait and add nothing to stock", async () => {
+  const d = boxDb();
+  AP.receivePack(d, C0, "p2", 5, "2099-09-01");
+  eq(d.items[0].qty, 20, "stock");
+  eq(FB.waitingBoxes(d.pack_receipts, "p2"), 5, "waiting");
+});
+await ok("counting puts every waiting box in stock, at its date (as test-db)", async () => {
+  const d = boxDb();
+  AP.receivePack(d, C0, "p2", 5, "2099-09-01");
+  AP.setPackSize(d, C0, "p2", 12);
+  eq(d.items[0].qty, 80, "stock");
+  eq(FB.waitingBoxes(d.pack_receipts, "p2"), 0, "waiting");
+  eq(lotList(d).includes("2099-09-01:60"), true, "lot");
+});
+await ok("a counted box goes straight in; a wrong count is fixed by the boxes given", async () => {
+  const d = boxDb();
+  AP.receivePack(d, C0, "p1", 2); // crate of 6
+  eq(d.items[0].qty, 32, "after crates");
+  AP.setPackSize(d, C0, "p1", 5, 2);
+  eq(d.items[0].qty, 30, "fixed");
+  eq(d.movements.filter((m) => m.note == "box count fixed").reduce((a, m) => a + m.qty, 0), 2, "movement");
+});
+await ok("staff can't recount a priced pack; counts must be more than 1", async () => {
+  const d = boxDb();
+  eq(failsWith(() => AP.setPackSize(d, C0, "p1", 8, 0, false)), "err.noPerm", "priced");
+  eq(failsWith(() => AP.setPackSize(d, C0, "p2", 1)), "err.packSize", "size 1");
+  eq(failsWith(() => AP.receivePack(d, C0, "p2", 0)), "err.qtyPositive", "0 boxes");
+});
+await ok("a pack form may leave the count empty, but then it has no price", async () => {
+  eq(FB.packRow({ name: "Box", size: "" }).size, null, "count later");
+  eq(failsWith(() => FB.packRow({ name: "Box", size: "", price: 5000 })), "err.packCountFirst", "price first");
+  eq(failsWith(() => FB.packRow({ name: "Box", size: "1" })), "err.packSize", "size 1");
+});
+
 console.log("Import from another POS");
 const IM = await import("../src/lib/importer.js");
 const F = await import("../src/data/fields.js");

@@ -497,6 +497,78 @@ await rejects("a pack from another product is refused", async () => {
 });
 await ok("stock still equals its movements", balanced);
 
+// 010_receive_packs.sql. Shop B: B is the owner, C is staff.
+console.log("Receiving boxes");
+const waitingOf = async (pack) =>
+  +(await one(B, "select coalesce(sum(boxes), 0) n from pack_receipts where pack_id = $1 and size is null", [pack])).n;
+let box;
+await ok("staff links a box to a product, count not known yet", async () => {
+  box = (
+    await one(C, "insert into packs (shop_id, item_id, name, barcode) values ($1, $2, 'Box', 'BOX-1') returning id, size", [shopB, can])
+  );
+  eq(box.size, null, "size");
+  box = box.id;
+});
+await rejects("staff cannot add a pack with a price", () =>
+  as(C, "insert into packs (shop_id, item_id, name, size, price) values ($1, $2, 'Tray', 6, 5000)", [shopB, can]));
+await rejects("a pack with no count can't have a price", () =>
+  as(B, "insert into packs (shop_id, item_id, name, price) values ($1, $2, 'Crate', 5000)", [shopB, can]));
+await rejects("the count can't be written directly", () =>
+  as(B, "update packs set size = 6 where id = $1", [box]));
+let before;
+await ok("boxes with no count wait and add nothing to stock", async () => {
+  before = await qtyOf(can);
+  await as(C, "select receive_pack($1, 5, '2099-09-01', 'rcv-box-0001')", [box]);
+  eq(await qtyOf(can), before, "qty");
+  eq(await waitingOf(box), 5, "waiting boxes");
+});
+await ok("the same delivery sent twice is kept once", async () => {
+  await as(C, "select receive_pack($1, 5, '2099-09-01', 'rcv-box-0001')", [box]);
+  eq(await waitingOf(box), 5, "waiting boxes");
+});
+await rejects("a box with no count can't be sold", () =>
+  sellC("box-sale-1", [{ item_id: can, qty: 1, pack_id: box }]));
+await rejects("NaN boxes are refused", () => as(C, "select receive_pack($1, 'NaN', null, 'rcv-box-nan1')", [box]));
+await rejects("another shop can't receive into my box", () =>
+  as(A, "select receive_pack($1, 1, null, 'rcv-box-oth1')", [box]));
+await rejects("another shop can't count my box", () => as(A, "select set_pack_size($1, 12)", [box]));
+await ok("staff enters 12 a box: the 5 waiting boxes become 60, at their date", async () => {
+  await as(C, "select set_pack_size($1, 12)", [box]);
+  eq(await qtyOf(can), before + 60, "qty");
+  eq(await waitingOf(box), 0, "waiting boxes");
+  eq((await lotsOf(can)).includes("2099-09-01:60"), true, "lot " + (await lotsOf(can)));
+  await balanced();
+});
+await ok("once counted, a box received adds its count at once", async () => {
+  await as(C, "select receive_pack($1, 2, null, 'rcv-box-0002')", [box]);
+  eq(await qtyOf(can), before + 84, "qty");
+});
+await ok("a carton with its own count goes in the same way (24 each)", async () => {
+  await as(C, "select receive_pack($1, 1, null, 'rcv-ctn-0001')", [carton]);
+  eq(await qtyOf(can), before + 108, "qty");
+});
+await ok("a wrong count is fixed with one visible movement (7 boxes, 12 -> 10)", async () => {
+  await as(C, "select set_pack_size($1, 10, 7)", [box]);
+  eq(await qtyOf(can), before + 94, "qty");
+  // Out of each batch it comes from, like any stock leaving (stock_move).
+  const m = await one(B, "select string_agg(distinct type, ',') t, sum(qty) q from movements where item_id = $1 and note = 'box count fixed'", [can]);
+  eq(`${m.t} ${+m.q}`, "out 14", "movement");
+  eq(+(await one(B, "select size from packs where id = $1", [box])).size, 10, "size");
+  await balanced();
+});
+await rejects("a count must be more than 1", () => as(C, "select set_pack_size($1, 1)", [box]));
+await ok("the owner prices the box", async () => {
+  await as(B, "update packs set price = 95000 where id = $1", [box]);
+});
+await rejects("staff can't recount a priced box", () => as(C, "select set_pack_size($1, 12)", [box]));
+await rejects("staff can't rename or reprice a priced box", () =>
+  as(C, "update packs set name = 'Cheap', price = 1 where id = $1", [box]));
+await rejects("staff can't delete a pack", async () => {
+  const r = await as(C, "delete from packs where id = $1", [box]);
+  if (!r.affectedRows) throw new Error("no change");
+});
+await ok("stock still equals its movements", balanced);
+
 console.log("Customers and import");
 let cust;
 await ok("staff adds a customer", async () => {

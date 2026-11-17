@@ -5,7 +5,8 @@ export const state = {
   role: null, // 'owner' | 'staff'
   settings: { low_alert: true, auto_reorder: false, vat_rate: 10, expiry_days: 30, rates: {} },
   items: [],
-  packs: [], // bigger units of a product: { id, item_id, name, size, barcode, price }
+  packs: [], // bigger units of a product: { id, item_id, name, size (null: not counted yet), barcode, price, sized_at }
+  packReceipts: [], // boxes received: { pack_id, item_id, boxes, size (null: waiting to be counted), expiry, created_at }
   customers: [], // { id, name, phone, note, created_at }
   custTotals: {}, // customer id -> { visits, total, last_at }, over all time
   orders: [],

@@ -10,6 +10,10 @@ import * as Q from "./queue.js";
 import * as C from "./cache.js";
 import { costFields, packRow, custRow, newCustomers, amount, keepOwnerPrices } from "./fields.js";
 
+// Before 010_receive_packs.sql is run there is no pack_receipts table: the
+// shop still opens, with no boxes waiting.
+const none = { rows: [], total: 0 };
+
 const url = import.meta.env.VITE_SUPABASE_URL,
   key = import.meta.env.VITE_SUPABASE_ANON_KEY;
 export const configured = !!(url && key);
@@ -25,6 +29,8 @@ function friendly(e) {
   if (stock) return err("err.stock", { sku: stock[1], qty: stock[2] });
   if (/not enough stock/i.test(m)) return err("err.stock", { sku: "", qty: "" });
   if (/packs_shop_barcode_uidx/i.test(m)) return err("err.packBarcode");
+  if (/packs_count_before_price/i.test(m)) return err("err.packCountFirst");
+  if (/a pack holds more than 1/i.test(m)) return err("err.packSize");
   if (/customers_shop_phone_uidx/i.test(m)) return err("err.custPhone");
   const imp = /import: (.+)$/im.exec(m);
   if (imp) return err("err.importSales", { why: imp[1] });
@@ -89,7 +95,7 @@ function watch() {
   if (channel) sb.removeChannel(channel);
   const filter = `shop_id=eq.${state.shop.id}`;
   channel = sb.channel("shop-" + state.shop.id);
-  for (const table of ["items", "orders", "movements", "settings", "lots", "sales", "sale_lines", "tills", "members", "packs", "customers"])
+  for (const table of ["items", "orders", "movements", "settings", "lots", "sales", "sale_lines", "tills", "members", "packs", "pack_receipts", "customers"])
     channel.on("postgres_changes", { event: "*", schema: "public", table, filter }, () => {
       clearTimeout(reloadTimer);
       reloadTimer = setTimeout(() => navigator.onLine && reload().catch(() => {}), 300);
@@ -111,7 +117,7 @@ export async function reload() {
   const id = state.shop.id,
     since = new Date(Date.now() - 30 * 864e5).toISOString(),
     sel = (table) => sb.from(table).select("*", { count: "exact" }).eq("shop_id", id);
-  const [items, orders, movements, settings, shop, lots, sales, saleLines, tills, packs, customers, totals] =
+  const [items, orders, movements, settings, shop, lots, sales, saleLines, tills, packs, customers, totals, packReceipts] =
     await Promise.all([
     all(() => sel("items").order("sku")),
     // created_at alone is not unique, so id breaks ties and keeps paging stable.
@@ -130,6 +136,10 @@ export async function reload() {
     all(() => sel("packs").order("created_at").order("id")),
     all(() => sel("customers").order("name").order("id")),
     must(sb.rpc("customer_totals", { p_shop: id })),
+    // Every box still waiting to be counted, and the last 30 days' deliveries.
+    all(() => sel("pack_receipts").or(`size.is.null,created_at.gte."${since}"`).order("created_at").order("id")).catch(
+      () => none,
+    ),
   ]);
   server = {
     items: items.rows,
@@ -141,6 +151,7 @@ export async function reload() {
     saleLines: saleLines.rows,
     tills: tills.rows,
     packs: packs.rows,
+    packReceipts: packReceipts.rows,
     customers: customers.rows,
     custTotals: Object.fromEntries((totals || []).map((r) => [r.customer_id, r])),
     settings: settings || state.settings,
@@ -238,6 +249,12 @@ export const deleteItem = (id) => write(sb.from("items").delete().eq("id", id));
 export const adjust = (id, delta, note = "manual", expiry = null) =>
   queued("adjust", { item_id: id, delta, note, expiry: expiry || null });
 
+/** Boxes of a pack arrive: counted ones go into stock, others wait (receive_pack). */
+export function receivePack(packId, boxes, expiry = null) {
+  const p = state.packs.find((x) => x.id == packId) || fail("err.packNotFound");
+  return queued("box", { pack_id: p.id, item_id: p.item_id, boxes: +boxes, expiry: expiry || null });
+}
+
 // Keyed by product and date, not lot id: a lot received offline has no
 // server id yet.
 export async function writeOffLot(id, note = "expired") {
@@ -307,6 +324,15 @@ const SEND = {
       p_at: r.at,
       p_offline: r.offline,
     }),
+  box: (r, a) =>
+    rpc("receive_pack", {
+      p_pack: a.pack_id,
+      p_boxes: a.boxes,
+      p_expiry: a.expiry,
+      p_client_id: r.id,
+      p_at: r.at,
+      p_offline: r.offline,
+    }),
   writeoff: (r, a) =>
     rpc("write_off_expiry", {
       p_item: a.item_id,
@@ -341,6 +367,7 @@ function applyRecord(db, r) {
     }
     if (r.op == "adjust") apply.stockMove(db, ctx, a.item_id, a.delta, a.note, a.expiry);
     if (r.op == "writeoff") apply.writeOff(db, ctx, a.item_id, a.expiry, a.qty, a.note);
+    if (r.op == "box") apply.receivePack(db, ctx, a.pack_id, a.boxes, a.expiry);
   } catch {
     // The product is gone from this copy, say. The server decides when it's sent.
   }
@@ -361,6 +388,7 @@ async function rebuild() {
     saleLines: s.saleLines,
     tills: s.tills || [],
     packs: s.packs || [],
+    packReceipts: s.packReceipts || [],
     customers: s.customers || [],
     custTotals: s.custTotals || {},
     shop: s.shop,
@@ -371,6 +399,7 @@ async function rebuild() {
     db = {
       items: state.items,
       packs: state.packs,
+      pack_receipts: state.packReceipts,
       customers: state.customers,
       lots: state.lots,
       movements: state.movements,
@@ -532,14 +561,30 @@ export const setSetting = (k, v) =>
 
 export const eraseAll = () => write(sb.rpc("erase_shop_data", { p_shop: state.shop.id }));
 
-// ---------- packs and expiring prices (owner, online) ----------
+// ---------- packs and expiring prices (online) ----------
 
-/** Add or change a pack of a product: { name, size, barcode, price }. */
+/** Add or change a pack of a product: { name, size, barcode, price, fix? }.
+ * Staff may add packs and change unpriced ones, with no price (010). The count
+ * changes through set_pack_size, which also moves waiting boxes into stock and
+ * corrects f.fix boxes already received at the old count. */
 export async function savePack(id, itemId, f) {
-  const row = packRow(f);
-  if (id) await write(sb.from("packs").update(row).eq("id", id));
-  else await write(sb.from("packs").insert({ ...row, item_id: itemId, shop_id: state.shop.id }));
+  const owner = state.role == "owner",
+    row = packRow(f),
+    old = id && state.packs.find((p) => p.id == id);
+  if (!owner) {
+    if (old ? +old.price : row.price) fail("err.noPerm");
+    row.price = 0;
+  }
+  if (!old) return write(sb.from("packs").insert({ ...row, item_id: itemId, shop_id: state.shop.id }));
+  const { size, ...rest } = row;
+  // The count first: a pack only takes a price once it has one.
+  if (size != null && size !== (old.size == null ? null : +old.size))
+    await rpc("set_pack_size", { p_pack: id, p_size: size, p_fix_boxes: amount(f.fix) });
+  await write(sb.from("packs").update(rest).eq("id", id));
 }
+/** How many are in one box. Waiting boxes go into stock. */
+export const setPackSize = (packId, size, fixBoxes = 0) =>
+  write(sb.rpc("set_pack_size", { p_pack: packId, p_size: size, p_fix_boxes: fixBoxes }));
 export const deletePack = (id) => write(sb.from("packs").delete().eq("id", id));
 /** A lower price for one expiry date of a product; null goes back to normal. */
 export const setLotPrice = (itemId, expiry, price) =>

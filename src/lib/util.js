@@ -51,7 +51,11 @@ export function form(title, fields, okLabel = t("btn.save"), note = "") {
         .map(([v, l]) => `<option value="${E(v)}"${v == f.value ? " selected" : ""}>${E(l)}</option>`)
         .join("")}</select>`;
     const type = f.type == "expiry" ? "text" : f.type || "text";
-    return `<input name="${E(f.k)}" type="${type}" value="${E(f.value ?? "")}"${
+    // f.list: suggestions shown while typing (a product picker that searches).
+    const list = f.list
+      ? `<datalist id="dl-${E(f.k)}">${f.list.map((v) => `<option value="${E(v)}"></option>`).join("")}</datalist>`
+      : "";
+    return `${list}<input name="${E(f.k)}" type="${type}" value="${E(f.value ?? "")}"${f.list ? ` list="dl-${E(f.k)}" autocomplete="off"` : ""}${
       f.type == "number" ? ' step="any" min="0"' : ""
     }${f.type == "expiry" ? ` data-expiry autocomplete="off" inputmode="numeric" placeholder="${E(t("f.expiryPh"))}"` : ""}${
       f.required ? " required" : ""

@@ -21,7 +21,7 @@ function load() {
   } catch {}
   if (!d || !d.shops) d = { shops: [], settings: {} };
   // Data saved before expiry tracking and the till existed lacks these lists.
-  for (const k of ["items", "orders", "movements", "lots", "sales", "sale_lines", "packs", "customers"]) d[k] ||= [];
+  for (const k of ["items", "orders", "movements", "lots", "sales", "sale_lines", "packs", "pack_receipts", "customers"]) d[k] ||= [];
   // ...and settings saved before VAT and expiry reminders.
   for (const id in d.settings) d.settings[id] = { ...SETTINGS, ...d.settings[id] };
   return d;
@@ -96,6 +96,8 @@ export async function reload() {
   const shown = new Set(state.sales.map((x) => x.id));
   state.saleLines = mine(db.sale_lines).filter((l) => shown.has(l.sale_id));
   state.packs = mine(db.packs);
+  // Boxes still waiting to be counted, and the last 30 days' deliveries.
+  state.packReceipts = mine(db.pack_receipts).filter((r) => r.size == null || new Date(r.created_at) >= since);
   state.customers = mine(db.customers).sort((a, b) => a.name.localeCompare(b.name));
   state.custTotals = {};
   for (const s of mine(db.sales)) {
@@ -182,6 +184,7 @@ export async function deleteItem(id) {
   db.orders = db.orders.filter((o) => o.item_id != id);
   db.lots = db.lots.filter((l) => l.item_id != id);
   db.packs = db.packs.filter((p) => p.item_id != id);
+  db.pack_receipts = db.pack_receipts.filter((r) => r.item_id != id);
   db.sale_lines.forEach((l) => l.item_id == id && (l.item_id = null)); // receipts keep the name
   db.movements.forEach((m) => m.item_id == id && (m.item_id = null)); // history keeps the SKU
   await commit();
@@ -310,6 +313,7 @@ export async function eraseAll() {
   db.sales = db.sales.filter(keep);
   db.sale_lines = db.sale_lines.filter(keep);
   db.packs = db.packs.filter(keep);
+  db.pack_receipts = db.pack_receipts.filter(keep);
   db.customers = db.customers.filter(keep);
   db.shops.find((x) => x.id == shopId()).receipt_seq = 0;
   await commit();
@@ -317,20 +321,56 @@ export async function eraseAll() {
 
 // ---------- packs and expiring prices (mirror 006_units_vat.sql) ----------
 
+// Staff add packs and change unpriced ones; the price is the owner's
+// (packs_price_guard). The count changes through setPackSize, as on the server.
+// f.fix: boxes already received at the old count to correct (0: none).
 export async function savePack(id, itemId, f) {
   writable();
-  ownerOnly();
-  const row = packRow(f);
+  const owner = state.role == "owner",
+    row = packRow(f);
   if (row.barcode && mine(db.packs).some((p) => p.id != id && p.barcode == row.barcode)) fail("err.packBarcode");
   const p = id && db.packs.find((x) => x.id == id && x.shop_id == shopId());
-  if (p) Object.assign(p, row);
-  else db.packs.push({ id: uid(), shop_id: shopId(), item_id: itemId, created_at: nowIso(), ...row });
+  if (!owner && (p ? +p.price : row.price)) fail("err.noPerm");
+  if (!owner) row.price = 0;
+  const before = JSON.stringify(db);
+  try {
+    if (p) {
+      const { size, ...rest } = row;
+      if (size != null && size !== (p.size == null ? null : +p.size))
+        apply.setPackSize(db, ctx(), p.id, size, amount(f.fix), owner);
+      if (rest.price && p.size == null) fail("err.packCountFirst");
+      Object.assign(p, rest);
+    } else
+      db.packs.push({ id: uid(), shop_id: shopId(), item_id: itemId, created_at: nowIso(), sized_at: row.size ? nowIso() : null, ...row });
+  } catch (e) {
+    db = JSON.parse(before);
+    throw e;
+  }
   await commit();
 }
 export async function deletePack(id) {
   writable();
   ownerOnly();
   db.packs = db.packs.filter((p) => !(p.id == id && p.shop_id == shopId()));
+  db.pack_receipts = db.pack_receipts.filter((r) => r.pack_id != id);
+  await commit();
+}
+/** Boxes of a pack arrive (mirrors receive_pack). */
+export async function receivePack(packId, boxes, expiry = null) {
+  writable();
+  apply.receivePack(db, ctx(), packId, boxes, expiry);
+  await commit();
+}
+/** How many are in one box; waiting boxes go into stock (mirrors set_pack_size). */
+export async function setPackSize(packId, size, fixBoxes = 0) {
+  writable();
+  const before = JSON.stringify(db);
+  try {
+    apply.setPackSize(db, ctx(), packId, size, fixBoxes, state.role == "owner");
+  } catch (e) {
+    db = JSON.parse(before);
+    throw e;
+  }
   await commit();
 }
 export async function setLotPrice(itemId, expiry, price) {

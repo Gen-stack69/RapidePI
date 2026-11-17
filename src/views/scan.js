@@ -1,5 +1,6 @@
 import { E } from "../lib/util.js";
 import { t } from "../i18n/index.js";
+import { scanUi } from "../scanner.js";
 
 export default function scan() {
   return `<div class="card"><div class="row"><select id="mode" data-input="scanMode"><option value="in">${t(
@@ -8,7 +9,9 @@ export default function scan() {
     "scan.look",
   )}</option></select><input id="sq" type="number" min="1" value="1" placeholder="${E(
     t("scan.qtyPer"),
-  )}"></div><label class="mt" id="sexpl">${t("scan.expBox")}<span class="tools"><input id="sexp" data-input="scanExpiry" autocomplete="off" inputmode="numeric" placeholder="${E(
+  )}"><select id="su" data-input="scanUnit" aria-label="${E(t("scan.countAs"))}">${["auto", "unit", "box"]
+    .map((k) => `<option value="${k}"${k == scanUi.unit ? " selected" : ""}>${t("scan.u." + k)}</option>`)
+    .join("")}</select></div><label class="mt" id="sexpl">${t("scan.expBox")}<span class="tools"><input id="sexp" data-input="scanExpiry" autocomplete="off" inputmode="numeric" placeholder="${E(
     t("f.expiryPh"),
   )}"><button type="button" class="g" data-act="readDate" data-for="sexp">${t(
     "btn.readDate",

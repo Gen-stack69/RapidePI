@@ -1,6 +1,7 @@
 import { $, E, toast, form, dateText, expiryNote, checkExpiry } from "./lib/util.js";
 import { t, errText } from "./i18n/index.js";
-import { state, adjust } from "./data/store.js";
+import * as store from "./data/store.js";
+import { state } from "./data/store.js";
 import * as camera from "./lib/camera.js";
 import { lookupCode, parseTyped, status } from "./lib/expiry.js";
 
@@ -97,25 +98,96 @@ export function onScan(c, format) {
   return queue;
 }
 
+// ---------- boxes ----------
+//
+// Stock is counted in single units; a box is a pack of its product (packs).
+// A box's own barcode always means the box. The single item's barcode is
+// ambiguous when one of its boxes has no barcode or carries the same one, so
+// the scanner asks once per product, "single or which box?", and keeps the
+// answer for the rest of the delivery. #su can also say "always singles" or
+// "always boxes".
+let chosen = new Map(); // product id -> pack id, or "" for single units
+// "auto" | "unit" | "box", kept here so a redraw of the screen keeps it.
+export const scanUi = { unit: "auto" };
+export function unitModeChanged() {
+  scanUi.unit = $("#su")?.value || "auto";
+  chosen = new Map();
+}
+
+const packsOf = (it) => state.packs.filter((p) => p.item_id == it.id);
+const packLabel = (p) => `${p.name} × ${p.size == null ? "?" : +p.size}`;
+
+/** The pack this scan counts in: a pack, null for single units, undefined when
+ * the person cancelled. */
+async function pickPack(it, pack, code) {
+  if (pack) return pack;
+  const packs = packsOf(it),
+    how = scanUi.unit;
+  if (!packs.length || how == "unit") return null;
+  if (how == "auto") {
+    const unitCode = String(it.barcode || "").trim(),
+      unclear = packs.some((p) => !p.barcode || String(p.barcode).trim() == unitCode || String(p.barcode).trim() == code);
+    if (!unclear) return null;
+  } else if (packs.length == 1) return packs[0];
+  if (chosen.has(it.id)) return packs.find((p) => p.id == chosen.get(it.id)) || null;
+  const f = await form(
+    t("scan.whichTitle", { name: it.name }),
+    [
+      {
+        k: "pack",
+        label: t("scan.whichLabel"),
+        type: "select",
+        value: how == "box" ? packs[0].id : "",
+        options: [
+          ...(how == "box" ? [] : [["", t("scan.single", { unit: it.unit || t("f.unitWord") })]]),
+          ...packs.map((p) => [p.id, packLabel(p)]),
+        ],
+        hint: t("scan.whichHint"),
+      },
+    ],
+    t("btn.next"),
+  );
+  if (!f) return undefined;
+  chosen.set(it.id, f.pack);
+  return packs.find((p) => p.id == f.pack) || null;
+}
+
+/** Scan a code again after its box was linked, so it is received now. */
+export function again(code) {
+  last = "";
+  return onScan(code);
+}
+
 async function handle(c, format) {
-  const { item: it, pack, code, expiry: printed } = lookupCode(state.items, c, state.packs),
+  const { item: it, pack: scannedPack, code, expiry: printed } = lookupCode(state.items, c, state.packs),
     m = $("#mode").value,
-    // A carton's barcode moves the carton's worth of units.
-    q = Math.max(1, +$("#sq").value || 1) * (pack ? +pack.size : 1),
-    packTag = pack ? `<span class="tag">${E(pack.name)} × ${+pack.size}</span> ` : "";
+    n = Math.max(1, +$("#sq").value || 1);
   // A QR that is no product is usually a link or a payment slip: show it, don't offer to add it.
   if (!it && camera.isQr(format))
     return log(`${kindTag(format)}<span class="mut">${t("scan.qrText", { text: `<b>${E(c.slice(0, 120))}</b>` })}</span>`);
+  // An unknown code is often a carton of something already here: offer to link
+  // it as that product's box rather than make a second product of it.
   if (!it)
     return log(
-      `${kindTag(format)}<span class="warn">${t("scan.unknown", { code: `<b>${E(code)}</b>` })}</span> <button class="g" data-act="addItem" data-code="${E(code)}">${t("scan.addNew")}</button>`,
+      `${kindTag(format)}<span class="warn">${t("scan.unknown", { code: `<b>${E(code)}</b>` })}</span> <button class="g" data-act="linkBox" data-code="${E(code)}" data-scan="${E(c)}">${t("scan.linkBox")}</button> <button class="g" data-act="addItem" data-code="${E(code)}">${t("scan.addNew")}</button>`,
     );
   if (m == "look")
     return log(
       kindTag(format) +
+      (scannedPack ? `<span class="tag">${E(packLabel(scannedPack))}</span> ` : "") +
       t("scan.inStock", { name: E(it.name), sku: E(it.sku), qty: `<b>${+it.qty}</b>` }) +
         expTag(printed || nextExpiry(it.id)),
     );
+  // "Count boxes" for a product with no box yet: offer to add one.
+  if (!scannedPack && scanUi.unit == "box" && !packsOf(it).length)
+    return log(
+      `<span class="warn">${t("scan.noBox", { name: E(it.name) })}</span> <button class="g" data-act="linkBox" data-item="${E(it.id)}" data-code="${E(code == it.barcode || code.toLowerCase() == it.sku.toLowerCase() ? "" : code)}" data-scan="${E(c)}">${t("scan.linkBox")}</button>`,
+    );
+  const pack = await pickPack(it, scannedPack, code);
+  if (pack === undefined) return log(`<span class="mut">${t("scan.cancelled", { sku: E(it.sku) })}</span>`);
+  const packTag = pack ? `<span class="tag">${E(packLabel(pack))}</span> ` : "";
+  if (pack && pack.size == null && m == "out")
+    return log(`${packTag}<span class="warn">${E(it.sku)}: ${t("err.packNotCounted")}</span>`);
 
   let expiry = null;
   if (m == "in") {
@@ -135,8 +207,16 @@ async function handle(c, format) {
     expFor = it.id;
   }
   try {
-    await adjust(it.id, m == "in" ? q : -q, "scan", expiry);
+    // Boxes received go through receivePack, which remembers the delivery; a
+    // box with no count yet waits there and adds nothing to stock.
+    if (pack && m == "in") await store.receivePack(pack.id, n, expiry);
+    else await store.adjust(it.id, (m == "in" ? 1 : -1) * n * (pack ? +pack.size : 1), "scan", expiry);
     const now = state.items.find((i) => i.id == it.id);
+    if (pack && pack.size == null)
+      return log(
+        `${kindTag(format)}${packTag}<span class="warn">${t("scan.boxWaiting", { n, pack: E(pack.name), name: E(it.name) })}</span>${expTag(expiry)}`,
+      );
+    const q = n * (pack ? +pack.size : 1);
     log(
       `${kindTag(format)}${packTag}<span class="${m}">${t("scan.ok", {
         name: E(it.name),
