@@ -954,10 +954,22 @@ table.cart td {
   letter-spacing: 0.08em;
 }
 
-/* A product's pack, as a tag the owner can tap to change. */
+/* A product's pack, as a tag the owner can tap to change. A button doesn't
+   take the page's text colour (it gets the browser's dark default), so the
+   colour is set here, or the text is black on dark purple. */
 button.tag.pk {
   cursor: pointer;
-  border: 0;
+  border: 1px solid #33265f;
+  color: #ece8f8;
   font: inherit;
+  font-size: 12px;
   margin-top: 4px;
+}
+button.tag.pk:hover {
+  border-color: #8b5cf6;
+}
+/* A box not counted yet stays amber ("Box × ?"). */
+button.tag.pk.warn {
+  color: #fbbf24;
+  border-color: #fbbf24;
 }
