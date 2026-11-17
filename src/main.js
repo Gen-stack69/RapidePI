@@ -11,7 +11,12 @@ import { readTable, guessKind, guessColumns, build, KINDS } from "./lib/importer
 import { exportSet, exportZip } from "./lib/export.js";
 import * as store from "./data/store.js";
 import { state, canWrite, isOwner } from "./data/store.js";
-import { PRICE_KEYS, waitingBoxes } from "./data/fields.js";
+import { PRICE_KEYS, waitingBoxes, packRow } from "./data/fields.js";
+import { err } from "./i18n/index.js";
+
+const fail = (code, params) => {
+  throw err(code, params);
+};
 import { showAuth, showCreateShop, showNewPassword } from "./auth.js";
 import * as scanner from "./scanner.js";
 import dash, { ui as dashUi } from "./views/dash.js";
@@ -283,7 +288,10 @@ async function packForm(itemId, packId, code = "") {
       state.items.find((i) => label(i).toLowerCase() == typed) ||
       state.items.find((i) => i.sku.toLowerCase() == typed || i.barcode?.toLowerCase() == typed) ||
       state.items.find((i) => i.name.toLowerCase() == typed);
-    if (!it) return toast(t("err.pickItem"), true), null;
+    // Not a product here yet (a carton of something new): add it now, so the
+    // box always belongs to a product and no second product is made later.
+    if (!it) it = await newItemForBox(f);
+    if (!it) return null;
   }
   if (f.remove == "yes") {
     const n = waitingBoxes(state.packReceipts, packId);
@@ -313,6 +321,51 @@ async function packForm(itemId, packId, code = "") {
   await store.savePack(packId || null, it.id, f);
   toast(waiting && size != null && p.size == null ? t("msg.boxCounted", { n: num(waiting * size), unit }) : t("msg.saved"));
   return it.id;
+}
+
+// The product inside a box, added from the box form when it isn't in the shop
+// yet. The box's own fields are checked first, so a mistake there doesn't
+// leave a new product with no box. Returns the new product, or null.
+async function newItemForBox(box) {
+  packRow(box);
+  const bc = String(box.barcode || "").trim();
+  if (bc && state.packs.some((p) => p.barcode == bc)) fail("err.packBarcode");
+  const typed = String(box.item || "").trim(),
+    f = await form(
+      t("title.newItemInBox"),
+      [
+        { k: "sku", label: t("f.sku"), required: true },
+        { k: "name", label: t("f.name"), value: typed, required: true },
+        { k: "unit", label: t("f.unit"), hint: t("f.unitHint") },
+        {
+          k: "kind",
+          label: t("f.kind"),
+          type: "select",
+          value: "durable",
+          options: [
+            ["consumable", t("kind.consumableLong")],
+            ["durable", t("kind.durableLong")],
+          ],
+        },
+        { k: "barcode", label: t("f.barcode"), hint: t("f.singleBarcodeHint") },
+        { k: "price", label: t("f.price"), type: "number" },
+      ],
+      t("btn.next"),
+      E(t("f.newItemNote", { name: typed })),
+    );
+  if (!f) return null;
+  await store.saveItem(null, {
+    ...f,
+    category: "",
+    qty: 0,
+    expiry: "",
+    min_qty: 0,
+    cost_currency: "LAK",
+    cost: 0,
+    price_wholesale: 0,
+    wholesale_min_qty: 0,
+  });
+  return state.items.find((i) => i.sku.toLowerCase() == f.sku.trim().toLowerCase()) || null;
 }
 
 // Boxes waiting to be counted: open one, count, enter it.
