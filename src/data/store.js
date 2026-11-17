@@ -35,6 +35,8 @@ export const {
   joinShop,
   savePack,
   deletePack,
+  receivePack,
+  setPackSize,
   setLotPrice,
   saveCustomer,
   deleteCustomer,

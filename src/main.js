@@ -11,7 +11,7 @@ import { readTable, guessKind, guessColumns, build, KINDS } from "./lib/importer
 import { exportSet, exportZip } from "./lib/export.js";
 import * as store from "./data/store.js";
 import { state, canWrite, isOwner } from "./data/store.js";
-import { PRICE_KEYS } from "./data/fields.js";
+import { PRICE_KEYS, waitingBoxes } from "./data/fields.js";
 import { showAuth, showCreateShop, showNewPassword } from "./auth.js";
 import * as scanner from "./scanner.js";
 import dash, { ui as dashUi } from "./views/dash.js";
@@ -232,29 +232,103 @@ async function itemForm(id, code) {
 }
 
 // A bigger unit of a product: "Carton" = 24 cans, with its own barcode and price.
-async function packForm(itemId, packId) {
-  if (!needWrite()) return;
-  const it = state.items.find((x) => x.id == itemId),
-    p = state.packs.find((x) => x.id == packId) || { name: "", size: "", barcode: "", price: "" },
+// Anyone can add one and leave the count for later (010_receive_packs.sql);
+// only the owner prices it, and a priced pack is the owner's to change.
+// itemId null: pick the product first (a box scanned with an unknown code).
+// Returns the saved pack's item id, or null when nothing was saved.
+async function packForm(itemId, packId, code = "") {
+  if (!needWrite()) return null;
+  const owner = isOwner(),
+    p = state.packs.find((x) => x.id == packId) || { name: t("f.boxDefault"), size: "", barcode: code, price: "" };
+  if (packId && +p.price && !owner) return toast(t("err.noPerm"), true), null;
+  let it = state.items.find((x) => x.id == (itemId || p.item_id));
+  const label = (i) => `${i.name} · ${i.sku}`,
+    unit = it?.unit || t("f.unitWord"),
     f = await form(
-      t(packId ? "title.editPack" : "title.addPack", { name: it.name }),
+      it ? t(packId ? "title.editPack" : "title.addPack", { name: it.name }) : t("title.linkBox"),
       [
+        ...(it
+          ? []
+          : [
+              {
+                k: "item",
+                label: t("f.boxItem"),
+                required: true,
+                list: [...state.items].sort((a, b) => a.name.localeCompare(b.name)).map(label),
+                hint: t("f.boxItemHint"),
+              },
+            ]),
         { k: "name", label: t("f.packName"), value: p.name, required: true, hint: t("f.packNameHint") },
-        { k: "size", label: t("f.packSize", { unit: it.unit || t("f.unitWord") }), type: "number", value: p.size, required: true },
+        {
+          k: "size",
+          label: t("f.packSize", { unit }),
+          type: "number",
+          value: p.size ?? "",
+          // Once counted it stays counted; before that it may stay empty.
+          required: p.size != null,
+          hint: p.size == null ? t("f.packSizeLater") : "",
+        },
         { k: "barcode", label: t("f.barcode"), value: p.barcode || "" },
-        { k: "price", label: t("f.packPrice"), type: "number", value: p.price },
-        ...(packId
+        ...(owner ? [{ k: "price", label: t("f.packPrice"), type: "number", value: p.price, hint: t("f.packPriceHint") }] : []),
+        ...(packId && owner
           ? [{ k: "remove", label: t("f.packRemove"), type: "select", value: "no", options: [["no", t("f.no")], ["yes", t("f.packRemoveYes")]] }]
           : []),
       ],
     );
-  if (!f) return;
-  if (f.remove == "yes") {
-    await store.deletePack(packId);
-    return toast(t("msg.deleted"));
+  if (!f) return null;
+  if (!it) {
+    const typed = String(f.item || "").trim().toLowerCase();
+    it =
+      state.items.find((i) => label(i).toLowerCase() == typed) ||
+      state.items.find((i) => i.sku.toLowerCase() == typed || i.barcode?.toLowerCase() == typed) ||
+      state.items.find((i) => i.name.toLowerCase() == typed);
+    if (!it) return toast(t("err.pickItem"), true), null;
   }
-  await store.savePack(packId || null, itemId, f);
-  toast(t("msg.saved"));
+  if (f.remove == "yes") {
+    const n = waitingBoxes(state.packReceipts, packId);
+    if (n) return toast(t("err.packWaiting", { n }), true), null;
+    await store.deletePack(packId);
+    toast(t("msg.deleted"));
+    return null;
+  }
+  // A changed count: offer to correct the boxes already received at the old one.
+  const size = String(f.size ?? "").trim() == "" ? null : +f.size;
+  if (packId && p.size != null && size != null && size != +p.size) {
+    const since = p.sized_at || p.created_at || "",
+      got = state.packReceipts
+        .filter((r) => r.pack_id == packId && r.size != null && +r.size == +p.size && r.created_at >= since)
+        .reduce((a, r) => a + +r.boxes, 0),
+      fix = await form(
+        t("title.fixBoxes"),
+        [{ k: "fix", label: t("f.fixBoxes", { old: num(p.size) }), type: "number", value: got, hint: t("f.fixHint", { old: num(p.size), size: num(size) }) }],
+        t("btn.save"),
+      );
+    if (!fix) return null;
+    f.fix = Math.max(0, +fix.fix || 0);
+  }
+  const waiting = packId ? waitingBoxes(state.packReceipts, packId) : 0;
+  await store.savePack(packId || null, it.id, f);
+  toast(waiting && size != null && p.size == null ? t("msg.boxCounted", { n: num(waiting * size), unit }) : t("msg.saved"));
+  return it.id;
+}
+
+// Boxes waiting to be counted: open one, count, enter it.
+async function countPack(packId) {
+  if (!needWrite()) return;
+  const p = state.packs.find((x) => x.id == packId),
+    it = p && state.items.find((i) => i.id == p.item_id);
+  if (!it) return;
+  if (+p.price && !isOwner()) return toast(t("err.noPerm"), true);
+  const n = waitingBoxes(state.packReceipts, packId),
+    unit = it.unit || t("f.unitWord"),
+    f = await form(
+      t("title.countPack", { pack: p.name, name: it.name }),
+      [{ k: "size", label: t("f.packSize", { unit }), type: "number", required: true, hint: t("f.countHint", { n: num(n) }) }],
+      t("btn.save"),
+    );
+  if (!f) return;
+  await store.setPackSize(packId, +f.size, 0);
+  toast(t("msg.boxCounted", { n: num(n * +f.size), unit }));
 }
 
 // Add or change a customer; returns the id (or null when cancelled).
@@ -370,6 +444,14 @@ const A = {
   posNoCust: () => till.setCustomer(null),
   addPack: (el) => packForm(el.dataset.id),
   editPack: (el) => packForm(el.dataset.item, el.dataset.id),
+  countPack: (el) => countPack(el.dataset.id),
+  // From the scanner: a box with a code nobody knows yet (or a product with no
+  // box). Once linked, the code is scanned again so the box is received now.
+  async linkBox(el) {
+    const scanned = el.dataset.scan || "";
+    if (!(await packForm(el.dataset.item || null, null, el.dataset.code || ""))) return;
+    if (scanned && view == "scan" && $("#mode")?.value != "look") await scanner.again(scanned);
+  },
   async lotPrice(el) {
     if (!needWrite()) return;
     const it = state.items.find((x) => x.id == el.dataset.item),
@@ -654,7 +736,9 @@ const INPUT = {
     $("#tb").innerHTML = invRows(state);
   },
   pos: (el) => till.typed(el),
-  scanMode: () => syncScanView(),
+  // A new mode is a new delivery: ask "single or box?" again.
+  scanMode: () => (syncScanView(), scanner.unitModeChanged()),
+  scanUnit: () => scanner.unitModeChanged(),
   scanExpiry(el) {
     checkExpiry(el);
     scanner.dateTyped();
@@ -684,7 +768,7 @@ document.addEventListener("input", (ev) => {
 document.addEventListener("change", (ev) => {
   const k = ev.target.dataset?.input;
   if (
-    ["setting", "importFile", "lang", "invFilter", "invSort", "scanMode", "dashCur"].includes(k) ||
+    ["setting", "importFile", "lang", "invFilter", "invSort", "scanMode", "scanUnit", "dashCur"].includes(k) ||
     (k == "conv" && ev.target.tagName == "SELECT")
   )
     run(INPUT[k], ev.target);

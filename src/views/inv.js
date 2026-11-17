@@ -1,6 +1,7 @@
 import { E, fmt, num, dateText, expiryNote } from "../lib/util.js";
 import { t } from "../i18n/index.js";
 import { isOwner } from "../data/store.js";
+import { waitingBoxes } from "../data/fields.js";
 import { status } from "../lib/expiry.js";
 import { SIGN } from "../lib/rates.js";
 
@@ -47,15 +48,19 @@ export function rows(s) {
       e = next.get(i.id),
       td = (j, v, cls) => `<td data-l="${l[j]}"${cls ? ` class="${cls}"` : ""}><span class="v">${v}</span></td>`,
       kind = i.kind == "consumable" ? "consumable" : "durable";
-    // Its packs ("Carton × 24 · ₭210,000"); the owner taps one to change it.
+    // Its packs ("Carton × 24 · ₭210,000"). Tapping one changes it: the owner
+    // any, staff only one with no price yet. "× ?" is a box not counted yet.
     const packs = s.packs
       .filter((p) => p.item_id == i.id)
-      .map(
-        (p) =>
-          `<${isOwner() ? `button class="tag pk" data-act="editPack" data-item="${id}" data-id="${E(p.id)}"` : 'span class="tag"'}>${E(
-            p.name,
-          )} × ${num(p.size)} · ${fmt(p.price)}</${isOwner() ? "button" : "span"}>`,
-      )
+      .map((p) => {
+        const edit = isOwner() || !+p.price,
+          wait = waitingBoxes(s.packReceipts, p.id);
+        return `<${edit ? `button class="tag pk${p.size == null ? " warn" : ""}" data-act="editPack" data-item="${id}" data-id="${E(p.id)}"` : 'span class="tag"'}>${E(
+          p.name,
+        )} × ${p.size == null ? "?" : num(p.size)}${+p.price ? ` · ${fmt(p.price)}` : ""}${
+          wait ? ` · ${t("inv.waiting", { n: num(wait) })}` : ""
+        }</${edit ? "button" : "span"}>`;
+      })
       .join(" ");
     const name = `${E(i.name)} <span class="tag ${kind}">${t("kind." + kind)}</span>${packs ? "<br>" + packs : ""}${
       e
@@ -80,9 +85,7 @@ export function rows(s) {
       isOwner()
         ? ` <button class="g" data-act="delItem" data-id="${id}" title="${E(t("tip.delete"))}">🗑</button>`
         : ""
-    }${
-      isOwner() ? ` <button class="g" data-act="addPack" data-id="${id}" title="${E(t("tip.addPack"))}">📦</button>` : ""
-    }</td></tr>`;
+    } <button class="g" data-act="addPack" data-id="${id}" title="${E(t("tip.addPack"))}">📦</button></td></tr>`;
   }).join("");
 }
 

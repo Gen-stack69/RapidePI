@@ -116,6 +116,8 @@ export function addCode(code, format) {
   code = String(code || "").trim();
   if (!code) return;
   const { item: it, pack } = lookupCode(state.items, code, state.packs);
+  // A box nobody has counted (or priced) yet can't be sold as a box.
+  if (pack && pack.size == null) return toast(t("err.packNotCounted"), true);
   if (it) return add(it.id, 1, pack?.id ?? null);
   // A camera QR that is no product (a payment slip, a link): say so, don't search names.
   if (isQr(format)) return toast(t("scan.qrText", { text: code.slice(0, 60) }), true);

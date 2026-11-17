@@ -6,7 +6,7 @@
 // It mirrors the database functions in supabase/migrations, so the screen
 // shows what the server will end up with.
 //
-// db: { items, packs, customers, lots, movements, sales, sale_lines, orders, settings }, where
+// db: { items, packs, pack_receipts, customers, lots, movements, sales, sale_lines, orders, settings }, where
 // settings maps shop id → { auto_reorder, vat_rate, ... }. Lists are changed in place.
 // ctx: { shopId, userId, at (ISO time it happened), short (may go below zero) }
 import { err } from "../i18n/index.js";
@@ -306,6 +306,48 @@ export function voidSale(db, ctx, s) {
   }
   s.status = "void";
   s.voided_at = at(ctx);
+}
+
+/** receive_pack(): boxes of a pack arrive. With a count, boxes x size go into
+ * stock now; without one they wait in pack_receipts and add nothing. */
+export function receivePack(db, ctx, packId, boxes, expiry = null) {
+  const pack = (db.packs || []).find((p) => p.id == packId && p.shop_id == ctx.shopId) || fail("err.packNotFound");
+  if (!(boxes > 0 && Number.isFinite(+boxes))) fail("err.qtyPositive");
+  const size = pack.size == null ? null : +pack.size;
+  (db.pack_receipts ||= []).push({
+    id: uid(),
+    shop_id: pack.shop_id,
+    item_id: pack.item_id,
+    pack_id: pack.id,
+    boxes: +boxes,
+    size,
+    expiry: expiry || null,
+    created_at: at(ctx),
+    counted_at: size ? at(ctx) : null,
+  });
+  if (size) return stockMove(db, ctx, pack.item_id, boxes * size, "box", expiry);
+  return +(db.items.find((i) => i.id == pack.item_id)?.qty ?? 0);
+}
+
+/** set_pack_size(): the count of one box. Waiting boxes go into stock at it;
+ * fixBoxes already received at the old count are corrected in one movement.
+ * owner: whether the person is the owner (a priced pack is theirs). */
+export function setPackSize(db, ctx, packId, size, fixBoxes = 0, owner = true) {
+  const pack = (db.packs || []).find((p) => p.id == packId && p.shop_id == ctx.shopId) || fail("err.packNotFound");
+  if (+pack.price && !owner) fail("err.noPerm");
+  size = +size;
+  if (!(size > 1 && Number.isFinite(size))) fail("err.packSize");
+  const old = pack.size == null ? null : +pack.size;
+  if (old !== size) Object.assign(pack, { size, sized_at: at(ctx) });
+  const waiting = (db.pack_receipts || [])
+    .filter((r) => r.pack_id == pack.id && r.size == null)
+    .sort((a, b) => (a.created_at < b.created_at ? -1 : 1));
+  for (const r of waiting) {
+    stockMove(db, ctx, r.item_id, r.boxes * size, "box counted", r.expiry);
+    Object.assign(r, { size, counted_at: at(ctx) });
+  }
+  if (old != null && old != size && fixBoxes > 0)
+    stockMove(db, { ...ctx, short: false }, pack.item_id, fixBoxes * (size - old), "box count fixed");
 }
 
 /** write_off_expiry(): what is left of one expiry date, up to qty. */

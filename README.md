@@ -7,7 +7,7 @@ Inventory and warehouse app for small shops in Laos, in **Lao and English**. Van
 ## First-time setup
 
 1. Create a free project at https://supabase.com (region: Singapore is closest to Laos).
-2. In the Supabase dashboard open **SQL Editor**, paste the whole of `supabase/migrations/001_schema.sql` and run it, then do the same with `002_pos.sql` (the till, expiry dates and product kinds) and `003_offline.sql` (selling with no internet). Run each file once, in order; a project that already has some only needs the ones after.
+2. In the Supabase dashboard open **SQL Editor**, paste the whole of `supabase/migrations/001_schema.sql` and run it, then do the same with `002_pos.sql` (the till, expiry dates and product kinds) and `003_offline.sql` (selling with no internet), and so on up to the highest number (`010_receive_packs.sql`: receiving boxes and cartons). Run each file once, in order; a project that already has some only needs the ones after.
 3. **Project Settings → API**: copy the Project URL and the `anon` public key.
 4. Copy `.env.example` to `.env` and paste both values in.
 5. `npm install`, then `npm run dev` and open http://localhost:5173.

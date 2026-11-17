@@ -66,12 +66,19 @@ export function newCustomers(list, have) {
   }
   return out;
 }
-/** A pack form ({ name, size, barcode, price }). */
+/** A pack form ({ name, size, barcode, price }). An empty size means "count
+ * later" (010_receive_packs.sql): size null, and then no price either. */
 export function packRow(f) {
   const name = String(f.name || "").trim().slice(0, 30),
-    size = +f.size;
+    blank = f.size == null || String(f.size).trim() == "",
+    size = blank ? null : +f.size,
+    price = amount(f.price);
   if (!name) fail("err.packName");
-  if (!(size > 1)) fail("err.packSize");
-  if (!Number.isFinite(size)) fail("err.packSize");
-  return { name, size, barcode: String(f.barcode || "").trim() || null, price: amount(f.price) };
+  if (!blank && !(size > 1 && Number.isFinite(size))) fail("err.packSize");
+  if (blank && price > 0) fail("err.packCountFirst");
+  return { name, size, barcode: String(f.barcode || "").trim() || null, price };
 }
+
+/** Boxes of a pack still waiting to be counted (size null), from the copy in hand. */
+export const waitingBoxes = (receipts, packId) =>
+  (receipts || []).filter((r) => r.pack_id == packId && r.size == null).reduce((a, r) => a + +r.boxes, 0);
