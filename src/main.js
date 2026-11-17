@@ -297,7 +297,9 @@ async function packForm(itemId, packId, code = "") {
   if (packId && p.size != null && size != null && size != +p.size) {
     const since = p.sized_at || p.created_at || "",
       got = state.packReceipts
-        .filter((r) => r.pack_id == packId && r.size != null && +r.size == +p.size && r.created_at >= since)
+        // Counted at the old count since it was set: boxes that waited count
+        // from when they were counted, not when they arrived.
+        .filter((r) => r.pack_id == packId && r.size != null && +r.size == +p.size && (r.counted_at || r.created_at) >= since)
         .reduce((a, r) => a + +r.boxes, 0),
       fix = await form(
         t("title.fixBoxes"),
