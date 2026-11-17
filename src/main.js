@@ -239,7 +239,8 @@ async function itemForm(id, code) {
 async function packForm(itemId, packId, code = "") {
   if (!needWrite()) return null;
   const owner = isOwner(),
-    p = state.packs.find((x) => x.id == packId) || { name: t("f.boxDefault"), size: "", barcode: code, price: "" };
+    // A new box has no count yet (null), so the count may be left empty.
+    p = state.packs.find((x) => x.id == packId) || { name: t("f.boxDefault"), size: null, barcode: code, price: "" };
   if (packId && +p.price && !owner) return toast(t("err.noPerm"), true), null;
   let it = state.items.find((x) => x.id == (itemId || p.item_id));
   const label = (i) => `${i.name} · ${i.sku}`,
