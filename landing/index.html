@@ -4,6 +4,13 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
     <meta name="theme-color" content="#07050f" />
+    <!-- The saved light/dark choice is applied before the page draws, so it never flashes the other one. -->
+    <script>
+      try {
+        const t = localStorage.getItem("rapidewms.theme");
+        if (t == "light" || t == "dark") document.documentElement.dataset.theme = t;
+      } catch {}
+    </script>
     <title>RAPIDÉWMS — ລະບົບຂາຍໜ້າຮ້ານ ແລະ ສາງສິນຄ້າ</title>
     <meta
       name="description"
@@ -38,6 +45,7 @@
         <a href="#faq" data-t="nav.faq">ຄຳຖາມ</a>
         <a href="#contact" data-t="nav.contact">ຕິດຕໍ່</a>
       </nav>
+      <button class="ghost theme" id="theme" type="button" aria-label="ໂໝດມືດ / ແຈ້ງ · Dark / light mode">☾</button>
       <button class="ghost" id="lang" type="button" aria-label="ພາສາ / Language">ລາວ / EN</button>
       <a class="ghost" href="https://rapidepi.rapidewms.workers.dev/" data-app data-t="nav.signin">ເຂົ້າສູ່ລະບົບ</a>
     </header>

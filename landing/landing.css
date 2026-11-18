@@ -13,6 +13,20 @@
   --cta-hover: #8b5cf6;
   --ok: #22c55e;
   --radius: 16px;
+  /* the colours that change between dark and light (light ones below) */
+  --heading: #ffffff;
+  --glow-1: #2a1660;
+  --glow-2: #1a0f3d;
+  --head-bg: rgba(6, 4, 13, 0.82);
+  --head-bg-2: rgba(6, 4, 13, 0.92);
+  --shadow: 0 30px 80px rgba(0, 0, 0, 0.5);
+  --shadow-sm: 0 10px 30px rgba(0, 0, 0, 0.45);
+  --pop-top: #1c1240;
+  --strip-bg: rgba(14, 10, 28, 0.6);
+  --hover-line: #4c3a8a;
+  --hover-shadow: 0 18px 40px rgba(76, 29, 149, 0.28);
+  --aurora: 1;
+  color-scheme: dark;
   --max: 1120px;
 }
 * {
@@ -25,8 +39,8 @@ html {
 }
 body {
   background:
-    radial-gradient(900px 500px at 85% -10%, #2a1660 0%, transparent 60%),
-    radial-gradient(700px 400px at -10% 30%, #1a0f3d 0%, transparent 60%), var(--bg);
+    radial-gradient(900px 500px at 85% -10%, var(--glow-1) 0%, transparent 60%),
+    radial-gradient(700px 400px at -10% 30%, var(--glow-2) 0%, transparent 60%), var(--bg);
   color: var(--text);
   font:
     16px/1.6 "Noto Sans Lao",
@@ -59,7 +73,7 @@ h3 {
   align-items: center;
   gap: 10px;
   padding: 12px max(16px, calc((100vw - var(--max)) / 2));
-  background: rgba(6, 4, 13, 0.82);
+  background: var(--head-bg);
   backdrop-filter: blur(10px);
   border-bottom: 1px solid var(--line);
 }
@@ -207,7 +221,7 @@ main {
   background: var(--panel);
   border: 1px solid var(--line);
   border-radius: 22px;
-  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.5);
+  box-shadow: var(--shadow);
   overflow: hidden;
 }
 .mock-bar {
@@ -368,7 +382,7 @@ main {
 }
 .plan.pop {
   border-color: var(--accent);
-  background: linear-gradient(180deg, #1c1240, var(--panel) 60%);
+  background: linear-gradient(180deg, var(--pop-top), var(--panel) 60%);
 }
 .badge {
   position: absolute;
@@ -606,8 +620,8 @@ details p {
     background 0.3s;
 }
 .top.scrolled {
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
-  background: rgba(6, 4, 13, 0.92);
+  box-shadow: var(--shadow-sm);
+  background: var(--head-bg-2);
 }
 
 /* ---------- hero entrance ---------- */
@@ -640,7 +654,7 @@ details p {
   }
 }
 .hero h1 {
-  background: linear-gradient(100deg, #fff 0%, #fff 40%, var(--accent-2) 55%, #fff 70%, #fff 100%);
+  background: linear-gradient(100deg, var(--heading) 0%, var(--heading) 40%, var(--accent-2) 55%, var(--heading) 70%, var(--heading) 100%);
   background-size: 250% 100%;
   -webkit-background-clip: text;
   background-clip: text;
@@ -831,7 +845,7 @@ details p {
   margin: 40px 0 0;
   padding: 14px 0;
   border-block: 1px solid var(--line);
-  background: rgba(14, 10, 28, 0.6);
+  background: var(--strip-bg);
   overflow: hidden;
   -webkit-mask: linear-gradient(90deg, transparent, #000 10%, #000 90%, transparent);
   mask: linear-gradient(90deg, transparent, #000 10%, #000 90%, transparent);
@@ -888,8 +902,8 @@ details {
 .card:hover,
 .plan:hover {
   transform: translateY(-6px);
-  border-color: #4c3a8a;
-  box-shadow: 0 18px 40px rgba(76, 29, 149, 0.28);
+  border-color: var(--hover-line);
+  box-shadow: var(--hover-shadow);
 }
 .card.reveal:not(.in),
 .plan.reveal:not(.in) {
@@ -911,7 +925,7 @@ details {
 .plan.pop {
   border-color: transparent;
   background:
-    linear-gradient(180deg, #1c1240, var(--panel) 60%) padding-box,
+    linear-gradient(180deg, var(--pop-top), var(--panel) 60%) padding-box,
     conic-gradient(from var(--ang, 0deg), var(--accent), #ec4899, #3b82f6, var(--accent)) border-box;
   border: 1.5px solid transparent;
   animation: spin 8s linear infinite;
@@ -982,4 +996,82 @@ details[open] summary::after {
   .aurora {
     display: none;
   }
+}
+
+/* =====================================================================
+   Light mode: when the device is set to light (unless the visitor chose
+   dark with the ☀/☾ button), or when the visitor chose light.
+   ===================================================================== */
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) {
+    --bg: #f7f5fc;
+    --panel: #ffffff;
+    --panel-2: #f1ecfb;
+    --line: #e3dcf3;
+    --text: #1b1530;
+    --muted: #514a6b;
+    --faint: #6f6690;
+    --accent: #7c3aed;
+    --accent-2: #6d28d9;
+    --cta: #7c3aed;
+    --cta-hover: #6d28d9;
+    --ok: #15803d;
+    --heading: #160f2c;
+    --glow-1: #e6d9ff;
+    --glow-2: #dde6ff;
+    --head-bg: rgba(247, 245, 252, 0.85);
+    --head-bg-2: rgba(247, 245, 252, 0.95);
+    --shadow: 0 30px 70px rgba(60, 30, 120, 0.16);
+    --shadow-sm: 0 10px 30px rgba(60, 30, 120, 0.12);
+    --pop-top: #f0e8ff;
+    --strip-bg: rgba(255, 255, 255, 0.7);
+    --hover-line: #c4b1f3;
+    --hover-shadow: 0 18px 40px rgba(124, 58, 237, 0.16);
+    --aurora: 0.45;
+    color-scheme: light;
+  }
+}
+:root[data-theme="light"] {
+  --bg: #f7f5fc;
+  --panel: #ffffff;
+  --panel-2: #f1ecfb;
+  --line: #e3dcf3;
+  --text: #1b1530;
+  --muted: #514a6b;
+  --faint: #6f6690;
+  --accent: #7c3aed;
+  --accent-2: #6d28d9;
+  --cta: #7c3aed;
+  --cta-hover: #6d28d9;
+  --ok: #15803d;
+  --heading: #160f2c;
+  --glow-1: #e6d9ff;
+  --glow-2: #dde6ff;
+  --head-bg: rgba(247, 245, 252, 0.85);
+  --head-bg-2: rgba(247, 245, 252, 0.95);
+  --shadow: 0 30px 70px rgba(60, 30, 120, 0.16);
+  --shadow-sm: 0 10px 30px rgba(60, 30, 120, 0.12);
+  --pop-top: #f0e8ff;
+  --strip-bg: rgba(255, 255, 255, 0.7);
+  --hover-line: #c4b1f3;
+  --hover-shadow: 0 18px 40px rgba(124, 58, 237, 0.16);
+  --aurora: 0.45;
+  color-scheme: light;
+}
+/* the drifting glow is softer on a light page */
+.aurora {
+  opacity: var(--aurora);
+}
+/* a gentle cross-fade of the page when switching (cards keep their own
+   hover and scroll-in transitions, set above) */
+body,
+.marquee {
+  transition:
+    background-color 0.35s,
+    color 0.35s;
+}
+.theme {
+  font-size: 16px;
+  line-height: 1;
+  padding: 7px 10px;
 }
