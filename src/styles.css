@@ -973,3 +973,17 @@ button.tag.pk.warn {
   color: #fbbf24;
   border-color: #fbbf24;
 }
+
+/* ---------- subscription payments (011_billing.sql) ---------- */
+.qrdlg .steps-sm {
+  text-align: left;
+  padding-left: 20px;
+  max-width: 360px;
+  margin-inline: auto;
+}
+.qrdlg .steps-sm li {
+  margin: 4px 0;
+}
+tr.hot td {
+  background: rgba(124, 58, 237, 0.12);
+}

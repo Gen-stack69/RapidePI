@@ -766,5 +766,91 @@ await rejects("expired shop cannot add items", () =>
   as(A, "insert into items (shop_id, sku, name) values ($1, 'N', 'N')", [shopA]));
 await rejects("expired shop cannot adjust stock", () => as(A, "select adjust_stock($1, 1)", [item]));
 
+console.log("Subscription payments");
+// 011_billing.sql. Z is a Rapide admin. Shop A has just expired; B owns shop B, C is staff there.
+const Z = "00000000-0000-0000-0000-0000000000ad";
+await db.exec(`insert into auth.users values ('${Z}', 'admin@rapide.test'); insert into platform_admins (user_id) values ('${Z}')`);
+// Read as the database itself: an admin sees shops only through admin_payments().
+const raw = async (sql, params) => (await db.query(sql, params)).rows[0];
+const days = async (shop) =>
+  Math.round(+(await raw("select extract(epoch from plan_until - now()) / 86400 d from shops where id = $1", [shop])).d);
+let payA;
+await ok("every signed-in user sees the plans and prices", async () => {
+  const r = (await as(C, "select code, price_kip, max_tills from plans order by sort")).rows;
+  eq(r.map((p) => `${p.code}:${p.price_kip}:${p.max_tills}`).join(), "small:150000:1,mini:250000:4", "plans");
+});
+await ok("the owner of an expired shop can ask to pay; the server sets amount and reference", async () => {
+  payA = await one(A, "select * from request_payment($1, 'mini', 3)", [shopA]);
+  eq(`${payA.status} ${payA.amount_kip} ${payA.months}`, "pending 750000 3", "payment");
+  if (!/^RP-[0-9A-Z]{8}$/.test(payA.reference)) throw new Error("bad reference " + payA.reference);
+});
+await rejects("staff cannot start a payment", () => as(C, "select request_payment($1, 'small', 1)", [shopB]));
+await rejects("an owner cannot pay for another shop", () => as(B, "select request_payment($1, 'small', 1)", [shopA]));
+await rejects("an unknown plan is refused", () => as(A, "select request_payment($1, 'free', 1)", [shopA]));
+await rejects("more than 12 months is refused", () => as(A, "select request_payment($1, 'small', 13)", [shopA]));
+await rejects("a payment can't be written directly", () =>
+  as(A, "insert into payments (shop_id, plan, months, amount_kip, reference) values ($1, 'mini', 1, 1, 'RP-00000000')", [shopA]));
+await rejects("an owner can't mark their own payment approved", () =>
+  as(A, "update payments set status = 'approved' where id = $1", [payA.id]).then((r) => {
+    if (!(r.affectedRows > 0)) throw new Error("no rows");
+  }));
+await ok("another shop doesn't see the payment; the admin does", async () => {
+  eq((await one(B, "select count(*) n from payments")).n, 0, "other shop");
+  eq((await one(Z, "select count(*) n from payments")).n, 1, "admin");
+});
+await ok("asking again replaces the waiting payment, so only one waits", async () => {
+  const again = await one(A, "select * from request_payment($1, 'mini', 1)", [shopA]);
+  const r = await as(Z, "select status from payments where shop_id = $1 order by created_at", [shopA]);
+  eq(r.rows.map((x) => x.status).join(), "cancelled,pending", "statuses");
+  payA = again;
+});
+await ok("'I've paid' marks it for the admin", async () => {
+  eq(!!(await one(A, "select claimed_at from claim_payment($1)", [payA.id])).claimed_at, true, "claimed");
+});
+await rejects("a non-admin cannot approve, even the shop's owner", () => as(A, "select approve_payment($1)", [payA.id]));
+await rejects("a non-admin cannot list every payment", () => as(B, "select * from admin_payments()"));
+await ok("the admin's list shows the shop, owner and amount, waiting ones first", async () => {
+  const r = await one(Z, "select shop_name, plan, amount_kip, status from admin_payments() limit 1");
+  eq(`${r.shop_name} ${r.plan} ${r.amount_kip} ${r.status}`, "Shop A mini 250000 pending", "row");
+});
+await ok("approving reopens an expired shop for a month from today, with the plan's tills", async () => {
+  await as(Z, "select approve_payment($1, 'BCEL 18/11')", [payA.id]);
+  const s = await raw("select plan, max_tills from shops where id = $1", [shopA]);
+  eq(`${s.plan} ${s.max_tills}`, "paid 4", "shop");
+  const d = await days(shopA);
+  if (d < 28 || d > 31) throw new Error("expected about a month, got " + d + " days");
+  eq(
+    (await as(A, "insert into items (shop_id, sku, name) values ($1, 'PAID-1', 'Paid') returning 1", [shopA])).rows.length,
+    1,
+    "can write again",
+  );
+});
+await rejects("a payment can't be approved twice", () => as(Z, "select approve_payment($1)", [payA.id]));
+await ok("paying early adds the months after the current plan ends, so no days are lost", async () => {
+  const before = await days(shopB); // shop B is still on its trial
+  const p = await one(B, "select id from request_payment($1, 'small', 2)", [shopB]);
+  await as(Z, "select approve_payment($1)", [p.id]);
+  const gained = (await days(shopB)) - before;
+  if (gained < 58 || gained > 62) throw new Error("expected about two months added, got " + gained + " days");
+  eq((await raw("select max_tills m from shops where id = $1", [shopB])).m, 1, "small plan tills");
+});
+await ok("a rejected payment changes nothing", async () => {
+  const before = await days(shopB);
+  const p = await one(B, "select id from request_payment($1, 'mini', 1)", [shopB]);
+  await as(Z, "select reject_payment($1, 'no money arrived')", [p.id]);
+  eq(await days(shopB), before, "days");
+  eq((await one(Z, "select status, note from payments where id = $1", [p.id])).note, "no money arrived", "note");
+});
+await ok("the owner can cancel a waiting payment", async () => {
+  const p = await one(B, "select id from request_payment($1, 'mini', 1)", [shopB]);
+  await as(B, "select cancel_payment($1)", [p.id]);
+  eq((await one(B, "select status from payments where id = $1", [p.id])).status, "cancelled", "status");
+});
+await rejects("only an admin sets Rapide's bank QR", () => as(B, "select set_billing_qr('000201')"));
+await ok("the admin sets Rapide's bank QR and every user can read it", async () => {
+  await as(Z, "select set_billing_qr('000201010211')");
+  eq((await one(C, "select pay_qr from billing")).pay_qr, "000201010211", "qr");
+});
+
 console.log(failures ? `\n${failures} FAILED` : "\nAll database checks passed");
 process.exit(failures ? 1 : 0);

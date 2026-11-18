@@ -29,6 +29,9 @@ import sys from "./views/sys.js";
 import pos, * as till from "./views/pos.js";
 import exp from "./views/exp.js";
 import cust, { ui as custUi, rows as custRows } from "./views/cust.js";
+import admin, { load as loadAdmin } from "./views/admin.js";
+import { planName } from "./views/sys.js";
+import { tillQr, qrSvg } from "./lib/payqr.js";
 import { status, SOON_DAYS, setSoonDays, daysLeft } from "./lib/expiry.js";
 import { CUR, SIGN, kipPer } from "./lib/rates.js";
 import { registerSW } from "virtual:pwa-register";
@@ -36,7 +39,7 @@ import { registerSW } from "virtual:pwa-register";
 // Registers the service worker that lets the app open with no internet.
 registerSW({ immediate: true });
 
-const VIEWS = { dash, pos, cust, inv, exp, ord, scan, rep, auto, sys };
+const VIEWS = { dash, pos, cust, inv, exp, ord, scan, rep, auto, sys, admin };
 // [view key, icon]; the label and subtitle come from nav.<key> / nav.<key>.sub
 const N = [
   ["dash", "◔"],
@@ -49,6 +52,7 @@ const N = [
   ["rep", "▤"],
   ["auto", "⚙"],
   ["sys", "☰"],
+  ["admin", "✓"], // Rapide admins only
 ];
 let view = VIEWS[location.hash.slice(1)] ? location.hash.slice(1) : "dash";
 
@@ -80,6 +84,26 @@ function expiryNote(force) {
   else new Notification(title, { body, tag: "expiry" });
 }
 
+// ---------- paying for a plan ----------
+// Rapide's bank QR with the amount and the payment's reference filled in (the
+// reference goes into the transfer's note, as at the till), so the admin can
+// match the money in the bank app to this shop.
+function showPay(p) {
+  if (!p) return;
+  const qr = state.billing?.qr,
+    q = qr ? tillQr(qr, p.amount_kip, true, p.reference) : null,
+    dlg = $("#dlg");
+  dlg.innerHTML = `<div class="qrdlg"><h3>${t("bill.payTitle", { plan: planName(p.plan), n: p.months })}</h3>${
+    q ? `<div class="payqr big">${qrSvg(q.text)}</div>` : `<p class="warn">${t("bill.noQr")}</p>`
+  }<b class="n big">${fmt(p.amount_kip)}</b><p class="mt">${t("bill.ref", { ref: E(p.reference) })}</p><ol class="mut mt steps-sm"><li>${t(
+    q?.hasAmount ? "bill.step1Amount" : "bill.step1Type",
+    { amount: fmt(p.amount_kip) },
+  )}</li><li>${t(q?.ref ? "bill.step2Ref" : "bill.step2Type", { ref: E(p.reference) })}</li><li>${t("bill.step3")}</li></ol><div class="row mt">${
+    p.claimed_at ? "" : `<button class="b" data-act="payClaim" data-id="${E(p.id)}">${t("bill.iPaid")}</button>`
+  }<button class="g" data-act="closeDlg">${t("btn.close")}</button></div></div>`;
+  dlg.showModal();
+}
+
 // ---------- render ----------
 
 // force: rebuild the till too (a language switch); otherwise it only refreshes.
@@ -96,7 +120,7 @@ function render(force) {
     days = Math.ceil((new Date(state.shop.plan_until) - Date.now()) / 864e5);
 
   $("#shopname").textContent = state.shop.name;
-  $("#nav").innerHTML = `<h6>${t("nav.title")}</h6><div>${N.map(
+  $("#nav").innerHTML = `<h6>${t("nav.title")}</h6><div>${N.filter(([k]) => k != "admin" || state.billing?.admin).map(
     ([k, i]) =>
       `<a class="${k == view ? "on" : ""}" href="#${k}"><i>${i}</i>${t("nav." + k)}${
         k == "inv"
@@ -145,7 +169,11 @@ function render(force) {
   )}</p></div><div class="r"><button class="b" data-act="addItem">${t(
     "btn.addItem",
   )}</button><button class="g" data-act="quickScan">${t("btn.quickScan")}</button></div></div>${
-    !canWrite() ? `<div class="card warn">${t("plan.expiredCard")}</div>` : ""
+    !canWrite()
+      ? `<div class="card warn">${t("plan.expiredCard")}${
+          store.configured && isOwner() && view != "sys" ? ` <a href="#sys">${t("bill.renew")}</a>` : ""
+        }</div>`
+      : ""
   }${
     // Only on the screens built from orders/movements; products are never capped.
     state.truncated && ["dash", "ord", "rep"].includes(view)
@@ -651,6 +679,58 @@ const A = {
   async payQrDel() {
     if (!needWrite() || !confirm(t("ask.payQrDel"))) return;
     await store.setSetting("pay_qr", null);
+  },
+  // ---- subscription (owner, in Shop & backup) ----
+  // Paying is allowed on an expired shop: that is when it's needed most.
+  async payStart(el) {
+    const months = +($("#paymonths")?.value || 1);
+    const p = await store.requestPayment(el.dataset.plan, months);
+    showPay(p);
+  },
+  payShow: (el) => showPay(state.billing?.payments.find((p) => p.id == el.dataset.id)),
+  async payClaim(el) {
+    // Closed first: the screen doesn't redraw while a dialog is open.
+    if ($("#dlg").open) $("#dlg").close();
+    await store.claimPayment(el.dataset.id);
+    toast(t("bill.thanks"));
+  },
+  async payCancel(el) {
+    if (!confirm(t("bill.askCancel"))) return;
+    await store.cancelPayment(el.dataset.id);
+  },
+  // ---- Rapide admin ----
+  adminLoad: () => loadAdmin(),
+  async adminApprove(el) {
+    const { id, ref, amount, shop } = el.dataset;
+    if (!confirm(t("adm.askApprove", { amount: fmt(amount), ref, shop }))) return;
+    const note = prompt(t("adm.notePrompt"), "") ?? "";
+    await store.approvePayment(id, note.trim());
+    toast(t("adm.approved", { shop }));
+    await loadAdmin();
+  },
+  async adminReject(el) {
+    const note = prompt(t("adm.rejectPrompt"), "");
+    if (note == null) return;
+    await store.rejectPayment(el.dataset.id, note.trim());
+    toast(t("adm.rejected"));
+    await loadAdmin();
+  },
+  // A photo or screenshot of Rapide's own bank QR, as for the shop's till QR.
+  async billingQrSet(el) {
+    const photo = await pickPhoto();
+    if (!photo) return;
+    const label = el.textContent;
+    el.textContent = t("sys.payQrReading");
+    try {
+      const { detectImage, isQr } = await import("./lib/camera.js");
+      const code = (await detectImage(photo)).find((c) => isQr(c.format) && c.rawValue)?.rawValue;
+      if (!code) return toast(t("sys.payQrNone"), true);
+      if (code.length > 512) return toast(t("sys.payQrLong"), true);
+      await store.setBillingQr(code);
+      toast(t("sys.payQrDone"));
+    } finally {
+      el.textContent = label;
+    }
   },
   posQuick: (el) => till.quick(el.dataset.v),
   async posCharge() {

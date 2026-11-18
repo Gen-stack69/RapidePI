@@ -1,4 +1,4 @@
-import { E } from "../lib/util.js";
+import { E, fmt } from "../lib/util.js";
 import { t, tn, lang, LANGS, fDate, fDateTime } from "../i18n/index.js";
 import { isOwner, configured, myTill, canWrite } from "../data/store.js";
 import { describe, tillQr, qrSvg } from "../lib/payqr.js";
@@ -25,6 +25,52 @@ function payQr(s) {
   }</div></div><p class="mut mt">${t("sys.payQrTest")}</p><div class="row mt"><button class="g" data-act="payQrSet">${t(
     "sys.payQrChange",
   )}</button><button class="g" data-act="payQrDel">${t("sys.payQrDel")}</button></div></div>`;
+}
+
+// Owner only, with a server: pay for a plan. The shop transfers the amount to
+// Rapide's bank QR with the payment's reference in the note, taps "I've paid",
+// and a Rapide admin approves it once the money is in (011_billing.sql).
+const PAY_MONTHS = [1, 3, 6, 12];
+export const planName = (code) => t("bill.plan." + code);
+function billing(s) {
+  if (!configured || !isOwner() || !s.billing) return "";
+  const b = s.billing,
+    wait = b.payments.find((p) => p.status == "pending");
+  const head = `<div class="card"><h3>${t("bill.title")}</h3>`;
+  if (wait)
+    return `${head}<p class="mt"><b>${t("bill.waiting", {
+      plan: planName(wait.plan),
+      n: wait.months,
+      amount: fmt(wait.amount_kip),
+    })}</b></p><p class="mut">${t("bill.ref", { ref: E(wait.reference) })}</p><p class="mut mt">${t(
+      wait.claimed_at ? "bill.claimed" : "bill.toPay",
+    )}</p><div class="row mt"><button class="b" data-act="payShow" data-id="${E(wait.id)}">${t("bill.showQr")}</button>${
+      wait.claimed_at ? "" : `<button class="g" data-act="payClaim" data-id="${E(wait.id)}">${t("bill.iPaid")}</button>`
+    }<button class="g" data-act="payCancel" data-id="${E(wait.id)}">${t("bill.cancel")}</button></div>${history(b)}</div>`;
+  const plans = b.plans
+    .map(
+      (p) =>
+        `<div class="row mt"><b>${planName(p.code)}</b><span class="mut">${tn("bill.planLine", p.max_tills, {
+          price: fmt(p.price_kip),
+        })}</span><button class="g" data-act="payStart" data-plan="${E(p.code)}">${t("bill.choose")}</button></div>`,
+    )
+    .join("");
+  return `${head}<p class="mut">${t("bill.note")}</p><label class="mt">${t("bill.months")}<select id="paymonths">${PAY_MONTHS.map(
+    (n) => `<option value="${n}">${tn("bill.monthsN", n)}</option>`,
+  ).join("")}</select></label>${plans}${history(b)}</div>`;
+}
+function history(b) {
+  const done = b.payments.filter((p) => p.status != "pending").slice(0, 5);
+  if (!done.length) return "";
+  return `<p class="mut mt">${t("bill.history")}</p>${done
+    .map(
+      (p) =>
+        `<div class="row"><span>${fDate(new Date(p.decided_at || p.created_at))}</span><span>${planName(p.plan)} · ${tn(
+          "bill.monthsN",
+          p.months,
+        )}</span><span>${fmt(p.amount_kip)}</span><span class="tag">${t("bill.st." + p.status)}</span></div>`,
+    )
+    .join("")}`;
 }
 
 // The devices that sell. The plan sets how many can be in use; the owner
@@ -98,7 +144,7 @@ export default function sys(s) {
     configured
       ? `<div class="row mt"><button class="g" data-act="signOut">${t("sys.signOut")}</button></div>`
       : `<p class="mut mt">${t("sys.localNote")}</p>`
-  }</div>${prices(s)}${payQr(s)}${staff(s)}${tills(s)}
+  }</div>${billing(s)}${prices(s)}${payQr(s)}${staff(s)}${tills(s)}
 <div class="card"><h3>${t("sys.lang")}</h3><div class="row mt"><select data-input="lang">${LANGS.map(
     ([c, n]) => `<option value="${c}" ${c == lang() ? "selected" : ""}>${n}</option>`,
   ).join("")}</select></div></div>
