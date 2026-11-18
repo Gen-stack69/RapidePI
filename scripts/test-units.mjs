@@ -617,6 +617,22 @@ await ok("no amount is forced into a QR that can't carry one", async () => {
   eq(`${t.text} ${t.hasAmount}`, "not a bank qr false", "shown as scanned");
   eq(PQ.tillQr(LAKQR, 5000, false).text, LAKQR, "owner turned the amount off");
 });
+await ok("the sale's reference goes into field 62 as the transfer's note", async () => {
+  const ref = PQ.saleRef("1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d");
+  eq(ref, "RP-1A2B3C4D", "reference from the sale id");
+  const f = PQ.parseEmv(PQ.withAmount(LAKQR, 125000, ref));
+  if (!f) throw new Error("result is not a valid QR");
+  eq(f.map((x) => x.id).join(","), "00,01,38,52,53,54,58,59,60,62,63", "field order");
+  eq(f.find((x) => x.id == "62").value, "0111RP-1A2B3C4D0511RP-1A2B3C4D0811RP-1A2B3C4D", "bill, reference and purpose");
+  // Sub-fields the shop's QR already had in 62 are kept; ours are replaced, not doubled.
+  const withStore = lakBody.replace("6304", fld("62", fld("03", "STORE1") + fld("05", "OLD")) + "6304");
+  const g = PQ.parseEmv(PQ.withAmount(withStore + PQ.crc16(withStore), 5000, ref));
+  eq(g.find((x) => x.id == "62").value, "0111RP-1A2B3C4D0306STORE10511RP-1A2B3C4D0811RP-1A2B3C4D", "merged");
+  const q = PQ.tillQr(LAKQR, 5000, true, ref);
+  eq(`${q.hasAmount} ${q.ref}`, "true RP-1A2B3C4D", "till shows the reference");
+  eq(PQ.tillQr(LAKQR, 5000, false, ref).ref, "", "no reference when the QR is shown as scanned");
+  eq(PQ.parseEmv(PQ.withAmount(LAKQR, 5000)).some((x) => x.id == "62"), false, "no reference asked, no field 62");
+});
 await ok("the QR picture is drawn black on white", async () => {
   const svg = PQ.qrSvg(PQ.withAmount(LAKQR, 125000));
   if (!svg.startsWith("<svg") || !svg.includes('fill="#fff"') || !svg.includes('fill="#000"')) throw new Error("bad svg");
