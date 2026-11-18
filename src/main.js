@@ -33,9 +33,7 @@ import { status, SOON_DAYS, setSoonDays, daysLeft } from "./lib/expiry.js";
 import { CUR, SIGN, kipPer } from "./lib/rates.js";
 import { registerSW } from "virtual:pwa-register";
 
-// The service worker is registered here, by the app, and not injected into
-// every page: the landing page at the site root stays light and doesn't make
-// a visitor's phone download the whole app for offline use.
+// Registers the service worker that lets the app open with no internet.
 registerSW({ immediate: true });
 
 const VIEWS = { dash, pos, cust, inv, exp, ord, scan, rep, auto, sys };

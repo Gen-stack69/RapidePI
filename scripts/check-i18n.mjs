@@ -62,7 +62,7 @@ for (const f of files) {
 }
 
 // Static markup is translated through data-i18n attributes in the shell.
-const html = readFileSync(new URL("../app/index.html", import.meta.url), "utf8");
+const html = readFileSync(new URL("../index.html", import.meta.url), "utf8");
 for (const m of html.matchAll(/data-i18n(?:-ph|-title)?="([\w.]+)"/g)) calls.add(m[1]);
 
 const covered = (k) => calls.has(k) || seen.has(k) || parts.some((fn) => fn(k));

@@ -9,10 +9,9 @@ const shell = (inner) => {
   $("#auth").innerHTML = `<div class="auth"><div class="brand" style="margin-bottom:18px"><h1>RAPIDÉ<em>WMS</em></h1></div>${inner}</div>`;
 };
 
-// Where the reset email sends the user back to: the app, under app/ (the site
-// root is the landing page). BASE_URL keeps this right under a sub-path deploy
-// (GitHub Pages serves the site from /RapidePI/).
-const appUrl = () => location.origin + import.meta.env.BASE_URL + "app/";
+// Where the reset email sends the user back to. BASE_URL keeps this right under
+// a sub-path deploy (GitHub Pages serves the app from /RapidePI/).
+const appUrl = () => location.origin + import.meta.env.BASE_URL;
 
 // Disable the submit button, clear the error line, run fn, re-enable. Returns
 // the Supabase error message, or "" on success.

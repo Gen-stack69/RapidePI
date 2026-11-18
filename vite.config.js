@@ -1,4 +1,3 @@
-import { fileURLToPath } from "node:url";
 import { defineConfig } from "vite";
 import basicSsl from "@vitejs/plugin-basic-ssl";
 import { VitePWA } from "vite-plugin-pwa";
@@ -19,7 +18,7 @@ export default defineConfig(({ mode }) => ({
     // needs the network to load or save a shop's real data.
     VitePWA({
       registerType: "autoUpdate",
-      // src/main.js registers the service worker itself, so only the app does.
+      // src/main.js registers the service worker itself.
       injectRegister: false,
       includeAssets: ["icon.svg", "icon-maskable.svg"],
       manifest: {
@@ -29,11 +28,10 @@ export default defineConfig(({ mode }) => ({
         theme_color: "#07050f",
         background_color: "#06040d",
         display: "standalone",
-        // The app lives under app/; the site root is the landing page. Relative
-        // (to the manifest at the root), so the same build works at the site
-        // root and under the sub-path that GitHub Pages serves.
-        start_url: "app/",
-        scope: "app/",
+        // Relative, so the same build works at the site root and under the
+        // /RapidePI/ sub-path that GitHub Pages serves.
+        start_url: ".",
+        scope: ".",
         icons: [
           { src: "icon.svg", sizes: "any", type: "image/svg+xml", purpose: "any" },
           { src: "icon-maskable.svg", sizes: "any", type: "image/svg+xml", purpose: "maskable" },
@@ -60,10 +58,8 @@ export default defineConfig(({ mode }) => ({
           "**/assets/index.es-*.js",
           "**/assets/purify.es-*.js",
         ],
-        // Serve the app shell for an app navigation the network can't answer.
-        // Only under app/: the landing page is never swapped for the app.
-        navigateFallback: "app/index.html",
-        navigateFallbackAllowlist: [/\/app\//],
+        // Serve the app shell for a navigation the network can't answer.
+        navigateFallback: "index.html",
         runtimeCaching: [
           {
             // Filenames carry a content hash, so a cached copy can never be stale.
@@ -90,15 +86,6 @@ export default defineConfig(({ mode }) => ({
       },
     }),
   ],
-  // Two pages: the landing page at the site root, the app under app/.
-  build: {
-    rollupOptions: {
-      input: {
-        landing: fileURLToPath(new URL("./index.html", import.meta.url)),
-        app: fileURLToPath(new URL("./app/index.html", import.meta.url)),
-      },
-    },
-  },
   // `npm run share` puts the dev server behind a Cloudflare tunnel (real HTTPS).
   server: { allowedHosts: [".trycloudflare.com"] },
 }));

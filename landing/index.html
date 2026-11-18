@@ -1,0 +1,273 @@
+<!doctype html>
+<html lang="lo">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+    <meta name="theme-color" content="#07050f" />
+    <title>RAPIDÉWMS — ລະບົບຂາຍໜ້າຮ້ານ ແລະ ສາງສິນຄ້າ</title>
+    <meta
+      name="description"
+      content="ລະບົບຂາຍໜ້າຮ້ານ ແລະ ສາງສິນຄ້າ ສຳລັບຮ້ານຄ້າໃນລາວ. Point of sale and stock control for shops in Laos."
+    />
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23120a2a'/%3E%3Ctext x='17' y='49' font-size='46' font-family='Georgia,serif' font-style='italic' fill='%23c4b5fd'%3ER%3C/text%3E%3C/svg%3E"
+    />
+  </head>
+  <body>
+    <!--
+      The landing page, a site of its own (rapidewms.rapidewms.workers.dev),
+      built by `npm run build:landing`. Text here is the Lao version;
+      landing.js holds the English and swaps it in. Every element with
+      data-t="key" has an English entry under that key. Prices, contact
+      details and the app's address are set at the top of landing.js.
+    -->
+    <header class="top">
+      <a class="logo" href="#" aria-label="RAPIDÉWMS">
+        <svg width="34" height="34" viewBox="0 0 48 48" aria-hidden="true">
+          <rect width="48" height="48" rx="11" fill="#120a2a" />
+          <text x="12" y="37" font-size="32" font-family="Georgia,serif" font-style="italic" fill="#fff">R</text>
+          <path d="M9 7l1.3 3.6L14 12l-3.7 1.4L9 17l-1.3-3.6L4 12l3.7-1.4z" fill="#c4b5fd" />
+        </svg>
+        <span>RAPIDÉ<em>WMS</em></span>
+      </a>
+      <nav class="links">
+        <a href="#services" data-t="nav.services">ບໍລິການ</a>
+        <a href="#pricing" data-t="nav.pricing">ລາຄາ</a>
+        <a href="#faq" data-t="nav.faq">ຄຳຖາມ</a>
+        <a href="#contact" data-t="nav.contact">ຕິດຕໍ່</a>
+      </nav>
+      <button class="ghost" id="lang" type="button" aria-label="ພາສາ / Language">ລາວ / EN</button>
+      <a class="ghost" href="https://rapidepi.rapidewms.workers.dev/" data-app data-t="nav.signin">ເຂົ້າສູ່ລະບົບ</a>
+    </header>
+
+    <main>
+      <section class="hero">
+        <div class="hero-text">
+          <p class="eyebrow" data-t="hero.eyebrow">ສຳລັບຮ້ານຄ້າ, ມິນິມາດ ແລະ ສາງ ໃນລາວ</p>
+          <h1 data-t="hero.title">ລະບົບຂາຍໜ້າຮ້ານ ແລະ ສາງສິນຄ້າ ທີ່ໃຊ້ງ່າຍ ເປັນພາສາລາວ</h1>
+          <p class="lead" data-t="hero.lead">
+            ຂາຍໄວຂຶ້ນ, ສະຕັອກຖືກຕ້ອງ ແລະ ຮູ້ກ່ອນວ່າສິນຄ້າໃດໃກ້ໝົດອາຍຸ. ໃຊ້ໄດ້ທັງໃນໂທລະສັບ ແລະ ຄອມພິວເຕີ,
+            ເຖິງແມ່ນເນັດຈະຂາດ.
+          </p>
+          <div class="cta">
+            <a class="btn primary" href="https://rapidepi.rapidewms.workers.dev/" data-app data-t="hero.trial">ທົດລອງໃຊ້ຟຣີ 14 ວັນ</a>
+            <a class="btn" href="#contact" data-wa data-t="hero.talk">ລົມກັບພວກເຮົາ</a>
+          </div>
+          <p class="fine" data-t="hero.fine">ບໍ່ຕ້ອງໃຊ້ບັດ · ພາສາລາວ ແລະ ອັງກິດ · ຈ່າຍຜ່ານ BCEL One / LAPNet QR</p>
+        </div>
+
+        <!-- A drawing of the till, not a screenshot: it stays sharp and loads instantly. -->
+        <div class="mock" aria-hidden="true">
+          <div class="mock-bar"><span></span><span></span><span></span></div>
+          <div class="mock-body">
+            <p class="mock-h" data-t="mock.title">ໜ້າຂາຍ</p>
+            <div class="row"><span data-t="mock.i1">ນ້ຳດື່ມ 1.5 ລິດ × 2</span><b>10,000 ₭</b></div>
+            <div class="row"><span data-t="mock.i2">ເບຍລາວ (ແກັດ 24)</span><b>240,000 ₭</b></div>
+            <div class="row"><span data-t="mock.i3">ເຂົ້າໜົມປັງ</span><b>8,000 ₭</b></div>
+            <div class="row total"><span data-t="mock.total">ລວມ</span><b>258,000 ₭</b></div>
+            <div class="mock-pay">
+              <div class="qr">
+                <i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i
+                ><i></i><i></i>
+              </div>
+              <p data-t="mock.qr">ລູກຄ້າສະແກນ QR ທະນາຄານ, ຍອດເງິນໃສ່ໃຫ້ແລ້ວ</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="services" class="block">
+        <h2 data-t="svc.title">ສິ່ງທີ່ RAPIDÉWMS ເຮັດໃຫ້ຮ້ານຂອງທ່ານ</h2>
+        <div class="grid">
+          <article class="card">
+            <span class="ico">₭</span>
+            <h3 data-t="svc.till.h">ໜ້າຂາຍ ແລະ QR ທະນາຄານ</h3>
+            <p data-t="svc.till.p">
+              ສະແກນບາໂຄດ ຫຼື ຄົ້ນຫາຊື່ສິນຄ້າ, ຮັບເງິນສົດ ຫຼື ເງິນໂອນ. QR ທະນາຄານຂອງຮ້ານສະແດງຍອດເງິນໃຫ້ລູກຄ້າສະແກນ
+              ດ້ວຍ BCEL One, LDB ຫຼື JDB.
+            </p>
+          </article>
+          <article class="card">
+            <span class="ico">▥</span>
+            <h3 data-t="svc.stock.h">ສະຕັອກ ແລະ ບາໂຄດ</h3>
+            <p data-t="svc.stock.p">
+              ຮັບ ແລະ ສົ່ງສິນຄ້າດ້ວຍກ້ອງໂທລະສັບ ຫຼື ເຄື່ອງສະແກນ USB. ຮອງຮັບສິນຄ້າເປັນແກັດ, ລາຄາຂາຍສົ່ງ ແລະ
+              ແຈ້ງເຕືອນເມື່ອສິນຄ້າໃກ້ໝົດ.
+            </p>
+          </article>
+          <article class="card">
+            <span class="ico">⏳</span>
+            <h3 data-t="svc.exp.h">ວັນໝົດອາຍຸ</h3>
+            <p data-t="svc.exp.p">
+              ເບິ່ງສິນຄ້າທີ່ໃກ້ໝົດອາຍຸກ່ອນ, ຫຼຸດລາຄາສະເພາະລອດນັ້ນ ແລະ ຕັດສິນຄ້າໝົດອາຍຸອອກໄດ້ໃນກົດດຽວ.
+            </p>
+          </article>
+          <article class="card">
+            <span class="ico">⚡</span>
+            <h3 data-t="svc.off.h">ຂາຍໄດ້ເມື່ອເນັດຂາດ</h3>
+            <p data-t="svc.off.p">
+              ເນັດຂາດກໍ່ຂາຍຕໍ່ໄດ້. ເມື່ອເນັດກັບມາ, ທຸກເຄື່ອງຈະສົ່ງການຂາຍຂຶ້ນລະບົບເອງ ແລະ ບໍ່ມີການຂາຍຊໍ້າ.
+            </p>
+          </article>
+          <article class="card">
+            <span class="ico">⇄</span>
+            <h3 data-t="svc.multi.h">ຫຼາຍເຄື່ອງ, ຂໍ້ມູນດຽວກັນ</h3>
+            <p data-t="svc.multi.p">
+              ໂທລະສັບ, ແທັບເລັດ ແລະ ຄອມ ເຫັນສະຕັອກດຽວກັນທັນທີ. ເຈົ້າຂອງຮ້ານ ແລະ ພະນັກງານ ມີສິດໃຊ້ງານຕ່າງກັນ.
+            </p>
+          </article>
+          <article class="card">
+            <span class="ico">▤</span>
+            <h3 data-t="svc.rep.h">ລາຍງານ ແລະ ໃບບິນ</h3>
+            <p data-t="svc.rep.p">
+              ຍອດຂາຍມື້ນີ້ ແລະ ມູນຄ່າສະຕັອກ. ສົ່ງອອກເປັນ PDF, Excel ຫຼື CSV, ພິມໃບບິນ 58 ມມ ຫຼື A4.
+            </p>
+          </article>
+        </div>
+
+        <h2 class="sub" data-t="help.title">ພວກເຮົາຊ່ວຍທ່ານເລີ່ມຕົ້ນ</h2>
+        <div class="grid three">
+          <article class="card soft">
+            <h3 data-t="help.import.h">ນຳເຂົ້າຂໍ້ມູນໃຫ້</h3>
+            <p data-t="help.import.p">
+              ສົ່ງໄຟລ໌ Excel ຫຼື ຂໍ້ມູນຈາກ Loyverse ມາ, ພວກເຮົາຊ່ວຍນຳເຂົ້າສິນຄ້າ, ລູກຄ້າ ແລະ ຍອດຂາຍເກົ່າ.
+            </p>
+          </article>
+          <article class="card soft">
+            <h3 data-t="help.train.h">ສອນການໃຊ້ງານ</h3>
+            <p data-t="help.train.p">ພວກເຮົາສອນທ່ານ ແລະ ພະນັກງານ ຈົນໃຊ້ໜ້າຂາຍ ແລະ ຮັບສິນຄ້າໄດ້ຄ່ອງ.</p>
+          </article>
+          <article class="card soft">
+            <h3 data-t="help.support.h">ຊ່ວຍເຫຼືອເປັນພາສາລາວ</h3>
+            <p data-t="help.support.p">ມີຄຳຖາມ ຫຼື ບັນຫາ, ຖາມພວກເຮົາໄດ້ທາງ WhatsApp, ໂທ ຫຼື Facebook.</p>
+          </article>
+        </div>
+      </section>
+
+      <section class="block steps">
+        <h2 data-t="how.title">ເລີ່ມໃຊ້ໄດ້ໃນມື້ດຽວ</h2>
+        <ol>
+          <li>
+            <b data-t="how.1.h">ສະໝັກ ແລະ ສ້າງຮ້ານ</b>
+            <span data-t="how.1.p">ໃຊ້ອີເມວ ແລະ ລະຫັດຜ່ານ. ບໍ່ຕ້ອງໃຊ້ບັດ.</span>
+          </li>
+          <li>
+            <b data-t="how.2.h">ໃສ່ສິນຄ້າ</b>
+            <span data-t="how.2.p">ສະແກນ, ພິມເອງ ຫຼື ນຳເຂົ້າຈາກໄຟລ໌ Excel.</span>
+          </li>
+          <li>
+            <b data-t="how.3.h">ເລີ່ມຂາຍ</b>
+            <span data-t="how.3.p">ເປີດໜ້າຂາຍໃນໂທລະສັບ ຫຼື ຄອມ ແລະ ຮັບເງິນໄດ້ເລີຍ.</span>
+          </li>
+        </ol>
+      </section>
+
+      <section id="pricing" class="block">
+        <h2 data-t="price.title">ລາຄາທີ່ຊັດເຈນ, ຈ່າຍເປັນເດືອນ</h2>
+        <p class="center muted" data-t="price.lead">ທຸກແພັກເກັດໄດ້ທຸກຄຸນສົມບັດ. ທົດລອງຟຣີ 14 ວັນກ່ອນ, ຍົກເລີກໄດ້ທຸກເວລາ.</p>
+        <div class="plans">
+          <article class="plan">
+            <h3 data-t="plan.small.h">ຮ້ານນ້ອຍ</h3>
+            <p class="who" data-t="plan.small.who">ຮ້ານຄ້າທີ່ມີ 1 ເຄື່ອງຂາຍ</p>
+            <p class="amount"><b data-price="small"></b> <span data-t="plan.month">₭ / ເດືອນ</span></p>
+            <ul>
+              <li data-t="plan.small.f1">1 ເຄື່ອງຂາຍ (ໂທລະສັບ, ແທັບເລັດ ຫຼື ຄອມ)</li>
+              <li data-t="plan.all">ໜ້າຂາຍ, ສະຕັອກ, ວັນໝົດອາຍຸ, ລາຍງານ</li>
+              <li data-t="plan.offline">ຂາຍໄດ້ເມື່ອເນັດຂາດ</li>
+              <li data-t="plan.help">ຊ່ວຍນຳເຂົ້າສິນຄ້າ ແລະ ສອນການໃຊ້ງານ</li>
+            </ul>
+            <a class="btn" href="https://rapidepi.rapidewms.workers.dev/" data-app data-t="plan.start">ເລີ່ມທົດລອງຟຣີ</a>
+          </article>
+          <article class="plan pop">
+            <span class="badge" data-t="plan.pop">ນິຍົມທີ່ສຸດ</span>
+            <h3 data-t="plan.mini.h">ມິນິມາດ</h3>
+            <p class="who" data-t="plan.mini.who">ຮ້ານທີ່ມີຫຼາຍເຄື່ອງຂາຍ</p>
+            <p class="amount"><b data-price="mini"></b> <span data-t="plan.month">₭ / ເດືອນ</span></p>
+            <ul>
+              <li data-t="plan.mini.f1">ສູງສຸດ 4 ເຄື່ອງ (3 ເຄື່ອງຂາຍ + 1 ຄອມ)</li>
+              <li data-t="plan.all">ໜ້າຂາຍ, ສະຕັອກ, ວັນໝົດອາຍຸ, ລາຍງານ</li>
+              <li data-t="plan.offline">ຂາຍໄດ້ເມື່ອເນັດຂາດ</li>
+              <li data-t="plan.staff">ສິດຂອງພະນັກງານ ແລະ ເຈົ້າຂອງແຍກກັນ</li>
+              <li data-t="plan.help">ຊ່ວຍນຳເຂົ້າສິນຄ້າ ແລະ ສອນການໃຊ້ງານ</li>
+            </ul>
+            <a class="btn primary" href="https://rapidepi.rapidewms.workers.dev/" data-app data-t="plan.start">ເລີ່ມທົດລອງຟຣີ</a>
+          </article>
+          <article class="plan">
+            <h3 data-t="plan.big.h">ສາງ ຫຼື ຫຼາຍສາຂາ</h3>
+            <p class="who" data-t="plan.big.who">ເຄື່ອງຫຼາຍກວ່າ 4 ເຄື່ອງ ຫຼື ຫຼາຍຮ້ານ</p>
+            <p class="amount"><b data-t="plan.big.price">ຕາມຕົກລົງ</b></p>
+            <ul>
+              <li data-t="plan.big.f1">ຈຳນວນເຄື່ອງຕາມທີ່ທ່ານຕ້ອງການ</li>
+              <li data-t="plan.all">ໜ້າຂາຍ, ສະຕັອກ, ວັນໝົດອາຍຸ, ລາຍງານ</li>
+              <li data-t="plan.big.f2">ຊ່ວຍຕັ້ງຄ່າ ແລະ ຍ້າຍຂໍ້ມູນທັງໝົດ</li>
+            </ul>
+            <a class="btn" href="#contact" data-wa data-t="plan.contact">ຕິດຕໍ່ພວກເຮົາ</a>
+          </article>
+        </div>
+        <p class="center fine" data-t="price.note">
+          ຈ່າຍລາຍເດືອນຜ່ານ BCEL One ຫຼື LAPNet QR. ຖ້າບໍ່ຕໍ່ອາຍຸ, ຮ້ານຈະເປັນແບບເບິ່ງຢ່າງດຽວ ແລະ ຂໍ້ມູນບໍ່ຖືກລຶບ.
+        </p>
+      </section>
+
+      <section id="faq" class="block faq">
+        <h2 data-t="faq.title">ຄຳຖາມທີ່ພົບເລື້ອຍ</h2>
+        <details>
+          <summary data-t="faq.net.q">ຕ້ອງມີອິນເຕີເນັດຕະຫຼອດບໍ?</summary>
+          <p data-t="faq.net.a">
+            ບໍ່ຕ້ອງ. ຕ້ອງມີເນັດເທື່ອທຳອິດທີ່ເປີດຮ້ານ ແລະ ເວລາເພີ່ມ ຫຼື ແກ້ໄຂສິນຄ້າ. ການຂາຍ, ຍົກເລີກບິນ ແລະ ຮັບ/ສົ່ງສິນຄ້າ
+            ເຮັດໄດ້ເມື່ອບໍ່ມີເນັດ ແລະ ຈະສົ່ງຂຶ້ນລະບົບເອງເມື່ອເນັດກັບມາ.
+          </p>
+        </details>
+        <details>
+          <summary data-t="faq.dev.q">ໃຊ້ກັບອຸປະກອນໃດໄດ້ແດ່?</summary>
+          <p data-t="faq.dev.a">
+            ໂທລະສັບ Android ຫຼື iPhone, ແທັບເລັດ ແລະ ຄອມ Windows ທີ່ມີ Chrome, Edge ຫຼື Safari. ຕິດຕັ້ງເປັນແອັບໄດ້.
+            ຮອງຮັບເຄື່ອງສະແກນບາໂຄດ USB ຫຼື Bluetooth ແລະ ເຄື່ອງພິມໃບບິນ 58 ມມ.
+          </p>
+        </details>
+        <details>
+          <summary data-t="faq.pay.q">ຈ່າຍເງິນແນວໃດ?</summary>
+          <p data-t="faq.pay.a">ໂອນລາຍເດືອນຜ່ານ BCEL One ຫຼື LAPNet QR. ພວກເຮົາເປີດໃຊ້ຮ້ານຂອງທ່ານຫຼັງຈາກໄດ້ຮັບເງິນ.</p>
+        </details>
+        <details>
+          <summary data-t="faq.trial.q">ໝົດ 14 ວັນທົດລອງແລ້ວເປັນແນວໃດ?</summary>
+          <p data-t="faq.trial.a">
+            ຖ້າຍັງບໍ່ຈ່າຍ, ຮ້ານຈະເປັນແບບເບິ່ງຢ່າງດຽວ: ທ່ານຍັງເບິ່ງ ແລະ ສົ່ງອອກຂໍ້ມູນໄດ້, ຂໍ້ມູນບໍ່ຖືກລຶບ. ຈ່າຍເມື່ອໃດ
+            ກໍ່ໃຊ້ຕໍ່ໄດ້ທັນທີ.
+          </p>
+        </details>
+        <details>
+          <summary data-t="faq.safe.q">ຂໍ້ມູນຂອງຮ້ານປອດໄພບໍ?</summary>
+          <p data-t="faq.safe.a">
+            ແຕ່ລະຮ້ານເຫັນສະເພາະຂໍ້ມູນຂອງຕົນເອງ. ທ່ານສົ່ງອອກ ແລະ ສຳຮອງຂໍ້ມູນທັງໝົດເປັນໄຟລ໌ ZIP ໄດ້ທຸກເວລາ.
+          </p>
+        </details>
+        <details>
+          <summary data-t="faq.move.q">ຍ້າຍມາຈາກ Loyverse ຫຼື Excel ໄດ້ບໍ?</summary>
+          <p data-t="faq.move.a">
+            ໄດ້. ນຳເຂົ້າສິນຄ້າ, ລູກຄ້າ ແລະ ຍອດຂາຍເກົ່າຈາກໄຟລ໌ CSV ຫຼື Excel ໄດ້, ຫຼື ສົ່ງໄຟລ໌ມາໃຫ້ພວກເຮົາຊ່ວຍ.
+          </p>
+        </details>
+      </section>
+
+      <section id="contact" class="block contact">
+        <h2 data-t="contact.title">ຢາກເບິ່ງການສາທິດ ຫຼື ມີຄຳຖາມ?</h2>
+        <p class="center muted" data-t="contact.lead">ຕິດຕໍ່ພວກເຮົາ, ພວກເຮົາຍິນດີຊ່ວຍເປັນພາສາລາວ ແລະ ອັງກິດ.</p>
+        <div class="contacts" id="contacts"></div>
+        <div class="cta center">
+          <a class="btn primary" href="https://rapidepi.rapidewms.workers.dev/" data-app data-t="hero.trial">ທົດລອງໃຊ້ຟຣີ 14 ວັນ</a>
+          <a class="btn" id="demo" href="#" hidden data-t="contact.demo">ລອງເບິ່ງຕົວຢ່າງ (ບໍ່ຕ້ອງສະໝັກ)</a>
+        </div>
+      </section>
+    </main>
+
+    <footer class="foot">
+      <span>© <span id="year"></span> RAPIDÉWMS</span>
+      <span data-t="foot.where">ນະຄອນຫຼວງວຽງຈັນ, ສປປ ລາວ</span>
+      <a href="https://rapidepi.rapidewms.workers.dev/" data-app data-t="nav.signin">ເຂົ້າສູ່ລະບົບ</a>
+    </footer>
+
+    <script type="module" src="./landing.js"></script>
+  </body>
+</html>

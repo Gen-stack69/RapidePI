@@ -7,3 +7,4 @@ dist
 # Backups must never be committed: this repository is public.
 *.ndjson.gz
 dist-demo
+dist-landing
