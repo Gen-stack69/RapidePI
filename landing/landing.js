@@ -42,6 +42,16 @@ const EN = {
   "mock.i3": "Bread",
   "mock.total": "Total",
   "mock.qr": "The customer scans the bank QR, with the total already filled in",
+  "mock.paid": "Paid ✓",
+  "mq.1": "Till",
+  "mq.2": "Bank QR",
+  "mq.3": "Barcodes",
+  "mq.4": "Stock",
+  "mq.5": "Expiry dates",
+  "mq.6": "Sells offline",
+  "mq.7": "58 mm receipts",
+  "mq.8": "Excel / PDF reports",
+  "mq.9": "Lao language",
   "svc.title": "What RAPIDÉWMS does for your shop",
   "svc.till.h": "Till and bank QR",
   "svc.till.p":
@@ -188,6 +198,100 @@ if (CONFIG.demo) {
   demo.href = CONFIG.demo;
   demo.hidden = false;
 }
+
+// ---------------------------------------------------------------------------
+// Motion. Skipped entirely when the visitor's device asks for reduced motion.
+// ---------------------------------------------------------------------------
+const still = matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+// The header gets a shadow once the page has scrolled.
+const top = document.querySelector(".top");
+const onScroll = () => top.classList.toggle("scrolled", scrollY > 8);
+addEventListener("scroll", onScroll, { passive: true });
+onScroll();
+
+// Count a number up to its value: prices, and the till's total.
+function countUp(el, to, ms = 1100, suffix = "") {
+  if (still) return void (el.textContent = kip(to) + suffix);
+  const t0 = performance.now();
+  const step = (now) => {
+    const p = Math.min(1, (now - t0) / ms),
+      ease = 1 - Math.pow(1 - p, 3);
+    el.textContent = kip(Math.round(to * ease)) + suffix;
+    if (p < 1) requestAnimationFrame(step);
+  };
+  requestAnimationFrame(step);
+}
+
+// Sections, cards, plans, steps and questions fade up as they scroll in,
+// one after another within the same row.
+if (!still && "IntersectionObserver" in window) {
+  const groups = [".block > h2", ".block > p", ".grid", ".steps ol", ".plans", ".faq", ".contacts", ".contact .cta"];
+  const items = [];
+  for (const sel of groups)
+    for (const g of document.querySelectorAll(sel)) {
+      const kids = g.matches(".grid, .steps ol, .plans, .faq") ? [...g.children].filter((c) => !c.matches("h2")) : [g];
+      kids.forEach((k, i) => {
+        k.classList.add("reveal");
+        k.style.setProperty("--d", `${Math.min(i, 5) * 0.09}s`);
+        items.push(k);
+      });
+    }
+  const io = new IntersectionObserver(
+    (entries) => {
+      for (const e of entries) {
+        if (!e.isIntersecting) continue;
+        e.target.classList.add("in");
+        for (const b of e.target.querySelectorAll("[data-price]")) countUp(b, CONFIG.prices[b.dataset.price], 1200);
+        io.unobserve(e.target);
+      }
+    },
+    { threshold: 0.15, rootMargin: "0px 0px -40px 0px" },
+  );
+  for (const el of items) io.observe(el);
+}
+
+// The till in the hero plays a sale on a loop: items are scanned one by one,
+// the total counts up, the customer scans the QR, and the payment lands.
+(function playTill() {
+  const mock = document.querySelector(".mock");
+  if (!mock || still) return;
+  const rows = [...mock.querySelectorAll(".row:not(.total)")],
+    pay = mock.querySelector(".mock-pay"),
+    paid = mock.querySelector(".paid"),
+    total = document.getElementById("mock-total");
+  const amounts = [10000, 240000, 8000];
+  const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+  mock.classList.add("play");
+  (async function loop() {
+    for (;;) {
+      for (const el of [...rows, pay, paid]) el.classList.remove("on");
+      total.textContent = "0 ₭";
+      await wait(900);
+      let sum = 0;
+      for (let i = 0; i < rows.length; i++) {
+        rows[i].classList.add("on");
+        const from = sum;
+        sum += amounts[i];
+        countUpFrom(total, from, sum, 450);
+        await wait(850);
+      }
+      pay.classList.add("on");
+      await wait(2400);
+      paid.classList.add("on");
+      await wait(3200);
+    }
+  })();
+  function countUpFrom(el, from, to, ms) {
+    const t0 = performance.now();
+    const step = (now) => {
+      const p = Math.min(1, (now - t0) / ms);
+      el.textContent = kip(Math.round(from + (to - from) * p)) + " ₭";
+      if (p < 1) requestAnimationFrame(step);
+    };
+    requestAnimationFrame(step);
+  }
+})();
 
 document.getElementById("lang").addEventListener("click", () => {
   lang = lang == "en" ? "lo" : "en";

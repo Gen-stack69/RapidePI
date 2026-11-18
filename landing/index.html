@@ -22,6 +22,7 @@
       data-t="key" has an English entry under that key. Prices, contact
       details and the app's address are set at the top of landing.js.
     -->
+    <div class="aurora" aria-hidden="true"><i></i><i></i><i></i></div>
     <header class="top">
       <a class="logo" href="#" aria-label="RAPIDÉWMS">
         <svg width="34" height="34" viewBox="0 0 48 48" aria-hidden="true">
@@ -65,7 +66,7 @@
             <div class="row"><span data-t="mock.i1">ນ້ຳດື່ມ 1.5 ລິດ × 2</span><b>10,000 ₭</b></div>
             <div class="row"><span data-t="mock.i2">ເບຍລາວ (ແກັດ 24)</span><b>240,000 ₭</b></div>
             <div class="row"><span data-t="mock.i3">ເຂົ້າໜົມປັງ</span><b>8,000 ₭</b></div>
-            <div class="row total"><span data-t="mock.total">ລວມ</span><b>258,000 ₭</b></div>
+            <div class="row total"><span data-t="mock.total">ລວມ</span><b id="mock-total">258,000 ₭</b></div>
             <div class="mock-pay">
               <div class="qr">
                 <i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i
@@ -73,9 +74,22 @@
               </div>
               <p data-t="mock.qr">ລູກຄ້າສະແກນ QR ທະນາຄານ, ຍອດເງິນໃສ່ໃຫ້ແລ້ວ</p>
             </div>
+            <p class="paid" data-t="mock.paid">ຮັບເງິນແລ້ວ ✓</p>
           </div>
         </div>
       </section>
+
+      <!-- A slow, endless strip of what the app does. The list is doubled so it loops without a gap. -->
+      <div class="marquee" aria-hidden="true">
+        <div class="track">
+          <span data-t="mq.1">ໜ້າຂາຍ</span><span data-t="mq.2">QR ທະນາຄານ</span><span data-t="mq.3">ບາໂຄດ</span
+          ><span data-t="mq.4">ສະຕັອກ</span><span data-t="mq.5">ວັນໝົດອາຍຸ</span><span data-t="mq.6">ຂາຍໄດ້ເມື່ອເນັດຂາດ</span
+          ><span data-t="mq.7">ໃບບິນ 58 ມມ</span><span data-t="mq.8">ລາຍງານ Excel / PDF</span><span data-t="mq.9">ພາສາລາວ</span
+          ><span data-t="mq.1">ໜ້າຂາຍ</span><span data-t="mq.2">QR ທະນາຄານ</span><span data-t="mq.3">ບາໂຄດ</span
+          ><span data-t="mq.4">ສະຕັອກ</span><span data-t="mq.5">ວັນໝົດອາຍຸ</span><span data-t="mq.6">ຂາຍໄດ້ເມື່ອເນັດຂາດ</span
+          ><span data-t="mq.7">ໃບບິນ 58 ມມ</span><span data-t="mq.8">ລາຍງານ Excel / PDF</span><span data-t="mq.9">ພາສາລາວ</span>
+        </div>
+      </div>
 
       <section id="services" class="block">
         <h2 data-t="svc.title">ສິ່ງທີ່ RAPIDÉWMS ເຮັດໃຫ້ຮ້ານຂອງທ່ານ</h2>
