@@ -45,7 +45,7 @@ function billing(s) {
     })}</b></p><p class="mut">${t("bill.ref", { ref: E(wait.reference) })}</p><p class="mut mt">${t(
       wait.claimed_at ? "bill.claimed" : "bill.toPay",
     )}</p><div class="row mt"><button class="b" data-act="payShow" data-id="${E(wait.id)}">${t("bill.showQr")}</button>${
-      wait.claimed_at ? "" : `<button class="g" data-act="payClaim" data-id="${E(wait.id)}">${t("bill.iPaid")}</button>`
+      wait.proof_path ? "" : `<button class="g" data-act="payClaim" data-id="${E(wait.id)}">${t("bill.iPaid")}</button>`
     }<button class="g" data-act="payCancel" data-id="${E(wait.id)}">${t("bill.cancel")}</button></div>${history(b)}</div>`;
   const plans = b.plans
     .map(

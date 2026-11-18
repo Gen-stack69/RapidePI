@@ -140,12 +140,13 @@ export function expiryNote(iso) {
 }
 
 // Ask for a photo: the camera app on a phone, a file picker on a computer.
-export function pickPhoto() {
+// { camera: false } lets a phone pick from its gallery instead (a screenshot).
+export function pickPhoto({ camera = true } = {}) {
   return new Promise((res) => {
     const i = document.createElement("input");
     i.type = "file";
     i.accept = "image/*";
-    i.capture = "environment";
+    if (camera) i.capture = "environment";
     // In the page (inside the open dialog, which makes everything else inert):
     // older iPhone Safari does not open a picker that is not in the document.
     i.hidden = true;

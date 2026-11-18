@@ -807,6 +807,13 @@ await ok("asking again replaces the waiting payment, so only one waits", async (
 await ok("'I've paid' marks it for the admin", async () => {
   eq(!!(await one(A, "select claimed_at from claim_payment($1)", [payA.id])).claimed_at, true, "claimed");
 });
+await rejects("a screenshot path from another shop or payment is refused", () =>
+  as(A, "select claim_payment($1, $2)", [payA.id, `${shopB}/${payA.id}.jpg`]));
+await ok("the screenshot of the transfer is kept with the payment", async () => {
+  const path = `${shopA}/${payA.id}.jpg`;
+  eq((await one(A, "select proof_path from claim_payment($1, $2)", [payA.id, path])).proof_path, path, "own row");
+  eq((await one(Z, "select proof_path from admin_payments() where id = $1", [payA.id])).proof_path, path, "admin sees it");
+});
 await rejects("a non-admin cannot approve, even the shop's owner", () => as(A, "select approve_payment($1)", [payA.id]));
 await rejects("a non-admin cannot list every payment", () => as(B, "select * from admin_payments()"));
 await ok("the admin's list shows the shop, owner and amount, waiting ones first", async () => {

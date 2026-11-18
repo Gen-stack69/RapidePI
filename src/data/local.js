@@ -54,6 +54,7 @@ export const removeMember = async () => {};
 export const requestPayment = async () => fail("err.billingDemo");
 export const claimPayment = async () => fail("err.billingDemo");
 export const cancelPayment = async () => {};
+export const proofUrl = async () => fail("err.billingDemo");
 export const adminPayments = async () => [];
 export const approvePayment = async () => fail("err.billingDemo");
 export const rejectPayment = async () => fail("err.billingDemo");
