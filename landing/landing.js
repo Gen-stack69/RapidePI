@@ -293,6 +293,32 @@ if (!still && "IntersectionObserver" in window) {
   }
 })();
 
+// ---------------------------------------------------------------------------
+// Light and dark mode. Follows the device until the visitor picks one with
+// the ☀/☾ button; that choice is remembered (and applied in index.html's head
+// before the page draws).
+// ---------------------------------------------------------------------------
+const THEME = "rapidewms.theme";
+const sysLight = matchMedia("(prefers-color-scheme: light)");
+const themeNow = () => document.documentElement.dataset.theme || (sysLight.matches ? "light" : "dark");
+function showTheme() {
+  const light = themeNow() == "light",
+    b = document.getElementById("theme");
+  b.textContent = light ? "☾" : "☀";
+  b.title = lang == "en" ? (light ? "Dark mode" : "Light mode") : light ? "ໂໝດມືດ" : "ໂໝດແຈ້ງ";
+  document.querySelector('meta[name="theme-color"]').content = light ? "#f7f5fc" : "#07050f";
+}
+document.getElementById("theme").addEventListener("click", () => {
+  const next = themeNow() == "light" ? "dark" : "light";
+  document.documentElement.dataset.theme = next;
+  try {
+    localStorage.setItem(THEME, next);
+  } catch {}
+  showTheme();
+});
+sysLight.addEventListener("change", showTheme);
+showTheme();
+
 document.getElementById("lang").addEventListener("click", () => {
   lang = lang == "en" ? "lo" : "en";
   try {
