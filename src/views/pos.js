@@ -10,14 +10,22 @@ import { lookupCode, status } from "../lib/expiry.js";
 import { receiptHtml, printReceipt } from "../lib/receipt.js";
 import { isQr } from "../lib/camera.js";
 import { linePrice, priceOf, vatOf, saleNo } from "../data/apply.js";
-import { describe, tillQr, qrSvg } from "../lib/payqr.js";
+import { describe, tillQr, qrSvg, saleRef } from "../lib/payqr.js";
 
 // The shop's bank QR for this total, or null when there is nothing to show.
+// The sale's id is made here when the QR first shows, so the reference in the
+// QR is the one the sale is saved with (any change to the cart makes a new one).
 function payQr(total) {
   const code = state.settings.pay_qr;
   if (st.method != "transfer" || !code || !(total > 0)) return null;
-  return { ...tillQr(code, total, state.settings.pay_qr_amount !== false), merchant: describe(code).merchant };
+  st.cid ||= crypto.randomUUID();
+  return {
+    ...tillQr(code, total, state.settings.pay_qr_amount !== false, saleRef(st.cid)),
+    merchant: describe(code).merchant,
+  };
 }
+
+const refHtml = (q) => (q.ref ? `<p class="mut">${t("pos.qrRef", { ref: E(q.ref) })}</p>` : "");
 
 // Redrawn only when the QR or the total changes: refresh() runs on every keystroke.
 function qrBoxHtml(total) {
@@ -27,7 +35,7 @@ function qrBoxHtml(total) {
   return `<div class="payqr">${qrSvg(q.text)}</div>${q.merchant ? `<p class="mt"><b>${E(q.merchant)}</b></p>` : ""}<p class="mut">${t(
     q.hasAmount ? "pos.qrHasAmount" : "pos.qrTypeAmount",
     { total: fmt(total) },
-  )}</p><button class="g" data-act="posQrBig">${t("pos.qrBig")}</button>`;
+  )}</p>${refHtml(q)}<button class="g" data-act="posQrBig">${t("pos.qrBig")}</button>`;
 }
 
 /** The QR full-screen, to turn towards the customer. */
@@ -40,7 +48,7 @@ export function showQr() {
     q.text,
   )}</div><b class="n big">${fmt(total)}</b><p class="mut">${t(q.hasAmount ? "pos.qrHasAmount" : "pos.qrTypeAmount", {
     total: fmt(total),
-  })}</p><div class="row mt"><button class="b" data-act="closeDlg">${t("btn.close")}</button></div></div>`;
+  })}</p>${refHtml(q)}<div class="row mt"><button class="b" data-act="closeDlg">${t("btn.close")}</button></div></div>`;
   dlg.showModal();
   dlg.querySelector(".b").focus();
 }

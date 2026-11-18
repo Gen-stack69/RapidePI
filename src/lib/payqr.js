@@ -62,24 +62,67 @@ export function describe(payload) {
   };
 }
 
-/** The shop's QR with `kip` filled in, or null when this QR can't carry an amount. */
-export function withAmount(payload, kip) {
+/** A short reference for one sale, from the till's id for it: "RP-" and 8 letters or digits. */
+export function saleRef(cid) {
+  const s = String(cid || "").replace(/[^0-9a-z]/gi, "").slice(0, 8).toUpperCase();
+  return s ? "RP-" + s : "";
+}
+
+// Field 62 (additional data) carries the reference as the bill number (01),
+// the reference label (05) and the purpose of the transfer (08). Bank apps
+// differ in which one they show or keep as the transfer's note, so all three
+// are set. Anything else the shop's QR already had in field 62 is kept.
+function withRef(fields, ref) {
+  const r = String(ref || "").replace(/[^0-9A-Z-]/gi, "").slice(0, 25);
+  if (!r) return fields;
+  const old = parseSub(get(fields, "62")).filter((x) => !["01", "05", "08"].includes(x.id));
+  const sub = [...old, { id: "01", value: r }, { id: "05", value: r }, { id: "08", value: r }].sort((a, b) => a.id.localeCompare(b.id));
+  const value = sub.map((x) => field(x.id, x.value)).join("");
+  if (value.length > 99) return fields;
+  const out = fields.filter((x) => x.id != "62");
+  const at = out.findIndex((x) => x.id > "62");
+  out.splice(at < 0 ? out.length : at, 0, { id: "62", value });
+  return out;
+}
+
+// The sub-fields inside a template field such as 62, or [] when it isn't one.
+function parseSub(s) {
+  const out = [];
+  let i = 0;
+  s = String(s || "");
+  while (i < s.length) {
+    const id = s.slice(i, i + 2),
+      len = s.slice(i + 2, i + 4);
+    if (!/^\d\d$/.test(id) || !/^\d\d$/.test(len) || s.length < i + 4 + +len) return [];
+    out.push({ id, value: s.slice(i + 4, i + 4 + +len) });
+    i += 4 + +len;
+  }
+  return out;
+}
+
+/**
+ * The shop's QR with `kip` filled in, and `ref` as the transfer's reference
+ * when given, or null when this QR can't carry an amount.
+ */
+export function withAmount(payload, kip, ref = "") {
   const f = parseEmv(payload);
   const amount = Math.round(+kip);
   if (!f || get(f, "53") != LAK || !Number.isFinite(amount) || amount <= 0 || String(amount).length > 13) return null;
   // 00 first, 63 last; the amount goes right after the currency, where it belongs.
-  const out = f
+  let out = f
     .filter((x) => x.id != "54" && x.id != "63")
     .map((x) => (x.id == "01" ? { id: "01", value: "12" } : x)); // 12 = a QR for one payment
   out.splice(out.findIndex((x) => x.id == "53") + 1, 0, { id: "54", value: String(amount) });
+  out = withRef(out, ref);
   const body = out.map((x) => field(x.id, x.value)).join("") + "6304";
   return body + crc16(body);
 }
 
-/** What the till shows: the QR to scan, and whether the total is inside it. */
-export function tillQr(payload, kip, putAmount = true) {
-  const filled = putAmount ? withAmount(payload, kip) : null;
-  return { text: filled || payload, hasAmount: !!filled };
+/** What the till shows: the QR to scan, whether the total is inside it, and the reference inside it. */
+export function tillQr(payload, kip, putAmount = true, ref = "") {
+  const filled = putAmount ? withAmount(payload, kip, ref) : null;
+  const hasRef = !!filled && !!ref && parseSub(get(parseEmv(filled), "62")).some((x) => x.id == "05");
+  return { text: filled || payload, hasAmount: !!filled, ref: hasRef ? ref : "" };
 }
 
 // Bank QRs can hold Lao text (the shop's name), which must go in as UTF-8.
