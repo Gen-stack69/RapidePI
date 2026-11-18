@@ -99,7 +99,7 @@ function showPay(p) {
     q?.hasAmount ? "bill.step1Amount" : "bill.step1Type",
     { amount: fmt(p.amount_kip) },
   )}</li><li>${t(q?.ref ? "bill.step2Ref" : "bill.step2Type", { ref: E(p.reference) })}</li><li>${t("bill.step3")}</li></ol><div class="row mt">${
-    p.claimed_at ? "" : `<button class="b" data-act="payClaim" data-id="${E(p.id)}">${t("bill.iPaid")}</button>`
+    p.proof_path ? "" : `<button class="b" data-act="payClaim" data-id="${E(p.id)}">${t("bill.iPaid")}</button>`
   }<button class="g" data-act="closeDlg">${t("btn.close")}</button></div></div>`;
   dlg.showModal();
 }
@@ -688,10 +688,15 @@ const A = {
     showPay(p);
   },
   payShow: (el) => showPay(state.billing?.payments.find((p) => p.id == el.dataset.id)),
+  // The screenshot of the successful transfer is required: it's what the
+  // admin checks against Rapide's bank account. From the gallery, not the camera.
   async payClaim(el) {
-    // Closed first: the screen doesn't redraw while a dialog is open.
+    const shot = await pickPhoto({ camera: false });
+    if (!shot) return toast(t("bill.needShot"), true);
+    // Closed before sending: the screen doesn't redraw while a dialog is open.
     if ($("#dlg").open) $("#dlg").close();
-    await store.claimPayment(el.dataset.id);
+    toast(t("bill.sending"));
+    await store.claimPayment(el.dataset.id, shot);
     toast(t("bill.thanks"));
   },
   async payCancel(el) {
@@ -700,6 +705,16 @@ const A = {
   },
   // ---- Rapide admin ----
   adminLoad: () => loadAdmin(),
+  async adminProof(el) {
+    const url = await store.proofUrl(el.dataset.path),
+      dlg = $("#dlg");
+    dlg.innerHTML = `<div class="qrdlg"><h3>${t("adm.proofTitle", { ref: E(el.dataset.ref) })}</h3><img class="proof" src="${E(
+      url,
+    )}" alt=""><div class="row mt"><a class="g" href="${E(url)}" target="_blank" rel="noopener">${t("adm.proofOpen")}</a><button class="b" data-act="closeDlg">${t(
+      "btn.close",
+    )}</button></div></div>`;
+    dlg.showModal();
+  },
   async adminApprove(el) {
     const { id, ref, amount, shop } = el.dataset;
     if (!confirm(t("adm.askApprove", { amount: fmt(amount), ref, shop }))) return;

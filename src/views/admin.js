@@ -35,7 +35,13 @@ function row(p) {
     t("adm.amount"),
   )}"><b>${fmt(p.amount_kip)}</b></td><td data-l="${E(t("adm.ref"))}"><b class="code">${E(p.reference)}</b></td><td data-l="${E(
     t("adm.when"),
-  )}">${when(p.created_at)}${p.claimed_at ? `<br><span class="tag">${t("adm.claimed", { d: when(p.claimed_at) })}</span>` : ""}</td><td data-l="${E(
+  )}">${when(p.created_at)}${p.claimed_at ? `<br><span class="tag">${t("adm.claimed", { d: when(p.claimed_at) })}</span>` : ""}${
+    p.proof_path
+      ? `<br><button class="g" data-act="adminProof" data-path="${E(p.proof_path)}" data-ref="${E(p.reference)}">${t("adm.proof")}</button>`
+      : pend
+        ? `<br><span class="mut">${t("adm.noProof")}</span>`
+        : ""
+  }</td><td data-l="${E(
     t("adm.status"),
   )}"><span class="tag">${t("bill.st." + p.status)}</span>${p.note ? `<br><span class="mut">${E(p.note)}</span>` : ""}</td><td class="act">${
     pend

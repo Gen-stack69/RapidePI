@@ -987,3 +987,11 @@ button.tag.pk.warn {
 tr.hot td {
   background: rgba(124, 58, 237, 0.12);
 }
+.qrdlg img.proof {
+  display: block;
+  max-width: 100%;
+  max-height: 70vh;
+  margin: 12px auto 0;
+  border-radius: 10px;
+  border: 1px solid #241a45;
+}

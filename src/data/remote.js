@@ -199,7 +199,35 @@ const afterPay = async (row) => {
 };
 export const requestPayment = async (plan, months) =>
   afterPay(await rpc("request_payment", { p_shop: state.shop.id, p_plan: plan, p_months: +months }));
-export const claimPayment = async (id) => afterPay(await rpc("claim_payment", { p_id: id }));
+// "I've paid", with the screenshot of the successful transfer (012). The
+// picture is shrunk to a JPEG of at most 1600 px first, so it sends quickly on
+// a phone connection, and stored privately: only the shop and Rapide see it.
+export async function claimPayment(id, photo) {
+  let path = null;
+  if (photo) {
+    path = `${state.shop.id}/${id}.jpg`;
+    const { error } = await sb.storage
+      .from("payment-proofs")
+      .upload(path, await toJpeg(photo), { upsert: true, contentType: "image/jpeg" });
+    if (error) throw friendly(error);
+  }
+  return afterPay(await rpc("claim_payment", { p_id: id, p_proof: path }));
+}
+async function toJpeg(file, max = 1600) {
+  const img = await createImageBitmap(file),
+    k = Math.min(1, max / Math.max(img.width, img.height)),
+    c = document.createElement("canvas");
+  c.width = Math.round(img.width * k);
+  c.height = Math.round(img.height * k);
+  c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
+  return new Promise((res, rej) => c.toBlob((b) => (b ? res(b) : rej(new Error("image"))), "image/jpeg", 0.85));
+}
+// A link to a payment's screenshot that works for 10 minutes, for whoever may see it.
+export async function proofUrl(path) {
+  const { data, error } = await sb.storage.from("payment-proofs").createSignedUrl(path, 600);
+  if (error) throw friendly(error);
+  return data.signedUrl;
+}
 export const cancelPayment = async (id) => afterPay(await rpc("cancel_payment", { p_id: id }));
 
 // Rapide admins only; the server refuses everyone else.
