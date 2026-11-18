@@ -1,4 +1,4 @@
-// The landing page at the site root. The app itself is under app/.
+// The landing page: a separate site from the app (npm run build:landing).
 import "./landing.css";
 // The same bundled Lao font as the app, so Lao renders the same everywhere.
 import "@fontsource/noto-sans-lao/lao-400.css";
@@ -10,6 +10,8 @@ import "@fontsource/noto-sans-lao/lao-700.css";
 // is simply not shown, so the page never displays a placeholder number.
 // ---------------------------------------------------------------------------
 const CONFIG = {
+  // Where "Sign in" and "Start free trial" go: the app's own site.
+  app: "https://rapidepi.rapidewms.workers.dev/",
   prices: { small: 150000, mini: 250000 },
   // WhatsApp and phone: the full number with country code, e.g. "8562012345678".
   whatsapp: "",
@@ -17,7 +19,7 @@ const CONFIG = {
   // The full address of the Facebook page, e.g. "https://www.facebook.com/rapidewms".
   facebook: "",
   // A try-it-now copy of the app that keeps data in the visitor's browser.
-  demo: "https://gen-stack69.github.io/RapidePI/app/",
+  demo: "https://gen-stack69.github.io/RapidePI/",
 };
 
 // English text, by data-t key. The Lao text is what index.html contains.
@@ -178,6 +180,7 @@ function apply() {
   contacts();
 }
 
+for (const a of document.querySelectorAll("[data-app]")) a.href = CONFIG.app;
 for (const b of document.querySelectorAll("[data-price]")) b.textContent = kip(CONFIG.prices[b.dataset.price]);
 document.getElementById("year").textContent = new Date().getFullYear();
 const demo = document.getElementById("demo");

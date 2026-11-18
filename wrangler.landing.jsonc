@@ -1,0 +1,15 @@
+// Cloudflare Workers: serves the landing page (dist-landing/, built by
+// `npm run build:landing`) at rapidewms.rapidewms.workers.dev. The app itself
+// is the other Worker, in wrangler.jsonc.
+//
+// Cloudflare builds it from GitHub on every push to master:
+//   build command:  npm run build:landing
+//   deploy command: npx wrangler deploy --config wrangler.landing.jsonc
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "rapidewms",
+  "compatibility_date": "2025-09-01",
+  "assets": {
+    "directory": "./dist-landing"
+  }
+}
