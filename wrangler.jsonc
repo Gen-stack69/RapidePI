@@ -1,0 +1,17 @@
+// Cloudflare Workers: serves the built app (dist/) as static files at
+// rapidepi.rapide.workers.dev. A Worker is used rather than Cloudflare Pages
+// because Lao Telecom blocks every *.pages.dev address; workers.dev opens.
+//
+// Cloudflare builds it from GitHub on every push to master:
+//   build command:  npm run build
+//   deploy command: npx wrangler deploy
+// with VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY set as build variables in
+// the Cloudflare dashboard (never in this public repository).
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "rapidepi",
+  "compatibility_date": "2025-09-01",
+  "assets": {
+    "directory": "./dist"
+  }
+}
