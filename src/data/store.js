@@ -47,6 +47,13 @@ export const {
   removeMember,
   retryFailed,
   discardFailed,
+  requestPayment,
+  claimPayment,
+  cancelPayment,
+  adminPayments,
+  approvePayment,
+  rejectPayment,
+  setBillingQr,
 } = B;
 
 // Back online: send what was done offline, then fetch a fresh copy.

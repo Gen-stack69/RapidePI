@@ -57,6 +57,9 @@ function friendly(e) {
   if (/pack not found/i.test(m)) return err("err.packNotFound");
   if (/already a member/i.test(m)) return err("err.alreadyMember");
   if (/too many open invites/i.test(m)) return err("err.manyInvites");
+  if (/payment already decided/i.test(m)) return err("err.payDecided");
+  if (/payment not found|unknown plan|months must be/i.test(m)) return err("err.payBad");
+  if (/only a rapide admin|only the owner can pay/i.test(m)) return err("err.noPerm");
   return new Error(m);
 }
 const fail = (code, params) => {
@@ -163,8 +166,50 @@ export async function reload() {
   await C.put("snap", id, { ...server, role: state.role, savedAt: state.savedAt }).catch(() => {});
   localStorage["rapidewms.lastShop." + state.user.id] = id;
   await loadPeople();
+  await loadBilling();
   await rebuild();
   await ensureTill();
+}
+
+// ---------- subscription (011_billing.sql) ----------
+
+// The plans and prices, Rapide's bank QR, whether this user is a Rapide admin,
+// and (for the owner) this shop's recent payments. Kept as it was if the
+// server can't be reached, and left empty if 011 hasn't been run yet.
+async function loadBilling() {
+  const id = state.shop.id;
+  try {
+    const [plans, billing, admin, payments] = await Promise.all([
+      must(sb.from("plans").select("code, price_kip, max_tills, sort").eq("active", true).order("sort")),
+      must(sb.from("billing").select("pay_qr").maybeSingle()),
+      rpc("is_platform_admin"),
+      state.role == "owner"
+        ? must(sb.from("payments").select("*").eq("shop_id", id).order("created_at", { ascending: false }).limit(20))
+        : [],
+    ]);
+    state.billing = { plans, qr: billing?.pay_qr || null, admin: !!admin, payments };
+  } catch {
+    state.billing ||= null;
+  }
+}
+const afterPay = async (row) => {
+  await loadBilling();
+  emit();
+  return row;
+};
+export const requestPayment = async (plan, months) =>
+  afterPay(await rpc("request_payment", { p_shop: state.shop.id, p_plan: plan, p_months: +months }));
+export const claimPayment = async (id) => afterPay(await rpc("claim_payment", { p_id: id }));
+export const cancelPayment = async (id) => afterPay(await rpc("cancel_payment", { p_id: id }));
+
+// Rapide admins only; the server refuses everyone else.
+export const adminPayments = () => rpc("admin_payments", { p_limit: 200 });
+export const approvePayment = (id, note) => rpc("approve_payment", { p_id: id, p_note: note || null });
+export const rejectPayment = (id, note) => rpc("reject_payment", { p_id: id, p_note: note || null });
+export async function setBillingQr(qr) {
+  await rpc("set_billing_qr", { p_qr: qr || "" });
+  await loadBilling();
+  emit();
 }
 
 // Who is in the shop and the unused invite codes: the owner's Staff card.

@@ -22,6 +22,9 @@ export const state = {
   tills: [], // the shop's devices that sell (A, B, C...), retired ones too
   people: null, // owner only: { members: [{ user_id, email, role }], invites: [{ code, expires_at }] }
   tillFull: false, // this device could not become a till: the plan's tills are all in use
+  // Server only (011_billing.sql): { plans: [{ code, price_kip, max_tills }], qr: Rapide's
+  // bank QR text, admin: is this user a Rapide admin, payments: this shop's, owner only }
+  billing: null,
 };
 
 const listeners = new Set();

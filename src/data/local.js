@@ -50,6 +50,14 @@ export const joinShop = async () => fail("err.noPerm");
 export const createInvite = async () => fail("err.noPerm");
 export const cancelInvite = async () => {};
 export const removeMember = async () => {};
+// Paying for a plan needs the server (011_billing.sql): the demo has no billing.
+export const requestPayment = async () => fail("err.billingDemo");
+export const claimPayment = async () => fail("err.billingDemo");
+export const cancelPayment = async () => {};
+export const adminPayments = async () => [];
+export const approvePayment = async () => fail("err.billingDemo");
+export const rejectPayment = async () => fail("err.billingDemo");
+export const setBillingQr = async () => fail("err.billingDemo");
 export const retryFailed = async () => {};
 export const discardFailed = async () => {};
 

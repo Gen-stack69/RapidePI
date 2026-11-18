@@ -179,7 +179,9 @@ scripts/check-i18n.mjs     Translation completeness + hardcoded-text check
 
 `npm run backup:verify` restores the newest file into a throwaway Postgres built from `supabase/migrations`, with every constraint enforced, then re-derives each product's stock from its movements. It rejects a truncated file, a file whose rows break a foreign key, and one whose stock no longer matches its history — all three are covered by tests. Backups are written outside the repository, and `*.ndjson.gz` is gitignored, because the repository is public.
 
-**Manual billing** (after the customer pays by BCEL One / LAPNet QR), run in the SQL Editor. `max_tills` is how many devices may sell, and it is what the plan is priced on: Small shop 1, Minimart 4 (3 tills + a PC); a trial gets 2.
+**Billing** (011_billing.sql): the owner pays from Shop & backup → Subscription, to Rapide's bank QR with the amount and a reference filled in, and taps "I've paid". A Rapide admin approves it on the Admin screen and the shop is extended at once. Make an account an admin once, in the SQL Editor: `insert into platform_admins (user_id) select id from auth.users where email = 'you@example.com';`. Set Rapide's bank QR on the Admin screen.
+
+The old **manual** way still works, run in the SQL Editor. `max_tills` is how many devices may sell, and it is what the plan is priced on: Small shop 1, Minimart 4 (3 tills + a PC); a trial gets 2.
 ```sql
 update shops set plan = 'paid', plan_until = now() + interval '1 month', max_tills = 4 where name = 'Shop name';
 ```
