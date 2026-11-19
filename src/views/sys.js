@@ -27,6 +27,21 @@ function payQr(s) {
   )}</button><button class="g" data-act="payQrDel">${t("sys.payQrDel")}</button></div></div>`;
 }
 
+// The other shops this account is in (an owner with two branches, a cashier
+// in two shops, a Rapide admin with a test shop): open one in a tap.
+function otherShops(s) {
+  const others = (s.shopList || []).filter((m) => m.shops.id != s.shop.id);
+  if (!others.length) return "";
+  return `<p class="mut mt">${t("sys.otherShops")}</p>${others
+    .map(
+      (m) =>
+        `<div class="row mt"><b>${E(m.shops.name)}</b><span class="tag">${t(m.role == "owner" ? "role.owner" : "role.staff")}</span><button class="g" data-act="switchShop" data-id="${E(
+          m.shops.id,
+        )}">${t("sys.open")}</button></div>`,
+    )
+    .join("")}`;
+}
+
 // Owner only, with a server: pay for a plan. The shop transfers the amount to
 // Rapide's bank QR with the payment's reference in the note, taps "I've paid",
 // and a Rapide admin approves it once the money is in (011_billing.sql).
@@ -144,7 +159,7 @@ export default function sys(s) {
     configured
       ? `<div class="row mt"><button class="g" data-act="signOut">${t("sys.signOut")}</button></div>`
       : `<p class="mut mt">${t("sys.localNote")}</p>`
-  }</div>${billing(s)}${prices(s)}${payQr(s)}${staff(s)}${tills(s)}
+  }${otherShops(s)}</div>${billing(s)}${prices(s)}${payQr(s)}${staff(s)}${tills(s)}
 <div class="card"><h3>${t("sys.lang")}</h3><div class="row mt"><select data-input="lang">${LANGS.map(
     ([c, n]) => `<option value="${c}" ${c == lang() ? "selected" : ""}>${n}</option>`,
   ).join("")}</select></div></div>

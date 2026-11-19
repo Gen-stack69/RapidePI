@@ -181,6 +181,12 @@ export function toggleCut(k) {
   add(it.id, l.qty, null, lot ? lot.expiry : null);
 }
 export const remove = (id) => setQty(id, 0);
+/** Forget the sale in progress entirely, search box included: another shop is opening. */
+export function reset() {
+  st.q = "";
+  st.cid = null;
+  clear();
+}
 export const clear = () => {
   st.cart = [];
   st.discount = st.paid = "";

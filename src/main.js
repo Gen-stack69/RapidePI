@@ -907,6 +907,29 @@ const A = {
     await store.cancelPayment(el.dataset.id);
   },
   // ---- Rapide admin ----
+  // Another shop this account belongs to: open it, and remember it for next
+  // time (reload() keeps it as this account's last shop). Work queued on this
+  // device stays with its own shop (queue.js) and is sent on coming back.
+  async switchShop(el) {
+    const m = state.shopList?.find((x) => x.shops.id == el.dataset.id),
+      was = state.shopList?.find((x) => x.shops.id == state.shop?.id);
+    if (!m || m === was) return;
+    // The other shop has to be fetched; offline there is only this one's copy.
+    if (store.configured && !navigator.onLine) return toast(t("err.offline"), true);
+    if (state.pending && !confirm(t("ask.switchPending"))) return;
+    toast(t("msg.opening", { name: m.shops.name }));
+    // A sale in progress belongs to this shop: its lines are this shop's products.
+    till.reset();
+    try {
+      await store.openShop(m);
+    } catch (e) {
+      // Half-opened (the connection dropped): go back, so the name on screen
+      // and the data under it are the same shop.
+      if (was) await store.openShop(was).catch(() => {});
+      throw e;
+    }
+    go("dash");
+  },
   adminLoad: () => loadAdmin(),
   async adminProof(el) {
     const url = await store.proofUrl(el.dataset.path),
@@ -1203,7 +1226,11 @@ async function enter() {
     throw e;
   }
   if (!shops.length) return showCreateShop(enter);
-  const m = shops.find((x) => x.shops.id == localStorage.lastShop) || shops[0];
+  state.shopList = shops; // for "Switch shop" in Shop & backup
+  // This account's last shop on this device (two people can share a till);
+  // the device-wide one for a session from before that was kept per account.
+  const last = localStorage["rapidewms.lastShop." + state.user?.id] || localStorage.lastShop,
+    m = shops.find((x) => x.shops.id == last) || shops[0];
   await store.openShop(m);
   if (view == "rep") refreshRates();
 }
