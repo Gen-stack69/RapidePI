@@ -219,6 +219,27 @@ const needWrite = () => {
   return false;
 };
 
+// A SKU for a product saved without one: P0001, P0002… (most small shops
+// have no product codes; the barcode, when there is one, is what gets scanned).
+function newSku() {
+  const n = Math.max(0, ...state.items.map((x) => +(/^P(\d+)$/i.exec(x.sku)?.[1] ?? 0)));
+  return "P" + String(n + 1).padStart(4, "0");
+}
+
+// What stops a product form from saving, as a message, or "" when it can be saved.
+function itemProblem(id, before, f) {
+  const code = (f.barcode.trim() || f.sku.trim()).toLowerCase();
+  // One barcode, one product: a scan can only ever find one of two.
+  const other =
+    code &&
+    (state.items.find((x) => x.id != id && [x.barcode, x.sku].some((c) => String(c || "").toLowerCase() == code)) ||
+      state.items.find((x) => state.packs.some((p) => p.item_id == x.id && String(p.barcode || "").toLowerCase() == code)));
+  if (other) return t("err.dupBarcode", { name: other.name });
+  // A date belongs to stock coming in: with none added it would be dropped.
+  if (f.expiry && !(+f.qty > +(before.qty || 0))) return t("err.expiryNoQty");
+  return "";
+}
+
 async function itemForm(id, code) {
   if (!needWrite()) return;
   const i = state.items.find((x) => x.id == id) || {
@@ -226,7 +247,8 @@ async function itemForm(id, code) {
     barcode: code || "",
     name: "",
     category: "",
-    kind: "durable",
+    // Most of what a mini-mart sells has a date on it; the date box can stay empty.
+    kind: "consumable",
     qty: 0,
     min_qty: 0,
     cost: 0,
@@ -234,8 +256,25 @@ async function itemForm(id, code) {
     price_wholesale: 0,
     wholesale_min_qty: 0,
   };
-  const f = await form(t(id ? "title.editItem" : "title.addItem"), [
-    { k: "sku", label: t("f.sku"), value: i.sku, required: true },
+  // The form comes back with what was typed when it can't be saved, and why.
+  let v = { ...i, expiry: "" },
+    why = "";
+  for (;;) {
+    const f = await itemFields(id, v, why);
+    if (!f) return;
+    why = itemProblem(id, i, f);
+    if (!why) {
+      if (!f.sku.trim()) f.sku = newSku();
+      await store.saveItem(id, f);
+      return toast(t(id ? "msg.itemSaved" : "msg.itemAdded"));
+    }
+    v = { ...v, ...f, cost_orig: f.cost };
+  }
+}
+
+function itemFields(id, i, why) {
+  return form(t(id ? "title.editItem" : "title.addItem"), [
+    { k: "sku", label: t("f.sku"), value: i.sku, hint: id ? "" : t("f.skuHint") },
     { k: "name", label: t("f.name"), value: i.name, required: true },
     { k: "category", label: t("f.category"), value: i.category },
     { k: "unit", label: t("f.unit"), value: i.unit || "", hint: t("f.unitHint") },
@@ -255,6 +294,7 @@ async function itemForm(id, code) {
       k: "expiry",
       label: t(id ? "f.expiryAdded" : "f.expiry"),
       type: "expiry",
+      value: i.expiry || "",
       showIf: ["kind", "consumable"],
       tools: [{ act: "readDate", label: t("btn.readDate") }],
       hint: t("f.expiryHint"),
@@ -272,10 +312,10 @@ async function itemForm(id, code) {
     { k: "price_wholesale", label: t("f.wprice"), type: "number", value: +i.price_wholesale || 0 },
     { k: "wholesale_min_qty", label: t("f.wmin"), type: "number", value: +i.wholesale_min_qty || 0 },
     // Staff add products with prices, but only the owner changes them later.
-  ].filter((x) => !id || isOwner() || !PRICE_KEYS.includes(x.k)));
-  if (!f) return;
-  await store.saveItem(id, f);
-  toast(t(id ? "msg.itemSaved" : "msg.itemAdded"));
+  ].filter((x) => !id || isOwner() || !PRICE_KEYS.includes(x.k)),
+    t("btn.save"),
+    why ? `<span class="bad">${E(why)}</span>` : "",
+  );
 }
 
 // A bigger unit of a product: "Carton" = 24 cans, with its own barcode and price.
@@ -608,7 +648,29 @@ const A = {
   },
   async doneOrder(el) {
     if (!needWrite()) return;
-    await store.completeOrder(el.dataset.id);
+    // Goods arriving for a consumable can carry their expiry date, so they
+    // show on the Expiry screen like stock received any other way.
+    const o = state.orders.find((x) => x.id == el.dataset.id),
+      it = o && state.items.find((i) => i.id == o.item_id);
+    let expiry = null;
+    if (o?.type == "in" && it?.kind == "consumable") {
+      const f = await form(
+        t("title.receiveOrder", { qty: num(o.qty), name: it.name }),
+        [
+          {
+            k: "expiry",
+            label: t("f.expiry"),
+            type: "expiry",
+            tools: [{ act: "readDate", label: t("btn.readDate") }],
+            hint: t("f.expiryHint"),
+          },
+        ],
+        t("ord.complete"),
+      );
+      if (!f) return;
+      expiry = f.expiry || null;
+    }
+    await store.completeOrder(el.dataset.id, expiry);
     toast(t("msg.orderDone"));
   },
   async delOrder(el) {

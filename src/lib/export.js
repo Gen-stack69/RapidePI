@@ -267,10 +267,16 @@ export async function exportZip(s) {
         movements: s.movements,
         sales: s.sales,
         sale_lines: s.saleLines,
+        settings: s.settings,
+        exported_at: new Date().toISOString(),
       },
       null,
       1,
     ),
   );
-  download(await z.generateAsync({ type: "blob" }), "RAPIDEWMS-bundle.zip");
+  const day = new Date().toISOString().slice(0, 10),
+    shop = String(s.shop?.name || "shop")
+      .replace(/[\\/:*?"<>|\s]+/g, "-")
+      .slice(0, 40);
+  download(await z.generateAsync({ type: "blob" }), `RAPIDEWMS-${shop}-${day}.zip`);
 }

@@ -510,6 +510,19 @@ await ok("this app's own Inventory export is recognised", async () => {
     m = IM.guessColumns(head, "products");
   eq(`${m.qty} ${m.min_qty} ${m.cost} ${m.price} ${m.price_wholesale} ${m.wholesale_min_qty} ${m.kind} ${m.unit}`, "4 5 6 7 8 9 11 13", "map");
 });
+await ok("an imported product keeps its expiry date and becomes consumable", async () => {
+  const head = ["SKU", "Name", "Qty", "Kind", "Next expiry"],
+    rows = [
+      ["MILK", "Milk", "12", "durable", "2026-12-05"],
+      ["EGG", "Eggs", "30", "", new Date(2027, 0, 31)],
+      ["BOLT", "Bolt", "5", "durable", ""],
+      ["X", "Bad date", "1", "", "not a date"],
+    ],
+    m = IM.guessColumns(head, "products");
+  eq(m.expiry, 4, "column");
+  const { records } = IM.build("products", rows, m);
+  eq(records.map((r) => `${r.sku}:${r.kind}:${r.expiry}`).join(" "), "MILK:consumable:2026-12-05 EGG:consumable:2027-01-31 BOLT:durable:null X:durable:null", "rows");
+});
 await ok("customer and receipt files are told apart", async () => {
   eq(IM.guessKind(["Customer name", "Email", "Phone", "Note"]), "customers", "customers");
   eq(IM.guessKind(["Date", "Receipt number", "Receipt type", "SKU", "Item", "Quantity", "Gross sales"]), "sales", "sales");
