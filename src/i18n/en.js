@@ -24,6 +24,8 @@ export default {
   "hdr.menu": "☰ Menu",
   "hdr.lang": "ລາວ / EN",
   "hdr.install": "⬇ Install app",
+  "hdr.themeLight": "Light mode",
+  "hdr.themeDark": "Dark mode",
   "eng.status": "Status",
   "eng.online": "● Online",
   "eng.offline": "○ Offline",

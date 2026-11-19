@@ -1,3 +1,107 @@
+/* ---------- colours: dark by default, light below ----------
+   Light mode applies when the device is set to light (unless the user chose
+   dark with the ☀/☾ button in the header), or when the user chose light.
+   index.html applies a saved choice before the page draws. The receipt, the
+   bank QR and the camera hint keep fixed colours in either theme. */
+:root {
+  --bg: #06040d;
+  --text: #ece8f8;
+  --soft: #cfc8ea;
+  --muted: #b9b0d6;
+  --faint: #9a90bd;
+  --line: #1d1538;
+  --card-line: #22193f;
+  --card-bg: rgba(14, 10, 28, 0.82);
+  --card-shadow: none;
+  --panel: #0e0a1c;
+  --edge: #33265f;
+  --btn-bg: #120d26;
+  --input-bg: #0b0718;
+  --sel: #1b1240;
+  --ic-bg: #2a1a5a;
+  --ic-line: #5b3fb5;
+  --accent: #a78bfa;
+  --focus: #8b5cf6;
+  --cta: #6d33e8;
+  --glow: #7c3aed55;
+  --grid: #1d153866;
+  --warn: #fbbf24;
+  --warn-text: #fde68a;
+  --out: #fb923c;
+  --off-bg: #2a1408;
+  --bad: #f87171;
+  --bad-text: #fecaca;
+  --in: #4ade80;
+  --in-bg: #10291b;
+  color-scheme: dark;
+}
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) {
+    --bg: #f7f5fc;
+    --text: #1b1530;
+    --soft: #2e2748;
+    --muted: #514a6b;
+    --faint: #6a6189;
+    --line: #ebe5f6;
+    --card-line: #e3dcf3;
+    --card-bg: #ffffff;
+    --card-shadow: 0 1px 3px rgba(60, 30, 120, 0.06);
+    --panel: #ffffff;
+    --edge: #d3c8ec;
+    --btn-bg: #ffffff;
+    --input-bg: #ffffff;
+    --sel: #efe7ff;
+    --ic-bg: #efe7ff;
+    --ic-line: #c4b1f3;
+    --accent: #6d28d9;
+    --focus: #8b5cf6;
+    --cta: #7c3aed;
+    --glow: #7c3aed30;
+    --grid: rgba(60, 30, 120, 0.08);
+    --warn: #b45309;
+    --warn-text: #92400e;
+    --out: #c2410c;
+    --off-bg: #fff4e8;
+    --bad: #dc2626;
+    --bad-text: #b91c1c;
+    --in: #15803d;
+    --in-bg: #dcfce7;
+    color-scheme: light;
+  }
+}
+:root[data-theme="light"] {
+  --bg: #f7f5fc;
+  --text: #1b1530;
+  --soft: #2e2748;
+  --muted: #514a6b;
+  --faint: #6a6189;
+  --line: #ebe5f6;
+  --card-line: #e3dcf3;
+  --card-bg: #ffffff;
+  --card-shadow: 0 1px 3px rgba(60, 30, 120, 0.06);
+  --panel: #ffffff;
+  --edge: #d3c8ec;
+  --btn-bg: #ffffff;
+  --input-bg: #ffffff;
+  --sel: #efe7ff;
+  --ic-bg: #efe7ff;
+  --ic-line: #c4b1f3;
+  --accent: #6d28d9;
+  --focus: #8b5cf6;
+  --cta: #7c3aed;
+  --glow: #7c3aed30;
+  --grid: rgba(60, 30, 120, 0.08);
+  --warn: #b45309;
+  --warn-text: #92400e;
+  --out: #c2410c;
+  --off-bg: #fff4e8;
+  --bad: #dc2626;
+  --bad-text: #b91c1c;
+  --in: #15803d;
+  --in-bg: #dcfce7;
+  color-scheme: light;
+}
+
 * {
   box-sizing: border-box;
   margin: 0;
@@ -9,11 +113,11 @@ html {
   position: fixed;
   inset: 0; 
   z-index: -1;
-  background: #06040d center/cover;
+  background: var(--bg) center/cover;
 }
 body {
-  background: #06040d;
-  color: #ece8f8;
+  background: var(--bg);
+  color: var(--text);
   /* Noto Sans Lao carries only Lao glyphs, so Latin characters fall through to
      the system face one by one. Naming it first means Lao never depends on
      whatever font the device happens to ship with. */
@@ -29,7 +133,7 @@ body {
 label {
   display: block;
   font-size: 12px;
-  color: #9a90bd;
+  color: var(--faint);
   margin-bottom: 10px;
 }
 label input {
@@ -40,7 +144,7 @@ header {
   align-items: center;
   gap: 12px;
   padding: 14px 4vw;
-  border-bottom: 1px solid #1d1538;
+  border-bottom: 1px solid var(--line);
   flex-wrap: wrap;
 }
 .brand {
@@ -53,12 +157,12 @@ header {
   font-size: 22px;
 }
 .brand em {
-  color: #a78bfa;
+  color: var(--accent);
   font-style: normal;
 }
 .clk {
   font-size: 13px;
-  color: #b9b0d6;
+  color: var(--muted);
 }
 .clk:before {
   content: "";
@@ -72,9 +176,9 @@ header {
 .btn,
 .b,
 .g {
-  border: 1px solid #33265f;
-  background: #120d26;
-  color: #ece8f8;
+  border: 1px solid var(--edge);
+  background: var(--btn-bg);
+  color: var(--text);
   border-radius: 10px;
   padding: 10px 16px;
   font: inherit;
@@ -86,14 +190,15 @@ header {
   margin: 0;
 }
 .b {
-  background: #6d33e8;
-  border-color: #8b5cf6;
+  background: var(--cta);
+  border-color: var(--focus);
+  color: #fff;
   font-weight: 600;
-  box-shadow: 0 0 18px #7c3aed55;
+  box-shadow: 0 0 18px var(--glow);
 }
 .g:hover,
 .btn:hover {
-  border-color: #8b5cf6;
+  border-color: var(--focus);
 }
 .wrap {
   display: grid;
@@ -108,10 +213,11 @@ header {
 }
 
 .card {
-  background: rgba(14, 10, 28, 0.82);
-  border: 1px solid #22193f;
+  background: var(--card-bg);
+  border: 1px solid var(--card-line);
   border-radius: 18px;
   padding: 20px;
+  box-shadow: var(--card-shadow);
 }
 nav a {
   display: flex;
@@ -119,70 +225,70 @@ nav a {
   gap: 14px;
   padding: 13px 14px;
   border-radius: 12px;
-  color: #d8d2ee;
+  color: var(--soft);
   cursor: pointer;
   border: 1px solid transparent;
   white-space: nowrap;
 }
 nav a.on {
-  background: #1b1240;
-  border-color: #8b5cf6;
-  box-shadow: 0 0 14px #7c3aed44;
+  background: var(--sel);
+  border-color: var(--focus);
+  box-shadow: 0 0 14px var(--glow);
 }
 nav a i {
   font-style: normal;
   width: 22px;
   text-align: center;
-  color: #a78bfa;
+  color: var(--accent);
 }
 nav a em {
   margin-left: auto;
   font-style: normal;
   font-size: 12px;
-  border: 1px solid #33265f;
+  border: 1px solid var(--edge);
   border-radius: 99px;
   padding: 3px 10px;
-  background: #120d26;
+  background: var(--btn-bg);
 }
 nav h6 {
   font-size: 12px;
   letter-spacing: 1px;
-  color: #9a90bd;
+  color: var(--faint);
   margin: 0 0 12px 8px;
   font-weight: 500;
 }
 .eng {
   margin-top: 18px;
   font-size: 13px;
-  color: #9a90bd;
+  color: var(--faint);
 }
 .eng div {
   display: flex;
   justify-content: space-between;
   margin-bottom: 10px;
   font-size: 14px;
-  color: #cfc8ea;
+  color: var(--soft);
 }
 .eng b {
-  color: #a78bfa;
+  color: var(--accent);
   font-weight: 500;
 }
 /* Offline / waiting to send: always in sight, also on a phone. */
 .btn.sync {
-  border-color: #fbbf24;
-  color: #fde68a;
+  border-color: var(--warn);
+  color: var(--warn-text);
 }
 .btn.sync.off {
-  border-color: #fb923c;
-  background: #2a1408;
+  border-color: var(--out);
+  background: var(--off-bg);
 }
 .btn.sync.bad {
-  border-color: #f87171;
-  color: #fecaca;
+  border-color: var(--bad);
+  color: var(--bad-text);
 }
 .tag.wait {
-  border-color: #fbbf24;
-  color: #fde68a;
+  border-color: var(--warn);
+  color: var(--warn-text);
 }
 main > * + * {
   margin-top: 22px;
@@ -198,7 +304,7 @@ main > * + * {
   font-size: 28px;
 }
 .top p {
-  color: #b9b0d6;
+  color: var(--muted);
   margin-top: 6px;
 }
 .top .r {
@@ -217,7 +323,7 @@ main > * + * {
 .sh {
   display: flex;
   justify-content: space-between;
-  color: #cfc8ea;
+  color: var(--soft);
   font-size: 14px;
 }
 .ic {
@@ -226,8 +332,8 @@ main > * + * {
   border-radius: 8px;
   display: grid;
   place-items: center;
-  background: #2a1a5a;
-  border: 1px solid #5b3fb5;
+  background: var(--ic-bg);
+  border: 1px solid var(--ic-line);
   font-style: normal;
 }
 .n {
@@ -238,7 +344,7 @@ main > * + * {
   overflow-wrap: anywhere;
 }
 .stats small {
-  color: #b9b0d6;
+  color: var(--muted);
 }
 .charts {
   display: grid;
@@ -253,7 +359,7 @@ h3 {
 }
 h3 small {
   font-size: 13px;
-  color: #b9b0d6;
+  color: var(--muted);
   font-weight: 400;
 }
 .ts {
@@ -268,7 +374,7 @@ th,
 td {
   text-align: left;
   padding: 10px 8px;
-  border-bottom: 1px solid #1d1538;
+  border-bottom: 1px solid var(--line);
   white-space: nowrap;
 }
 /* A long product name wraps and the row's buttons fold onto two lines, so the
@@ -291,16 +397,16 @@ td {
   max-width: 130px;
 }
 th {
-  color: #9a90bd;
+  color: var(--faint);
   font-weight: 500;
   font-size: 12px;
 }
 input,
 select {
-  background: #0b0718;
-  border: 1px solid #33265f;
+  background: var(--input-bg);
+  border: 1px solid var(--edge);
   border-radius: 10px;
-  color: #ece8f8;
+  color: var(--text);
   padding: 10px 12px;
   font: inherit;
   width: 100%;
@@ -320,9 +426,9 @@ select {
   flex: 0 0 auto;
 }
 dialog {
-  background: #0e0a1c;
-  color: #ece8f8;
-  border: 1px solid #5b3fb5;
+  background: var(--panel);
+  color: var(--text);
+  border: 1px solid var(--ic-line);
   border-radius: 18px;
   padding: 22px;
   width: min(440px, 92vw);
@@ -335,16 +441,16 @@ dialog::backdrop {
   padding: 2px 9px;
   border-radius: 99px;
   font-size: 12px;
-  background: #1b1240;
+  background: var(--sel);
 }
 .in {
-  color: #4ade80;
+  color: var(--in);
 }
 .out {
-  color: #fb923c;
+  color: var(--out);
 }
 .warn {
-  color: #fbbf24;
+  color: var(--warn);
 }
 #rd {
   width: 100%;
@@ -354,7 +460,7 @@ dialog::backdrop {
   overflow: hidden;
 }
 .mut {
-  color: #9a90bd;
+  color: var(--faint);
   font-size: 13px;
 }
 .mt {
@@ -366,7 +472,7 @@ pre {
   font:
     12px/1.6 ui-monospace,
     monospace;
-  color: #cfc8ea;
+  color: var(--soft);
 }
 #menu {
   display: none;
@@ -442,7 +548,7 @@ pre {
   .rt tr {
     display: block;
     padding: 10px 0;
-    border-bottom: 1px solid #1d1538;
+    border-bottom: 1px solid var(--line);
   }
   .rt td {
     display: flex;
@@ -462,7 +568,7 @@ pre {
   .rt td:before {
     flex: 0 0 auto;
     content: attr(data-l);
-    color: #9a90bd;
+    color: var(--faint);
     font-size: 12px;
     text-align: left;
   }
@@ -491,13 +597,13 @@ pre {
 .auth .switch {
   background: none;
   border: 0;
-  color: #a78bfa;
+  color: var(--accent);
   cursor: pointer;
   font: inherit;
   padding: 0;
 }
 .err {
-  color: #f87171;
+  color: var(--bad);
   font-size: 13px;
 }
 #toast {
@@ -505,8 +611,8 @@ pre {
   left: 50%;
   bottom: calc(20px + env(safe-area-inset-bottom, 0px));
   transform: translateX(-50%);
-  background: #1b1240;
-  border: 1px solid #8b5cf6;
+  background: var(--sel);
+  border: 1px solid var(--focus);
   border-radius: 12px;
   padding: 10px 16px;
   font-size: 14px;
@@ -518,14 +624,14 @@ pre {
   display: block;
 }
 #toast.bad {
-  border-color: #f87171;
+  border-color: var(--bad);
 }
 .plan {
   font-size: 12px;
-  color: #b9b0d6;
+  color: var(--muted);
 }
 .plan.expired {
-  color: #fbbf24;
+  color: var(--warn);
 }
 button:disabled {
   opacity: 0.5;
@@ -583,7 +689,7 @@ label small {
   margin-top: 4px;
 }
 .bad {
-  color: #f87171;
+  color: var(--bad);
 }
 .c {
   text-align: center;
@@ -592,14 +698,14 @@ label small {
   padding: 24px 0;
 }
 .tag.consumable {
-  background: #10291b;
-  color: #4ade80;
+  background: var(--in-bg);
+  color: var(--in);
 }
 .tag.durable {
-  color: #b9b0d6;
+  color: var(--muted);
 }
 nav a em.warn {
-  border-color: #fbbf24;
+  border-color: var(--warn);
 }
 tr.void td {
   text-decoration: line-through;
@@ -694,8 +800,9 @@ tr.void td {
   justify-content: center;
 }
 .seg > button.on {
-  background: #6d33e8;
-  border-color: #8b5cf6;
+  background: var(--cta);
+  border-color: var(--focus);
+  color: #fff;
 }
 /* Bank QR: always black on white with a white border, or bank apps can't read it in the dark theme. */
 .payqr {
@@ -787,7 +894,7 @@ tr.void td {
   text-align: left;
 }
 .sug small {
-  color: #9a90bd;
+  color: var(--faint);
 }
 table.cart td {
   white-space: normal;
@@ -827,7 +934,7 @@ table.cart td {
     align-items: center;
     gap: 6px;
     padding: 8px 0;
-    border-bottom: 1px solid #1d1538;
+    border-bottom: 1px solid var(--line);
   }
   table.cart td {
     border: 0;
@@ -955,23 +1062,23 @@ table.cart td {
 }
 
 /* A product's pack, as a tag the owner can tap to change. A button doesn't
-   take the page's text colour (it gets the browser's dark default), so the
-   colour is set here, or the text is black on dark purple. */
+   take the page's text colour (it gets the browser's default), so the
+   colour is set here, or the text can vanish against the tag. */
 button.tag.pk {
   cursor: pointer;
-  border: 1px solid #33265f;
-  color: #ece8f8;
+  border: 1px solid var(--edge);
+  color: var(--text);
   font: inherit;
   font-size: 12px;
   margin-top: 4px;
 }
 button.tag.pk:hover {
-  border-color: #8b5cf6;
+  border-color: var(--focus);
 }
 /* A box not counted yet stays amber ("Box × ?"). */
 button.tag.pk.warn {
-  color: #fbbf24;
-  border-color: #fbbf24;
+  color: var(--warn);
+  border-color: var(--warn);
 }
 
 /* ---------- subscription payments (011_billing.sql) ---------- */
@@ -993,5 +1100,5 @@ tr.hot td {
   max-height: 70vh;
   margin: 12px auto 0;
   border-radius: 10px;
-  border: 1px solid #241a45;
+  border: 1px solid var(--card-line);
 }

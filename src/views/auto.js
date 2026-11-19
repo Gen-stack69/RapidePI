@@ -7,7 +7,7 @@ export default function auto(s) {
   return `<div class="card"><h3>${t("auto.title")}</h3>${["low_alert", "auto_reorder"]
     .map(
       (k) =>
-        `<label class="row mt" style="font-size:15px;color:#ece8f8"><input type="checkbox" style="flex:0 0 22px;width:22px" ${
+        `<label class="row mt" style="font-size:15px;color:var(--text)"><input type="checkbox" style="flex:0 0 22px;width:22px" ${
           s.settings[k] ? "checked" : ""
         } ${isOwner() ? "" : "disabled"} data-input="setting" data-key="${k}"><span style="flex:1 1 200px">${t(
           "auto." + k,

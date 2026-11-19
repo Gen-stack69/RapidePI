@@ -4,6 +4,13 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
     <meta name="theme-color" content="#07050f" />
+    <!-- The saved light/dark choice is applied before the page draws, so it never flashes the other one. -->
+    <script>
+      try {
+        const t = localStorage.getItem("rapidewms.theme");
+        if (t == "light" || t == "dark") document.documentElement.dataset.theme = t;
+      } catch {}
+    </script>
     <title>RAPIDÉWMS</title>
     <link
       rel="icon"
@@ -17,7 +24,7 @@
       <header>
         <div class="brand">
           <svg width="46" height="46" viewBox="0 0 48 48" aria-hidden="true">
-            <text x="9" y="38" font-size="40" font-family="Georgia,serif" font-style="italic" fill="#fff">R</text>
+            <text x="9" y="38" font-size="40" font-family="Georgia,serif" font-style="italic" fill="currentColor">R</text>
             <path d="M7 6l1.6 4.4L13 12l-4.4 1.6L7 18l-1.6-4.4L1 12l4.4-1.6z" fill="#c4b5fd" />
           </svg>
           <div>
@@ -29,6 +36,7 @@
         ><button class="btn" data-act="scanView" data-i18n="hdr.scanner">▥ Scanner</button
         ><button class="btn" data-act="zip" data-i18n="hdr.zip">⬇ Export .ZIP</button
         ><button class="btn" data-act="lang" data-i18n="hdr.lang">ລາວ / EN</button
+        ><button class="btn" id="theme" data-act="theme" type="button">☾</button
         ><button class="btn" id="install" data-act="install" data-i18n="hdr.install" hidden>⬇ Install app</button>
       </header>
       <div class="wrap">

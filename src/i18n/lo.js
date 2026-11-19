@@ -23,6 +23,8 @@ export default {
   "hdr.menu": "☰ ເມນູ",
   "hdr.lang": "EN / ລາວ",
   "hdr.install": "⬇ ຕິດຕັ້ງແອັບ",
+  "hdr.themeLight": "ໂໝດແຈ້ງ",
+  "hdr.themeDark": "ໂໝດມືດ",
   "eng.status": "ສະຖານະ",
   "eng.online": "● ອອນລາຍ",
   "eng.offline": "○ ອັອຟລາຍ",
