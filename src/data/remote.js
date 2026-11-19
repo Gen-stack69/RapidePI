@@ -605,12 +605,13 @@ export async function importItems(list) {
   const rows = await must(
     sb
       .from("items")
-      .insert(fresh.map(({ qty, ...r }) => ({ ...r, barcode: r.barcode || r.sku, shop_id: state.shop.id })))
+      .insert(fresh.map(({ qty, expiry, ...r }) => ({ ...r, barcode: r.barcode || r.sku, shop_id: state.shop.id })))
       .select("id, sku"),
   );
   for (const r of rows) {
-    const q = fresh.find((x) => x.sku == r.sku)?.qty;
-    if (q > 0) await must(sb.rpc("set_stock", { p_item: r.id, p_qty: q, p_note: "import" }));
+    const x = fresh.find((y) => y.sku == r.sku);
+    if (x?.qty > 0)
+      await must(sb.rpc("adjust_stock", { p_item: r.id, p_delta: x.qty, p_note: "import", p_expiry: x.expiry || null }));
   }
   await reload();
   return rows.length;
@@ -619,7 +620,10 @@ export async function importItems(list) {
 // ---------- orders ----------
 
 export const addOrder = (o) => write(sb.from("orders").insert({ ...o, shop_id: state.shop.id }));
-export const completeOrder = (id) => write(sb.rpc("complete_order", { p_order: id }));
+// expiry: the date on goods received by an inbound order (013_order_expiry.sql).
+// Sent only when there is one, so this works against a database without 013.
+export const completeOrder = (id, expiry = null) =>
+  write(sb.rpc("complete_order", expiry ? { p_order: id, p_expiry: expiry } : { p_order: id }));
 export const deleteOrder = (id) => write(sb.from("orders").delete().eq("id", id));
 
 // ---------- settings / danger zone ----------

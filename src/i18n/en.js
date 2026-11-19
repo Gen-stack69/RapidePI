@@ -46,6 +46,10 @@ export default {
 
   // ---------- product form ----------
   "title.addItem": "Add product",
+  "title.receiveOrder": "Receive {qty} × {name}",
+  "f.skuHint": "No product code? Leave it empty and one is made (P0001…).",
+  "err.dupBarcode": "{name} already has this barcode. One barcode can only find one product.",
+  "err.expiryNoQty": "An expiry date goes with the stock you add. Enter how many have this date, or leave the date empty.",
   "title.editItem": "Edit product",
   "f.sku": "SKU code",
   "f.name": "Product name",
@@ -180,9 +184,9 @@ export default {
   "sys.planExpired": "Your plan has expired. Your data is safe but read-only until you renew.",
   "sys.signOut": "Sign out",
   "sys.localNote":
-    "Local demo mode: no account, data is saved only in this browser. Add Supabase keys to .env for real accounts and sync.",
+    "Demo mode: no account, and the data stays only in this browser. Use the online version to keep it safe and use it on several devices.",
   "sys.backup": "Backup & import",
-  "sys.zip": "Download full backup (.zip)",
+  "sys.zip": "Download a copy of all data (.zip)",
   "sys.erase": "Erase all data",
   "sys.csvNote":
     "Moving from another POS? Import products with today's stock, a customer list, or past sales from CSV or Excel. Loyverse exports and this app's own exports are recognised; for others you choose which column is which. Products and customers already here are skipped.",
@@ -643,6 +647,7 @@ export default {
   "imp.f.products.price_wholesale": "Wholesale price (₭)",
   "imp.f.products.wholesale_min_qty": "Wholesale from quantity",
   "imp.f.products.kind": "Kind (consumable or not)",
+  "imp.f.products.expiry": "Expiry date of the stock",
   "imp.f.customers.name": "Name",
   "imp.f.customers.phone": "Phone",
   "imp.f.customers.note": "Note",

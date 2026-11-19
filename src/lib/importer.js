@@ -2,6 +2,16 @@
 // read a CSV or Excel file, guess which column is which, let the owner fix the
 // guesses, then turn the rows into products, customers or past sales.
 import { parseCsv } from "./csv.js";
+import { parseTyped } from "./expiry.js";
+
+/** An expiry cell as an ISO date, or null: a date from Excel, 2026-12-05, 5/12/26, 0526… */
+export function importDate(v) {
+  if (v instanceof Date && !isNaN(v)) {
+    const p = (n) => String(n).padStart(2, "0");
+    return `${v.getFullYear()}-${p(v.getMonth() + 1)}-${p(v.getDate())}`;
+  }
+  return parseTyped(String(v ?? "").trim()) || null;
+}
 
 // What each kind of import needs. Each field lists the headers it is known by
 // (lower case, punctuation as spaces), best first: our own export, Loyverse,
@@ -20,6 +30,7 @@ export const KINDS = {
     { k: "price_wholesale", names: ["wholesale price", "wholesale", "ລາຄາສົ່ງ"] },
     { k: "wholesale_min_qty", names: ["wholesale min qty", "wholesale min"] },
     { k: "kind", names: ["kind"] },
+    { k: "expiry", names: ["next expiry", "expiry", "expiry date", "expires", "exp", "best before", "ໝົດອາຍຸຕໍ່ໄປ", "ວັນໝົດອາຍຸ", "ໝົດອາຍຸ"] },
   ],
   customers: [
     { k: "name", req: true, names: ["name", "customer name", "customer", "full name", "ຊື່", "ຊື່ລູກຄ້າ"] },
@@ -162,7 +173,10 @@ export function build(kind, rows, map) {
         price_wholesale: Math.max(0, num(r, "price_wholesale")),
         wholesale_min_qty: Math.max(0, num(r, "wholesale_min_qty")),
         kind: /^consum|^ບໍລິໂພກ|^ສິນຄ້າບໍລິໂພກ/i.test(text(r, "kind")) ? "consumable" : "durable",
+        expiry: importDate(get(r, "expiry")),
       }))
+      // Something with an expiry date is consumable, whatever the kind column said.
+      .map((x) => (x.expiry ? { ...x, kind: "consumable" } : x))
       .filter((x) => x.sku && x.name);
   else if (kind == "customers")
     out = rows

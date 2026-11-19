@@ -250,10 +250,10 @@ export async function addOrder(o) {
   await commit();
 }
 
-export async function completeOrder(id) {
+export async function completeOrder(id, expiry = null) {
   const o = db.orders.find((x) => x.id == id && x.shop_id == shopId()) || fail("err.orderNotFound");
   if (o.status != "pending") fail("err.orderDone");
-  adjustRaw(o.item_id, o.type == "in" ? o.qty : -o.qty, "order");
+  adjustRaw(o.item_id, o.type == "in" ? o.qty : -o.qty, "order", o.type == "in" ? expiry : null);
   o.status = "done";
   o.completed_at = nowIso();
   await commit();

@@ -86,6 +86,18 @@ await ok("complete_order ships stock", async () => {
   eq((await as(A, "select qty from items where id = $1", [item])).rows[0].qty, 5, "qty");
 });
 await rejects("cannot complete twice", () => as(A, "select complete_order($1)", [ord]));
+await ok("an inbound order received with an expiry date makes a dated batch (013)", async () => {
+  const it = (await as(A, "insert into items (shop_id, sku, name, kind) values ($1, 'MILK-1', 'Milk', 'consumable') returning id", [shopA]))
+    .rows[0].id;
+  const o = (await as(A, "insert into orders (shop_id, item_id, type, qty) values ($1, $2, 'in', 4) returning id", [shopA, it])).rows[0].id;
+  await as(A, "select complete_order($1, $2)", [o, "2030-01-31"]);
+  const lot = (await as(A, "select qty, expiry::text as d from lots where item_id = $1", [it])).rows;
+  eq(lot.length, 1, "lots");
+  eq(+lot[0].qty, 4, "lot qty");
+  eq(lot[0].d, "2030-01-31", "lot date");
+  eq(+(await as(A, "select qty from items where id = $1", [it])).rows[0].qty, 4, "stock");
+  await as(A, "delete from items where id = $1", [it]); // later checks count the shop's products
+});
 await rejects("cannot order another shop's item", () =>
   as(B, "insert into orders (shop_id, item_id, type, qty) values ($1, $2, 'in', 1)", [shopB, item]));
 
