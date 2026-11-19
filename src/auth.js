@@ -2,11 +2,15 @@
 import { $, E } from "./lib/util.js";
 import { t, errText } from "./i18n/index.js";
 import { sb, configured, createShop, joinShop, signOut } from "./data/store.js";
+import { showTheme } from "./lib/theme.js";
 
+// The ☀/☾ button is here too, so light mode can be picked before signing in
+// (main.js's click handler runs data-act="theme").
 const shell = (inner) => {
   $("#app").hidden = true;
   $("#auth").hidden = false;
-  $("#auth").innerHTML = `<div class="auth"><div class="brand" style="margin-bottom:18px"><h1>RAPIDÉ<em>WMS</em></h1></div>${inner}</div>`;
+  $("#auth").innerHTML = `<div class="auth"><div class="brand" style="margin-bottom:18px;justify-content:space-between"><h1>RAPIDÉ<em>WMS</em></h1><button class="btn" data-act="theme" type="button">☾</button></div>${inner}</div>`;
+  showTheme();
 };
 
 // Where the reset email sends the user back to. BASE_URL keeps this right under

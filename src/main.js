@@ -35,6 +35,7 @@ import { tillQr, qrSvg } from "./lib/payqr.js";
 import { status, SOON_DAYS, setSoonDays, daysLeft } from "./lib/expiry.js";
 import { CUR, SIGN, kipPer } from "./lib/rates.js";
 import { registerSW } from "virtual:pwa-register";
+import { showTheme, switchTheme } from "./lib/theme.js";
 
 // Registers the service worker that lets the app open with no internet.
 registerSW({ immediate: true });
@@ -856,30 +857,6 @@ function switchLang(l) {
   if (state.shop) render(true);
 }
 
-// Light and dark mode, as on the landing page. It follows the device until the
-// user picks one with the ☀/☾ button; that choice is remembered on this device
-// (and applied in index.html's head before the page draws). Every colour is a
-// CSS variable, so switching needs no redraw.
-const THEME = "rapidewms.theme";
-const sysLight = matchMedia("(prefers-color-scheme: light)");
-const themeNow = () => document.documentElement.dataset.theme || (sysLight.matches ? "light" : "dark");
-function showTheme() {
-  const light = themeNow() == "light",
-    b = $("#theme");
-  b.textContent = light ? "☾" : "☀";
-  b.title = t(light ? "hdr.themeDark" : "hdr.themeLight");
-  b.setAttribute("aria-label", b.title);
-  document.querySelector('meta[name="theme-color"]').content = light ? "#f7f5fc" : "#07050f";
-}
-function switchTheme() {
-  const next = themeNow() == "light" ? "dark" : "light";
-  document.documentElement.dataset.theme = next;
-  try {
-    localStorage.setItem(THEME, next);
-  } catch {}
-  showTheme();
-}
-sysLight.addEventListener("change", showTheme);
 
 // The scanner's expiry box only matters when receiving.
 function syncScanView() {
