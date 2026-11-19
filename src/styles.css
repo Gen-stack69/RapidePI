@@ -1102,3 +1102,9 @@ tr.hot td {
   border-radius: 10px;
   border: 1px solid var(--card-line);
 }
+
+/* A till quantity that isn't one yet ("", "-", "0"): the line keeps its old
+   quantity until it is fixed, and Charge waits. */
+#cart input.bad {
+  border-color: var(--bad);
+}

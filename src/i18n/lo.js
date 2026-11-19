@@ -350,6 +350,7 @@ export default {
   "pos.voided": "ຍົກເລີກບິນ #{n} ແລ້ວ",
   "pos.onlyN": "ມີພຽງ {n}",
   "pos.noPrice": "ບໍ່ມີລາຄາຂາຍ",
+  "pos.discBad": "ສ່ວນຫຼຸດຕ້ອງເປັນຈຳນວນເຕັມ ແຕ່ 0 ຫາ ຍອດລວມ ({sub})",
   "pos.expiredStock": "⚠ ມີສິນຄ້າໝົດອາຍຸ {d} – ກວດອັນນີ້",
   "pos.today": "ຍອດຂາຍມື້ນີ້",
   "pos.todaySum": "{n} ບິນ · {total} (ເງິນສົດ {cash} · ໂອນ {transfer})",
