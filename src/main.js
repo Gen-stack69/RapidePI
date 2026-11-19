@@ -107,6 +107,8 @@ function showPay(p) {
 // ---------- render ----------
 
 // force: rebuild the till too (a language switch); otherwise it only refreshes.
+// The view whose screen is in #main now (null before the first draw).
+let drawn = null;
 function render(force) {
   if (!state.shop) return;
   setSoonDays(state.settings.expiry_days);
@@ -155,14 +157,19 @@ function render(force) {
 
   // The till draws its own changes, so a sale in progress is never wiped.
   if (view == "pos" && $("#pos") && !force) return till.refresh();
-  // Don't wipe the camera view or an input the user is typing in.
-  if (view == "scan" && scanner.active()) return;
+  // Don't wipe the camera view or an input the user is typing in. That only
+  // holds while the screen on show is still this view: after a tap on another
+  // screen (or a language switch, force) the field belongs to the old screen
+  // and must go, or the old screen stays up and the new one's parts are missing.
+  const same = drawn == view && !force;
+  if (same && view == "scan" && scanner.active()) return;
   const focused = document.activeElement;
-  if (focused && $("#main").contains(focused) && focused.matches("input,select")) {
-    if (view == "inv") $("#tb").innerHTML = invRows(state);
+  if (same && focused && $("#main").contains(focused) && focused.matches("input,select")) {
+    if (view == "inv" && $("#tb")) $("#tb").innerHTML = invRows(state);
     return;
   }
   if ($("#dlg").open && !force) return;
+  drawn = view;
 
   $("#main").innerHTML = `<div class="card top"><div><h2>${t("nav." + view)}</h2><p>${t(
     "nav." + view + ".sub",

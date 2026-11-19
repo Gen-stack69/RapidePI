@@ -95,10 +95,16 @@ function totals() {
   // stock): the goods are in the customer's hand, so the sale goes ahead and
   // the server flags it if the stock really wasn't there.
   if (state.online) for (const [id, n] of need) if (n > +item(id).qty) problems++;
-  const discount = Math.min(Math.max(+st.discount || 0, 0), sub),
+  // A discount is whole kip from 0 up to the subtotal. Anything else blocks
+  // Charge with a note under the box, never quietly capped: a typo of 999999
+  // must not hand the goods over for ₭0 (create_sale() refuses it as well).
+  const d = String(st.discount).trim() == "" ? 0 : +st.discount,
+    discBad = !Number.isInteger(d) || d < 0 || d > sub;
+  if (discBad) problems++;
+  const discount = discBad ? 0 : d,
     total = sub - discount,
     paid = st.method == "cash" ? +st.paid || 0 : total;
-  return { sub, discount, total, paid, change: paid - total, problems, need };
+  return { sub, discount, discBad, total, paid, change: paid - total, problems, need };
 }
 
 const changed = () => {
@@ -207,10 +213,42 @@ export function typed(el) {
   }
   if (el.id == "pdisc") st.discount = el.value;
   if (el.id == "ppaid") st.paid = el.value;
-  if (el.dataset.qty) return setQty(el.dataset.qty, el.value);
+  if (el.dataset.qty) return typedQty(el);
   if (el.id == "pdisc") st.cid = null;
   refresh();
 }
+
+// A quantity being typed. Half-typed values ("", "-", "0") leave the line as it
+// was, marked red, instead of dropping it from the sale while it stays on
+// screen; ✕ is what removes a line. The line's amount is updated in place,
+// since the cart isn't redrawn under the cursor.
+function typedQty(el) {
+  const l = st.cart.find((x) => x.k == el.dataset.qty),
+    it = l && item(l.id);
+  if (!it) return;
+  const v = el.value.trim() == "" ? NaN : Math.round(+el.value * 1000) / 1000,
+    ok = v > 0;
+  el.classList.toggle("bad", !ok);
+  if (ok && v != l.qty) {
+    l.qty = v;
+    st.cid = null;
+  }
+  const lt = el.closest("tr")?.querySelector(".lt");
+  if (lt) lt.textContent = fmt(priceLine(it, l).price * l.qty);
+  refresh();
+}
+
+// Leaving the box (or Enter): put back the line's real quantity if what's in
+// the box wasn't one, and redraw the cart so its notes (stock, price) are current.
+if (typeof document != "undefined")
+  document.addEventListener("change", (ev) => {
+    const el = ev.target;
+    if (!el.dataset?.qty || !$("#cart")?.contains(el)) return;
+    const k = el.dataset.qty,
+      keep = document.activeElement == el;
+    $("#cart").innerHTML = cartHtml(totals().need);
+    if (keep) $("#cart").querySelector(`[data-qty="${CSS.escape(k)}"]`)?.focus();
+  });
 
 function suggest() {
   const box = $("#psug");
@@ -234,6 +272,11 @@ export async function charge() {
   if (noTill()) return toast(tillProblem(), true);
   const tt = totals();
   if (!st.cart.length) return toast(t("err.emptySale"), true);
+  if (tt.discBad) {
+    $("#pdisc")?.focus();
+    return toast(t("pos.discBad", { sub: fmt(tt.sub) }), true);
+  }
+  if (tt.problems > 0 || qtyBeingFixed()) return;
   if (st.method == "cash" && tt.paid < tt.total) {
     $("#ppaid")?.focus();
     return toast(t("err.cashShort"), true);
@@ -378,6 +421,10 @@ function salesHtml() {
   }`;
 }
 
+// A quantity box showing something that isn't a quantity: the sale would go
+// through with the old number, not the one on screen, so Charge waits.
+const qtyBeingFixed = () => !!document.querySelector("#cart input.bad");
+
 /** Redraw the parts that change, never the fields being typed in. */
 export function refresh() {
   if (!$("#pos")) return;
@@ -402,9 +449,17 @@ export function refresh() {
   document.querySelectorAll("[data-act=posMethod]").forEach((b) => b.classList.toggle("on", b.dataset.m == st.method));
   $("#ptill").hidden = !noTill();
   $("#ptill").textContent = noTill() ? tillProblem() : "";
+  const db = $("#pdiscbad");
+  if (db) {
+    db.hidden = !tt.discBad;
+    db.textContent = tt.discBad ? t("pos.discBad", { sub: fmt(tt.sub) }) : "";
+  }
   $("#pcharge").disabled =
     noTill() ||
-    !st.cart.length || tt.problems > 0 || (st.method == "cash" && tt.paid < tt.total);
+    !st.cart.length ||
+    tt.problems > 0 ||
+    qtyBeingFixed() ||
+    (st.method == "cash" && tt.paid < tt.total);
   const who = st.cust && state.customers.find((c) => c.id == st.cust);
   if (st.cust && !who) st.cust = null; // deleted meanwhile
   const cb = $("#pcustbox");
@@ -437,9 +492,9 @@ export default function pos() {
     "pos.cart",
   )}<small id="pcount"></small></h3><div id="cart"></div></div></div><div class="paycol"><div class="card pay"><div id="pcustbox"></div><div class="sh">${t(
     "pos.subtotal",
-  )}<b id="psub"></b></div><label class="mt">${t("pos.discount")}<input id="pdisc" type="number" min="0" step="any" data-input="pos" value="${E(
+  )}<b id="psub"></b></div><label class="mt">${t("pos.discount")}<input id="pdisc" type="number" min="0" step="1" data-input="pos" value="${E(
     st.discount,
-  )}" placeholder="0"></label><div class="sh">${t("pos.total")}</div><b class="n big" id="ptot"></b><small class="mut" id="pvat"></small><div class="row seg"><button class="g" data-act="posMethod" data-m="cash">${t(
+  )}" placeholder="0"></label><small class="bad" id="pdiscbad" hidden></small><div class="sh">${t("pos.total")}</div><b class="n big" id="ptot"></b><small class="mut" id="pvat"></small><div class="row seg"><button class="g" data-act="posMethod" data-m="cash">${t(
     "pos.cash",
   )}</button><button class="g" data-act="posMethod" data-m="transfer">${t(
     "pos.transfer",

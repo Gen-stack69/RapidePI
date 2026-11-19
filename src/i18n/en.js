@@ -349,6 +349,7 @@ export default {
   "pos.voided": "Receipt #{n} voided",
   "pos.onlyN": "only {n} in stock",
   "pos.noPrice": "no sell price",
+  "pos.discBad": "The discount must be a whole amount from 0 to the subtotal ({sub})",
   "pos.expiredStock": "⚠ some stock expired {d} – check this one",
   "pos.today": "Today's sales",
   "pos.todaySum": "{n} sales · {total} (cash {cash} · transfer {transfer})",
