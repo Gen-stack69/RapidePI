@@ -95,7 +95,7 @@ export default function dash(s) {
           return svg;
         })
         .join("")
-    : `<circle r="38" cx="50" cy="50" fill="none" stroke="#2a1a5a" stroke-width="22"/>`;
+    : `<circle r="38" cx="50" cy="50" fill="none" style="stroke:var(--ic-bg)" stroke-width="22"/>`;
   const pick = `<div class="row" style="justify-content:flex-end;margin-bottom:10px"><span class="mut">${t(
     "dash.showIn",
   )}</span><select data-input="dashCur" aria-label="${E(t("dash.showIn"))}">${CUR.map(
@@ -119,17 +119,17 @@ ${checks(s)}
 ${waiting(s)}
 <div class="charts"><div class="card"><h3>${t("dash.byCat")}<small>${t(
     "dash.unitsWord",
-  )}</small></h3><svg viewBox="0 0 100 100" style="width:min(260px,70%);display:block;margin:20px auto">${seg}<circle r="27" cx="50" cy="50" fill="#0b0718"/></svg><div class="mut" style="text-align:center">${
+  )}</small></h3><svg viewBox="0 0 100 100" style="width:min(260px,70%);display:block;margin:20px auto">${seg}<circle r="27" cx="50" cy="50" style="fill:var(--input-bg)"/></svg><div class="mut" style="text-align:center">${
     ks.length
       ? ks.map((k, j) => `<span style="color:${P[j % 6]}">■</span> ${E(k)} (${num(c[k])})`).join(" &nbsp; ")
       : t("dash.noStock")
   }</div></div>
 <div class="card"><h3>${t("dash.move")}<small>${t(
     "dash.last30",
-  )}</small></h3><div style="display:flex;align-items:flex-end;gap:8%;height:200px;margin:20px 0 8px;padding:0 6%;border-bottom:1px solid #33265f;background:repeating-linear-gradient(#1d153866 0 1px,transparent 1px 40px)">${v
+  )}</small></h3><div style="display:flex;align-items:flex-end;gap:8%;height:200px;margin:20px 0 8px;padding:0 6%;border-bottom:1px solid var(--edge);background:repeating-linear-gradient(var(--grid) 0 1px,transparent 1px 40px)">${v
     .map(
       (x, j) =>
-        `<div style="flex:1;height:${(x / mx) * 100}%;min-height:2px;background:${["#4ade80", "#fb923c"][j]};border-radius:6px 6px 0 0"></div>`,
+        `<div style="flex:1;height:${(x / mx) * 100}%;min-height:2px;background:${["var(--in)", "var(--out)"][j]};border-radius:6px 6px 0 0"></div>`,
     )
     .join(
       "",
