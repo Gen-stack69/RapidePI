@@ -28,7 +28,10 @@
   --blob: rgba(124, 58, 237, 0.28);
   --blob-2: rgba(167, 139, 250, 0.14);
   --strip-bg: #161125;
-  --press-bg: #3b2a66; /* a pressed button, dark mode */
+  --hover-bg: #7c3aed; /* a button under the pointer */
+  --press-shade: rgba(124, 58, 237, 0.55); /* while pressed: the same purple, lighter */
+  --press-on: #fff;
+  --press-bg: #3b2a66;
   --press-line: #8b5cf6;
   --press-text: #fff;
 }
@@ -58,6 +61,9 @@
     --blob: rgba(124, 77, 187, 0.42);
     --blob-2: rgba(196, 176, 224, 0.4);
     --strip-bg: #ffffff;
+    --hover-bg: #5b21b6;
+    --press-shade: rgba(91, 33, 182, 0.22);
+    --press-on: #3b0f75;
     --press-bg: #ede4fb;
     --press-line: #a78bfa;
     --press-text: #4c1d95;
@@ -88,6 +94,9 @@
   --blob: rgba(124, 77, 187, 0.42);
   --blob-2: rgba(196, 176, 224, 0.4);
   --strip-bg: #ffffff;
+  --hover-bg: #5b21b6;
+  --press-shade: rgba(91, 33, 182, 0.22);
+  --press-on: #3b0f75;
   --press-bg: #ede4fb;
   --press-line: #a78bfa;
   --press-text: #4c1d95;
@@ -901,16 +910,44 @@ details[open] p {
     color 0.2s;
 }
 
-/* ---------- light mode: a pressed button turns purple, eased over 0.2 s ---------- */
-.is-light .pressed {
-  background-color: var(--press-bg) !important;
-  border-color: var(--press-line) !important;
-  color: var(--press-text) !important;
+/* ---------- buttons: hover and press ----------
+   Light (white) buttons turn purple under the pointer; pressing shows a
+   lighter, see-through shade of that purple only while held. Colours ease
+   over 0.18 s, the press itself takes 0.08 s, so nothing lingers. Hover
+   rules only apply to a mouse: on a phone a tap would leave them stuck. */
+.btn,
+.pill,
+.chip {
+  transition:
+    background-color 0.18s ease,
+    color 0.18s ease,
+    border-color 0.18s ease,
+    box-shadow 0.18s ease;
 }
-.is-light .btn.primary.pressed,
-.is-light .pill.solid.pressed {
-  background-color: #7c3aed !important;
-  color: #fff !important;
+.btn:hover {
+  transform: none;
+}
+@media (hover: hover) {
+  .btn:not(.primary):hover,
+  .pill:not(.solid):hover,
+  .chip:not(.wa):hover {
+    background-color: var(--hover-bg);
+    border-color: var(--hover-bg);
+    color: #fff;
+  }
+  .btn.primary:hover,
+  .pill.solid:hover {
+    background-color: var(--hover-bg);
+    color: #fff;
+  }
+}
+.btn:active,
+.pill:active,
+.chip:active {
+  background-color: var(--press-shade) !important;
+  border-color: transparent !important;
+  color: var(--press-on) !important;
+  transition-duration: 0.08s;
 }
 
 /* ---------- reveal on scroll (landing.js adds .reveal and .in) ---------- */
