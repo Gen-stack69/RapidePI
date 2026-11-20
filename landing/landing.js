@@ -1,5 +1,7 @@
 // The landing page: a separate site from the app (npm run build:landing).
 import "./landing.css";
+// Headings and Latin text: Plus Jakarta Sans, bundled with the site.
+import "@fontsource-variable/plus-jakarta-sans";
 // The same bundled Lao font as the app, so Lao renders the same everywhere.
 import "@fontsource/noto-sans-lao/lao-400.css";
 import "@fontsource/noto-sans-lao/lao-600.css";
@@ -30,12 +32,12 @@ const EN = {
   "nav.contact": "Contact",
   "nav.signin": "Sign in",
   "hero.eyebrow": "For shops, minimarts and warehouses in Laos",
-  "hero.title": "Point of sale and stock control that's easy to use, in Lao",
+  "hero.title": "Point of sale and stock control that's <em>easy to use,</em> in Lao",
   "hero.lead":
     "Sell faster, keep stock right and know in advance what's about to expire. Works on a phone or a PC, even when the internet drops.",
   "hero.trial": "Start a 14-day free trial",
   "hero.talk": "Talk to us",
-  "hero.fine": "No card needed · Lao and English · Pay by BCEL One / LAPNet QR",
+  "hero.fine": "No card needed • Lao and English • Pay by BCEL One / LAPNet QR",
   "mock.title": "Till",
   "mock.i1": "Drinking water 1.5 L × 2",
   "mock.i2": "Beerlao (carton of 24)",
@@ -301,13 +303,29 @@ if (!still && "IntersectionObserver" in window) {
 const THEME = "rapidewms.theme";
 const sysLight = matchMedia("(prefers-color-scheme: light)");
 const themeNow = () => document.documentElement.dataset.theme || (sysLight.matches ? "light" : "dark");
+// The button shows the mode in use: a sun in light mode, a moon in dark.
+const SUN = `<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4" /><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" /></svg>`,
+  MOON = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z" /></svg>`;
 function showTheme() {
   const light = themeNow() == "light",
     b = document.getElementById("theme");
-  b.textContent = light ? "☾" : "☀";
-  b.title = lang == "en" ? (light ? "Dark mode" : "Light mode") : light ? "ໂໝດມືດ" : "ໂໝດແຈ້ງ";
-  document.querySelector('meta[name="theme-color"]').content = light ? "#f7f5fc" : "#07050f";
+  b.innerHTML = light ? SUN : MOON;
+  b.title = lang == "en" ? (light ? "Switch to dark mode" : "Switch to light mode") : light ? "ປ່ຽນເປັນໂໝດມືດ" : "ປ່ຽນເປັນໂໝດແຈ້ງ";
+  document.documentElement.classList.toggle("is-light", light);
+  document.querySelector('meta[name="theme-color"]').content = light ? "#faf7f2" : "#0e0a18";
 }
+
+// In light mode a pressed button turns a shade of purple, eased over 0.2 s,
+// and fades back once it is let go of.
+document.addEventListener("click", (ev) => {
+  const b = ev.target.closest("button, .btn, .pill, .links a, summary, .chip, .foot a");
+  if (!b || !document.documentElement.classList.contains("is-light")) return;
+  b.classList.remove("pressed");
+  void b.offsetWidth; // restart the fade when pressed twice quickly
+  b.classList.add("pressed");
+  clearTimeout(b._pressT);
+  b._pressT = setTimeout(() => b.classList.remove("pressed"), 650);
+});
 document.getElementById("theme").addEventListener("click", () => {
   const next = themeNow() == "light" ? "dark" : "light";
   document.documentElement.dataset.theme = next;

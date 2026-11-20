@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
-    <meta name="theme-color" content="#07050f" />
+    <meta name="theme-color" content="#faf7f2" />
     <!-- The saved light/dark choice is applied before the page draws, so it never flashes the other one. -->
     <script>
       try {
@@ -29,41 +29,48 @@
       data-t="key" has an English entry under that key. Prices, contact
       details and the app's address are set at the top of landing.js.
     -->
-    <div class="aurora" aria-hidden="true"><i></i><i></i><i></i></div>
+    <!-- Soft purple circles in the corners of the first screen. -->
+    <div class="blobs" aria-hidden="true"><i class="b1"></i><i class="b2"></i></div>
     <header class="top">
-      <a class="logo" href="#" aria-label="RAPIDÉWMS">
-        <svg width="34" height="34" viewBox="0 0 48 48" aria-hidden="true">
-          <rect width="48" height="48" rx="11" fill="#120a2a" />
-          <text x="12" y="37" font-size="32" font-family="Georgia,serif" font-style="italic" fill="#fff">R</text>
-          <path d="M9 7l1.3 3.6L14 12l-3.7 1.4L9 17l-1.3-3.6L4 12l3.7-1.4z" fill="#c4b5fd" />
-        </svg>
-        <span>RAPIDÉ<em>WMS</em></span>
-      </a>
-      <nav class="links">
-        <a href="#services" data-t="nav.services">ບໍລິການ</a>
-        <a href="#pricing" data-t="nav.pricing">ລາຄາ</a>
-        <a href="#faq" data-t="nav.faq">ຄຳຖາມ</a>
-        <a href="#contact" data-t="nav.contact">ຕິດຕໍ່</a>
-      </nav>
-      <button class="ghost theme" id="theme" type="button" aria-label="ໂໝດມືດ / ແຈ້ງ · Dark / light mode">☾</button>
-      <button class="ghost" id="lang" type="button" aria-label="ພາສາ / Language">ລາວ / EN</button>
-      <a class="ghost" href="https://rapidepi.rapidewms.workers.dev/" data-app data-t="nav.signin">ເຂົ້າສູ່ລະບົບ</a>
+      <div class="wrap bar">
+        <a class="logo" href="#" aria-label="RAPIDÉWMS">
+          <span class="mark" aria-hidden="true">R</span>
+          <span class="word">RAPIDÉWMS</span>
+        </a>
+        <nav class="links">
+          <a href="#services" data-t="nav.services">ບໍລິການ</a>
+          <a href="#pricing" data-t="nav.pricing">ລາຄາ</a>
+          <a href="#faq" data-t="nav.faq">ຄຳຖາມ</a>
+          <a href="#contact" data-t="nav.contact">ຕິດຕໍ່</a>
+        </nav>
+        <div class="tools">
+          <button class="pill icon" id="theme" type="button" aria-label="ໂໝດມືດ / ແຈ້ງ · Dark / light mode"></button>
+          <button class="pill" id="lang" type="button" aria-label="ພາສາ / Language">
+            ລາວ / EN
+            <svg class="chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6" /></svg>
+          </button>
+          <a class="pill solid" href="https://rapidepi.rapidewms.workers.dev/" data-app data-t="nav.signin">ເຂົ້າສູ່ລະບົບ</a>
+        </div>
+      </div>
     </header>
 
     <main>
-      <section class="hero">
+      <section class="wrap hero">
         <div class="hero-text">
-          <p class="eyebrow" data-t="hero.eyebrow">ສຳລັບຮ້ານຄ້າ, ມິນິມາດ ແລະ ສາງ ໃນລາວ</p>
-          <h1 data-t="hero.title">ລະບົບຂາຍໜ້າຮ້ານ ແລະ ສາງສິນຄ້າ ທີ່ໃຊ້ງ່າຍ ເປັນພາສາລາວ</h1>
+          <p class="eyebrow"><i class="dot"></i><span data-t="hero.eyebrow">ສຳລັບຮ້ານຄ້າ, ມິນິມາດ ແລະ ສາງ ໃນລາວ</span></p>
+          <h1 data-t="hero.title">ລະບົບຂາຍໜ້າຮ້ານ ແລະ ສາງສິນຄ້າ <em>ທີ່ໃຊ້ງ່າຍ,</em> ເປັນພາສາລາວ</h1>
           <p class="lead" data-t="hero.lead">
             ຂາຍໄວຂຶ້ນ, ສະຕັອກຖືກຕ້ອງ ແລະ ຮູ້ກ່ອນວ່າສິນຄ້າໃດໃກ້ໝົດອາຍຸ. ໃຊ້ໄດ້ທັງໃນໂທລະສັບ ແລະ ຄອມພິວເຕີ,
             ເຖິງແມ່ນເນັດຈະຂາດ.
           </p>
           <div class="cta">
-            <a class="btn primary" href="https://rapidepi.rapidewms.workers.dev/" data-app data-t="hero.trial">ທົດລອງໃຊ້ຟຣີ 14 ວັນ</a>
+            <a class="btn primary" href="https://rapidepi.rapidewms.workers.dev/" data-app
+              ><span data-t="hero.trial">ທົດລອງໃຊ້ຟຣີ 14 ວັນ</span>
+              <svg class="arrow" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6" /></svg
+            ></a>
             <a class="btn" href="#contact" data-wa data-t="hero.talk">ລົມກັບພວກເຮົາ</a>
           </div>
-          <p class="fine" data-t="hero.fine">ບໍ່ຕ້ອງໃຊ້ບັດ · ພາສາລາວ ແລະ ອັງກິດ · ຈ່າຍຜ່ານ BCEL One / LAPNet QR</p>
+          <p class="fine" data-t="hero.fine">ບໍ່ຕ້ອງໃຊ້ບັດ • ພາສາລາວ ແລະ ອັງກິດ • ຈ່າຍຜ່ານ BCEL One / LAPNet QR</p>
         </div>
 
         <!-- A drawing of the till, not a screenshot: it stays sharp and loads instantly. -->
@@ -87,16 +94,48 @@
         </div>
       </section>
 
-      <!-- A slow, endless strip of what the app does. The list is doubled so it loops without a gap. -->
-      <div class="marquee" aria-hidden="true">
-        <div class="track">
-          <span data-t="mq.1">ໜ້າຂາຍ</span><span data-t="mq.2">QR ທະນາຄານ</span><span data-t="mq.3">ບາໂຄດ</span
-          ><span data-t="mq.4">ສະຕັອກ</span><span data-t="mq.5">ວັນໝົດອາຍຸ</span><span data-t="mq.6">ຂາຍໄດ້ເມື່ອເນັດຂາດ</span
-          ><span data-t="mq.7">ໃບບິນ 58 ມມ</span><span data-t="mq.8">ລາຍງານ Excel / PDF</span><span data-t="mq.9">ພາສາລາວ</span
-          ><span data-t="mq.1">ໜ້າຂາຍ</span><span data-t="mq.2">QR ທະນາຄານ</span><span data-t="mq.3">ບາໂຄດ</span
-          ><span data-t="mq.4">ສະຕັອກ</span><span data-t="mq.5">ວັນໝົດອາຍຸ</span><span data-t="mq.6">ຂາຍໄດ້ເມື່ອເນັດຂາດ</span
-          ><span data-t="mq.7">ໃບບິນ 58 ມມ</span><span data-t="mq.8">ລາຍງານ Excel / PDF</span><span data-t="mq.9">ພາສາລາວ</span>
-        </div>
+      <!-- What the app does, at a glance. Scrolls sideways on a phone. -->
+      <div class="wrap strip-wrap">
+        <ul class="strip">
+          <li>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6v12M7 6v12M10 6v12M13 6v12M15.5 6v12M18 6v12M20 6v12" /></svg
+            ><span data-t="mq.3">ບາໂຄດ</span>
+          </li>
+          <li>
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z" /><path d="M4 7.5l8 4.5 8-4.5M12 12v9" /></svg
+            ><span data-t="mq.4">ສະຕັອກ</span>
+          </li>
+          <li>
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <rect x="4" y="5" width="16" height="15" rx="2" /><path d="M4 10h16M8 3v4M16 3v4M8 14h2M12 14h2M8 17h2" /></svg
+            ><span data-t="mq.5">ວັນໝົດອາຍຸ</span>
+          </li>
+          <li>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 18h10a4 4 0 0 0 .6-7.96A6 6 0 0 0 6.2 9.5 4.25 4.25 0 0 0 7 18z" /></svg
+            ><span data-t="mq.6">ຂາຍໄດ້ເມື່ອເນັດຂາດ</span>
+          </li>
+          <li>
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M6 3h12v18l-3-2-3 2-3-2-3 2z" /><path d="M9 8h6M9 12h6M9 16h3" /></svg
+            ><span data-t="mq.7">ໃບບິນ 58 ມມ</span>
+          </li>
+          <li>
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M7 3h7l5 5v13H7z" /><path d="M14 3v5h5M10 13h6M10 17h6" /></svg
+            ><span data-t="mq.8">ລາຍງານ Excel / PDF</span>
+          </li>
+          <li>
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <circle cx="12" cy="12" r="9" /><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18" /></svg
+            ><span data-t="mq.9">ພາສາລາວ</span>
+          </li>
+          <li>
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <rect x="3" y="4" width="18" height="12" rx="2" /><path d="M8 20h8M12 16v4M7 9h4" /></svg
+            ><span data-t="mq.1">ໜ້າຂາຍ</span>
+          </li>
+        </ul>
       </div>
 
       <section id="services" class="block">
