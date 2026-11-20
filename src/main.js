@@ -37,8 +37,33 @@ import { CUR, SIGN } from "./lib/rates.js";
 import { registerSW } from "virtual:pwa-register";
 import { showTheme, switchTheme } from "./lib/theme.js";
 
-// Registers the service worker that lets the app open with no internet.
-registerSW({ immediate: true });
+// Registers the service worker that lets the app open with no internet. A
+// new version is looked for every 30 minutes and whenever the app comes back
+// to the screen, not only when it is opened: a phone can keep it open for days.
+registerSW({
+  immediate: true,
+  onRegisteredSW(_url, reg) {
+    if (!reg) return;
+    const check = () => navigator.onLine && reg.update().catch(() => {});
+    setInterval(check, 30 * 60e3);
+    document.addEventListener("visibilitychange", () => document.visibilityState == "visible" && check());
+  },
+});
+
+// After an update, the files an older open copy would load on demand (PDF,
+// Excel, ZIP, camera...) are no longer on the server. Load the new version
+// instead of failing; at most once a minute, so a real outage can't loop.
+const STALE = /dynamically imported module|Importing a module script failed|Failed to fetch dynamically/i;
+function reloadForUpdate() {
+  try {
+    if (Date.now() - (+sessionStorage.rpUpdateReload || 0) < 60e3) return false;
+    sessionStorage.rpUpdateReload = Date.now();
+  } catch {}
+  toast(t("msg.newVersion"));
+  setTimeout(() => location.reload(), 800);
+  return true;
+}
+addEventListener("vite:preloadError", (ev) => reloadForUpdate() && ev.preventDefault());
 
 const VIEWS = { dash, pos, cust, inv, exp, ord, scan, rep, auto, sys, admin };
 // [view key, icon]; the label and subtitle come from nav.<key> / nav.<key>.sub
@@ -1032,7 +1057,7 @@ const run = async (fn, el) => {
   try {
     await fn(el);
   } catch (e) {
-    toast(errText(e), true);
+    if (!(STALE.test(errText(e)) && reloadForUpdate())) toast(errText(e), true);
   } finally {
     if (el.tagName == "BUTTON") el.disabled = false;
   }
