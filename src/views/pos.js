@@ -254,14 +254,14 @@ function suggest() {
   const box = $("#psug");
   if (!box) return;
   box.innerHTML = matches(st.q)
-    .map(
-      (i) =>
-        `<button class="g" data-act="posAdd" data-id="${E(i.id)}">${
-          store.photoSrc(i) ? `<img class="thumb" src="${E(store.photoSrc(i))}" alt="" loading="lazy">` : ""
-        }<b>${E(i.name)}</b><small>${E(i.sku)} · ${fmt(
-          i.price,
-        )} · ${t("pos.inStock", { n: num(i.qty) })}</small></button>`,
-    )
+    .map((i) => {
+      const pic = store.photoSrc(i),
+        text = `<b>${E(i.name)}</b><small>${E(i.sku)} · ${fmt(i.price)} · ${t("pos.inStock", { n: num(i.qty) })}</small>`;
+      // With a photo: the picture, as big as in the stock list, and the words beside it.
+      return pic
+        ? `<button class="g hasph" data-act="posAdd" data-id="${E(i.id)}"><img class="ph" src="${E(pic)}" alt="" loading="lazy"><span class="st">${text}</span></button>`
+        : `<button class="g" data-act="posAdd" data-id="${E(i.id)}">${text}</button>`;
+    })
     .join("");
 }
 

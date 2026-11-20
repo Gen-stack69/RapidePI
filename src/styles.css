@@ -1213,8 +1213,26 @@ img.thumb {
   float: left;
   border: 1px solid var(--line);
 }
-#psug img.thumb {
-  float: none;
+/* A till search result with a photo: picture left, name and price beside it. */
+.sug button.hasph {
+  justify-content: flex-start;
+  flex-wrap: nowrap;
+  gap: 12px;
+}
+.sug button.hasph img.ph {
+  width: 120px;
+  height: 120px;
+  flex: none;
+  object-fit: cover;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: var(--input-bg);
+}
+.sug .st {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
 }
 /* In the stock list the photo sits beside the SKU, big enough to recognise. */
 .skuph {
