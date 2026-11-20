@@ -1216,3 +1216,21 @@ img.thumb {
 #psug img.thumb {
   float: none;
 }
+/* In the stock list the photo sits beside the SKU, big enough to recognise. */
+.skuph {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+.skuph img.ph {
+  width: 120px;
+  height: 120px;
+  flex: none;
+  object-fit: cover;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: var(--input-bg);
+}
+.rt td.sku.hasph {
+  max-width: none;
+}
