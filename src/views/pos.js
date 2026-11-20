@@ -256,7 +256,9 @@ function suggest() {
   box.innerHTML = matches(st.q)
     .map(
       (i) =>
-        `<button class="g" data-act="posAdd" data-id="${E(i.id)}"><b>${E(i.name)}</b><small>${E(i.sku)} · ${fmt(
+        `<button class="g" data-act="posAdd" data-id="${E(i.id)}">${
+          store.photoSrc(i) ? `<img class="thumb" src="${E(store.photoSrc(i))}" alt="" loading="lazy">` : ""
+        }<b>${E(i.name)}</b><small>${E(i.sku)} · ${fmt(
           i.price,
         )} · ${t("pos.inStock", { n: num(i.qty) })}</small></button>`,
     )

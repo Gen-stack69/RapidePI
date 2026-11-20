@@ -55,6 +55,8 @@ export const {
   rejectPayment,
   setBillingQr,
   proofUrl,
+  setItemPhoto,
+  photoSrc,
 } = B;
 
 // Back online: send what was done offline, then fetch a fresh copy.

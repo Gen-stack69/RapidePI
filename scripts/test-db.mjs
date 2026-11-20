@@ -98,6 +98,14 @@ await ok("an inbound order received with an expiry date makes a dated batch (013
   eq(+(await as(A, "select qty from items where id = $1", [it])).rows[0].qty, 4, "stock");
   await as(A, "delete from items where id = $1", [it]); // later checks count the shop's products
 });
+await ok("a product takes a photo stored in its own shop folder (014)", async () => {
+  const p = `${shopA}/${item}-abc123.jpg`;
+  await as(A, "update items set photo = $1 where id = $2", [p, item]);
+  eq((await as(A, "select photo from items where id = $1", [item])).rows[0].photo, p, "photo path");
+  await as(A, "update items set photo = null where id = $1", [item]);
+});
+await rejects("a product photo outside the product's own file is refused (014)", () =>
+  as(A, "update items set photo = $1 where id = $2", [`${shopB}/${item}-abc123.jpg`, item]));
 await rejects("cannot order another shop's item", () =>
   as(B, "insert into orders (shop_id, item_id, type, qty) values ($1, $2, 'in', 1)", [shopB, item]));
 

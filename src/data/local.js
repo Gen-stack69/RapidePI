@@ -7,6 +7,7 @@ import { state, emit, canWrite } from "./state.js";
 import { err } from "../i18n/index.js";
 import * as apply from "./apply.js";
 import { costFields, packRow, custRow, newCustomers, amount, keepOwnerPrices } from "./fields.js";
+import { toJpeg, dataUrl } from "../lib/photo.js";
 
 const KEY = "rapidewms.local";
 const uid = () => crypto.randomUUID();
@@ -184,6 +185,28 @@ export async function saveItem(id, f) {
   else db.items.push((it = { id: uid(), shop_id: shopId(), qty: 0, created_at: nowIso(), ...row }));
   setStockRaw(it.id, Math.max(0, +f.qty || 0), id ? "edit" : "initial", f.expiry || null);
   await commit();
+}
+
+// ---------- product photos ----------
+// The demo keeps a small copy (320 px) inside the browser's own storage, which
+// only holds a few MB; the online version keeps photos on the server.
+
+/** The picture to show for a product, or "". */
+export const photoSrc = (it) => it?.photo || "";
+
+/** Give a product a photo (a picture file), or take it away (null). */
+export async function setItemPhoto(itemId, file) {
+  writable();
+  const it = db.items.find((i) => i.id == itemId && i.shop_id == shopId()) || fail("err.itemNotFound");
+  it.photo = file ? await dataUrl(await toJpeg(file, 320, 0.7)) : null;
+  try {
+    await commit();
+  } catch {
+    // The browser's storage is full: keep the product, without the photo.
+    it.photo = null;
+    persist();
+    fail("err.photoFull");
+  }
 }
 
 export async function deleteItem(id) {

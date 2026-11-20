@@ -9,6 +9,7 @@ import * as apply from "./apply.js";
 import * as Q from "./queue.js";
 import * as C from "./cache.js";
 import { costFields, packRow, custRow, newCustomers, amount, keepOwnerPrices } from "./fields.js";
+import { toJpeg, productJpeg } from "../lib/photo.js";
 
 // Before 010_receive_packs.sql is run there is no pack_receipts table: the
 // shop still opens, with no boxes waiting.
@@ -169,6 +170,7 @@ export async function reload() {
   await loadBilling();
   await rebuild();
   await ensureTill();
+  signPhotos();
 }
 
 // ---------- subscription (011_billing.sql) ----------
@@ -212,15 +214,6 @@ export async function claimPayment(id, photo) {
     if (error) throw friendly(error);
   }
   return afterPay(await rpc("claim_payment", { p_id: id, p_proof: path }));
-}
-async function toJpeg(file, max = 1600) {
-  const img = await createImageBitmap(file),
-    k = Math.min(1, max / Math.max(img.width, img.height)),
-    c = document.createElement("canvas");
-  c.width = Math.round(img.width * k);
-  c.height = Math.round(img.height * k);
-  c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
-  return new Promise((res, rej) => c.toBlob((b) => (b ? res(b) : rej(new Error("image"))), "image/jpeg", 0.85));
 }
 // A link to a payment's screenshot that works for 10 minutes, for whoever may see it.
 export async function proofUrl(path) {
@@ -311,7 +304,55 @@ export async function saveItem(id, f) {
   await reload();
 }
 
-export const deleteItem = (id) => write(sb.from("items").delete().eq("id", id));
+export async function deleteItem(id) {
+  const old = state.items.find((i) => i.id == id)?.photo;
+  await write(sb.from("items").delete().eq("id", id));
+  if (old) await sb.storage.from("product-photos").remove([old]).catch(() => {});
+}
+
+// ---------- product photos (014_item_photos.sql) ----------
+//
+// Kept in the private bucket product-photos. The screens get short-lived
+// signed links, fetched in one go after each reload and kept for 50 minutes.
+
+const signed = new Map(); // path -> { url, until }
+const PHOTOS = "product-photos";
+
+/** The link to show a product's photo, or "" when there is none (yet). */
+export const photoSrc = (it) => (it?.photo && signed.get(it.photo)?.url) || "";
+
+async function signPhotos() {
+  const now = Date.now(),
+    want = [...new Set(state.items.map((i) => i.photo).filter((p) => p && !(signed.get(p)?.until > now)))];
+  if (!want.length || !navigator.onLine) return;
+  try {
+    for (let i = 0; i < want.length; i += 200) {
+      const { data, error } = await sb.storage.from(PHOTOS).createSignedUrls(want.slice(i, i + 200), 3600);
+      if (error) return;
+      for (const d of data || []) if (d.signedUrl) signed.set(d.path, { url: d.signedUrl, until: now + 50 * 60e3 });
+    }
+    emit();
+  } catch {}
+}
+
+/** Give a product a photo (a picture file), or take it away (null). */
+export async function setItemPhoto(itemId, file) {
+  const it = state.items.find((i) => i.id == itemId) || fail("err.itemNotFound"),
+    old = it.photo;
+  let path = null;
+  if (file) {
+    path = `${state.shop.id}/${itemId}-${Date.now().toString(36)}.jpg`;
+    const { error } = await sb.storage.from(PHOTOS).upload(path, await productJpeg(file), { contentType: "image/jpeg" });
+    if (error) throw friendly(error);
+  }
+  try {
+    await write(sb.from("items").update({ photo: path }).eq("id", itemId));
+  } catch (e) {
+    if (path) await sb.storage.from(PHOTOS).remove([path]).catch(() => {});
+    throw e;
+  }
+  if (old) await sb.storage.from(PHOTOS).remove([old]).catch(() => {});
+}
 
 // ---------- work that also runs offline ----------
 //
