@@ -260,24 +260,39 @@ async function itemForm(id, code) {
   };
   // The form comes back with what was typed when it can't be saved, and why.
   let v = { ...i, expiry: "" },
-    why = "";
+    why = "",
+    pic; // the photo: undefined = as it was, a File = new, "" = removed
   for (;;) {
-    const f = await itemFields(id, v, why);
+    const f = await itemFields(id, v, why, pic);
     if (!f) return;
+    if (f.photo !== undefined) pic = f.photo;
+    delete f.photo;
     why = itemProblem(id, i, f);
     if (!why) {
       if (!f.sku.trim()) f.sku = newSku();
       await store.saveItem(id, f);
+      // The product is saved first, so a photo that can't be sent (no
+      // internet, too big) never loses what was typed.
+      const saved = id || state.items.find((x) => x.sku.toLowerCase() == f.sku.trim().toLowerCase())?.id;
+      if (pic !== undefined && saved)
+        try {
+          await store.setItemPhoto(saved, pic || null);
+        } catch (e) {
+          return toast(t("err.photoSave", { why: errText(e) }), true);
+        }
       return toast(t(id ? "msg.itemSaved" : "msg.itemAdded"));
     }
     v = { ...v, ...f, cost_orig: f.cost };
   }
 }
 
-function itemFields(id, i, why) {
+function itemFields(id, i, why, pic) {
+  const photo = pic instanceof Blob ? URL.createObjectURL(pic) : pic === "" ? "" : store.photoSrc(state.items.find((x) => x.id == id));
   return form(t(id ? "title.editItem" : "title.addItem"), [
     { k: "sku", label: t("f.sku"), value: i.sku, hint: id ? "" : t("f.skuHint") },
     { k: "name", label: t("f.name"), value: i.name, required: true },
+    // Optional: a picture helps staff pick the right product.
+    { k: "photo", label: t("f.photo"), type: "photo", value: photo, hint: t("f.photoHint") },
     { k: "category", label: t("f.category"), value: i.category },
     { k: "unit", label: t("f.unit"), value: i.unit || "", hint: t("f.unitHint") },
     {

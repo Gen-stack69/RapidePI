@@ -46,6 +46,15 @@ export function toast(msg, bad) {
 export function form(title, fields, okLabel = t("btn.save"), note = "") {
   const dlg = $("#dlg");
   const input = (f) => {
+    // An optional picture: take one with the camera or pick one from the
+    // phone/computer. The form hands back the new File, "" to remove it, or
+    // undefined when it was left as it was.
+    if (f.type == "photo")
+      return `<span class="photo" data-photo="${E(f.k)}"><img alt=""${f.value ? ` src="${E(f.value)}"` : " hidden"}><span class="row"><button type="button" class="g" data-ph="cam">📷 ${E(
+        t("f.photoTake"),
+      )}</button><button type="button" class="g" data-ph="file">🖼 ${E(t("f.photoPick"))}</button><button type="button" class="g" data-ph="clear"${
+        f.value ? "" : " hidden"
+      }>✕ ${E(t("f.photoRemove"))}</button></span><input type="file" accept="image/*" capture="environment" hidden data-ph-in="cam"><input type="file" accept="image/*" hidden data-ph-in="file"></span>`;
     if (f.type == "select")
       return `<select name="${E(f.k)}">${f.options
         .map(([v, l]) => `<option value="${E(v)}"${v == f.value ? " selected" : ""}>${E(l)}</option>`)
@@ -64,13 +73,14 @@ export function form(title, fields, okLabel = t("btn.save"), note = "") {
   dlg.innerHTML = `<form method="dialog"><h3>${E(title)}</h3>${note ? `<p class="mut">${note}</p>` : ""}<div class="mt">${fields
     .map(
       (f) =>
-        `<label data-field="${E(f.k)}"${f.showIf ? ` data-show-if="${E(f.showIf.join("="))}"` : ""}>${E(f.label)}${
+        // A photo field is a div: inside a label, a tap anywhere on it would open the camera.
+        `<${f.type == "photo" ? 'div class="lbl"' : "label"} data-field="${E(f.k)}"${f.showIf ? ` data-show-if="${E(f.showIf.join("="))}"` : ""}>${E(f.label)}${
           f.tools
             ? `<span class="tools">${input(f)}${f.tools
                 .map((b) => `<button type="button" class="g" data-act="${E(b.act)}" data-for="${E(f.k)}">${E(b.label)}</button>`)
                 .join("")}</span>`
             : input(f)
-        }${f.type == "expiry" ? `<small class="said"></small>` : ""}${f.hint ? `<small class="mut">${E(f.hint)}</small>` : ""}</label>`,
+        }${f.type == "expiry" ? `<small class="said"></small>` : ""}${f.hint ? `<small class="mut">${E(f.hint)}</small>` : ""}</${f.type == "photo" ? "div" : "label"}>`,
     )
     .join("")}</div><div class="row"><button class="b" value="ok">${E(okLabel)}</button><button class="g" value="cancel" formnovalidate>${E(t("btn.cancel"))}</button></div></form>`;
   const fm = dlg.querySelector("form");
@@ -89,14 +99,43 @@ export function form(title, fields, okLabel = t("btn.save"), note = "") {
     });
     checkExpiry(el);
   });
+  const photos = {}; // field -> File, or "" when removed
+  fm.querySelectorAll("[data-photo]").forEach((box) => {
+    const k = box.dataset.photo,
+      img = box.querySelector("img"),
+      clear = box.querySelector('[data-ph="clear"]');
+    box.addEventListener("click", (ev) => {
+      const b = ev.target.closest("[data-ph]");
+      if (!b) return;
+      if (b.dataset.ph == "clear") {
+        photos[k] = "";
+        img.hidden = true;
+        img.removeAttribute("src");
+        clear.hidden = true;
+      } else box.querySelector(`[data-ph-in="${b.dataset.ph}"]`).click();
+    });
+    box.querySelectorAll("[data-ph-in]").forEach((inp) =>
+      inp.addEventListener("change", () => {
+        const file = inp.files?.[0];
+        inp.value = "";
+        if (!file || !String(file.type || "image/").startsWith("image/")) return;
+        photos[k] = file;
+        if (img.src.startsWith("blob:")) URL.revokeObjectURL(img.src);
+        img.src = URL.createObjectURL(file);
+        img.hidden = false;
+        clear.hidden = false;
+      }),
+    );
+  });
   dlg.showModal();
-  dlg.querySelector("input,select")?.focus();
+  dlg.querySelector("input:not([type=file]),select")?.focus();
   return new Promise((res) =>
     dlg.addEventListener(
       "close",
       () => {
         if (dlg.returnValue != "ok") return res(null);
-        const out = Object.fromEntries(new FormData(fm));
+        const out = Object.fromEntries([...new FormData(fm)].filter(([, v]) => !(v instanceof File)));
+        Object.assign(out, photos);
         // Expiry boxes hand back the date they understood, not what was typed.
         fm.querySelectorAll("[data-expiry]").forEach((el) => {
           out[el.name] = el.closest("label").hidden ? "" : parseTyped(el.value) || "";

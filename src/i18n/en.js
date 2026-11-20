@@ -768,4 +768,12 @@ export default {
   "rp.sign.manager": "Manager",
   "rp.signName": "Name: .....................",
   "rp.signDate": "Date: ..... / ..... / ..........",
+  // Product photos (014)
+  "f.photo": "Photo (optional)",
+  "f.photoHint": "A picture helps staff pick the right product. You can skip it.",
+  "f.photoTake": "Take photo",
+  "f.photoPick": "Choose photo",
+  "f.photoRemove": "Remove",
+  "err.photoSave": "The product is saved, but not its photo: {why}",
+  "err.photoFull": "This browser has no room for more photos in the demo. The product is saved without its photo.",
 };

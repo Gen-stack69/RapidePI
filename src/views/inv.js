@@ -1,6 +1,6 @@
 import { E, fmt, num, dateText, expiryNote } from "../lib/util.js";
 import { t } from "../i18n/index.js";
-import { isOwner } from "../data/store.js";
+import { isOwner, photoSrc } from "../data/store.js";
 import { waitingBoxes } from "../data/fields.js";
 import { status } from "../lib/expiry.js";
 import { SIGN } from "../lib/rates.js";
@@ -62,7 +62,8 @@ export function rows(s) {
         }</${edit ? "button" : "span"}>`;
       })
       .join(" ");
-    const name = `${E(i.name)} <span class="tag ${kind}">${t("kind." + kind)}</span>${packs ? "<br>" + packs : ""}${
+    const pic = photoSrc(i),
+      name = `${pic ? `<img class="thumb" src="${E(pic)}" alt="" loading="lazy">` : ""}${E(i.name)} <span class="tag ${kind}">${t("kind." + kind)}</span>${packs ? "<br>" + packs : ""}${
       e
         ? `<br><small class="${status(e) == "ok" ? "mut" : "warn"}">${t("exp.short")} ${dateText(e)}${expiryNote(e)}</small>`
         : ""
