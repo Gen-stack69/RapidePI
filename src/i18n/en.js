@@ -784,4 +784,5 @@ export default {
   "err.needDate": "Enter a date.",
   "msg.lotDateChanged": "Date changed to {d}",
   "msg.lotMerged": "Moved to {d}, together with the stock already on that date",
+  "msg.newVersion": "A new version of the app is ready. Loading it…",
 };
