@@ -243,7 +243,9 @@ function itemProblem(id, before, f) {
 async function itemForm(id, code) {
   if (!needWrite()) return;
   const i = state.items.find((x) => x.id == id) || {
-    sku: code || "",
+    // A scanned code is the barcode only; the product code is made (P0001…),
+    // so correcting a wrong barcode later leaves nothing of it behind.
+    sku: "",
     barcode: code || "",
     name: "",
     category: "",
@@ -399,6 +401,13 @@ async function packForm(itemId, packId, code = "") {
     if (!fix) return null;
     f.fix = Math.max(0, +fix.fix || 0);
   }
+  // One barcode, one product: not another product's own barcode or box.
+  const bc = String(f.barcode || "").trim().toLowerCase(),
+    clash =
+      bc &&
+      (state.items.find((x) => x.id != it.id && String(x.barcode || "").trim().toLowerCase() == bc) ||
+        state.items.find((x) => state.packs.some((q) => q.id != packId && q.item_id == x.id && String(q.barcode || "").trim().toLowerCase() == bc)));
+  if (clash) return toast(t("err.dupBarcode", { name: clash.name }), true), null;
   const waiting = packId ? waitingBoxes(state.packReceipts, packId) : 0;
   await store.savePack(packId || null, it.id, f);
   toast(waiting && size != null && p.size == null ? t("msg.boxCounted", { n: num(waiting * size), unit }) : t("msg.saved"));
