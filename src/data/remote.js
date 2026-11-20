@@ -707,6 +707,11 @@ export const deletePack = (id) => write(sb.from("packs").delete().eq("id", id));
 /** A lower price for one expiry date of a product; null goes back to normal. */
 export const setLotPrice = (itemId, expiry, price) =>
   write(sb.rpc("set_lot_price", { p_item: itemId, p_expiry: expiry, p_price: price }));
+/** Correct a batch's expiry date (015). Online only: the batch must be the server's. */
+export function changeLotExpiry(lotId, expiry) {
+  if (!navigator.onLine) fail("err.offline");
+  return write(sb.rpc("change_lot_expiry", { p_lot: lotId, p_expiry: expiry }));
+}
 
 // ---------- customers (online) ----------
 

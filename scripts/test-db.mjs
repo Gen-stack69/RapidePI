@@ -106,6 +106,28 @@ await ok("a product takes a photo stored in its own shop folder (014)", async ()
 });
 await rejects("a product photo outside the product's own file is refused (014)", () =>
   as(A, "update items set photo = $1 where id = $2", [`${shopB}/${item}-abc123.jpg`, item]));
+await ok("a batch's expiry date can be corrected, and joins a batch already on that date (015)", async () => {
+  const it = (await as(A, "insert into items (shop_id, sku, name, kind) values ($1, 'JUICE-1', 'Juice', 'consumable') returning id", [shopA])).rows[0].id;
+  await as(A, "select adjust_stock($1, 5, 't', $2)", [it, "2026-01-01"]);
+  await as(A, "select adjust_stock($1, 3, 't', $2)", [it, "2027-06-30"]);
+  const lot = (await as(A, "select id from lots where item_id = $1 and expiry = '2026-01-01'", [it])).rows[0].id;
+  await as(A, "select change_lot_expiry($1, $2)", [lot, "2027-01-01"]);
+  let rows = (await as(A, "select expiry::text as d, qty from lots where item_id = $1 order by expiry", [it])).rows;
+  eq(rows.map((r) => r.d + "=" + +r.qty).join(","), "2027-01-01=5,2027-06-30=3", "moved");
+  const again = (await as(A, "select id from lots where item_id = $1 and expiry = '2027-01-01'", [it])).rows[0].id;
+  await as(A, "select change_lot_expiry($1, $2)", [again, "2027-06-30"]);
+  rows = (await as(A, "select expiry::text as d, qty from lots where item_id = $1", [it])).rows;
+  eq(rows.map((r) => r.d + "=" + +r.qty).join(","), "2027-06-30=8", "merged");
+  eq(+(await as(A, "select qty from items where id = $1", [it])).rows[0].qty, 8, "stock unchanged");
+  await as(A, "delete from items where id = $1", [it]);
+});
+await rejects("another shop cannot change a batch's date (015)", async () => {
+  const it = (await as(A, "insert into items (shop_id, sku, name, kind) values ($1, 'JUICE-2', 'Juice', 'consumable') returning id", [shopA])).rows[0].id;
+  await as(A, "select adjust_stock($1, 2, 't', $2)", [it, "2026-02-02"]);
+  const lot = (await as(A, "select id from lots where item_id = $1", [it])).rows[0].id;
+  try { await as(B, "select change_lot_expiry($1, $2)", [lot, "2027-02-02"]); }
+  finally { await as(A, "delete from items where id = $1", [it]); }
+});
 await rejects("cannot order another shop's item", () =>
   as(B, "insert into orders (shop_id, item_id, type, qty) values ($1, $2, 'in', 1)", [shopB, item]));
 

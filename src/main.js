@@ -719,6 +719,33 @@ const A = {
       el.textContent = label;
     }
   },
+  // A batch's date was typed wrong: move the whole batch to the right date.
+  async lotDate(el) {
+    if (!needWrite()) return;
+    const lot = state.lots.find((l) => l.id == el.dataset.id),
+      it = lot && state.items.find((i) => i.id == lot.item_id);
+    if (!it) return;
+    const f = await form(
+      t("title.lotDate", { name: it.name, n: num(lot.qty) }),
+      [
+        {
+          k: "expiry",
+          label: t("f.newExpiry"),
+          type: "expiry",
+          value: scanner.typedDate(lot.expiry),
+          required: true,
+          tools: [{ act: "readDate", label: t("btn.readDate") }],
+          hint: t("f.newExpiryHint", { d: dateText(lot.expiry) }),
+        },
+      ],
+    );
+    if (!f) return;
+    if (!f.expiry) return toast(t("err.needDate"), true);
+    if (f.expiry == lot.expiry) return;
+    const merge = state.lots.some((l) => l.item_id == lot.item_id && l.expiry == f.expiry && l.id != lot.id);
+    await store.changeLotExpiry(lot.id, f.expiry);
+    toast(t(merge ? "msg.lotMerged" : "msg.lotDateChanged", { d: dateText(f.expiry) }));
+  },
   async writeOff(el) {
     if (!needWrite()) return;
     const lot = state.lots.find((l) => l.id == el.dataset.id),

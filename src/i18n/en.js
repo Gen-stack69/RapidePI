@@ -776,4 +776,12 @@ export default {
   "f.photoRemove": "Remove",
   "err.photoSave": "The product is saved, but not its photo: {why}",
   "err.photoFull": "This browser has no room for more photos in the demo. The product is saved without its photo.",
+  // Correcting a batch's expiry date (015)
+  "exp.changeDate": "Change date",
+  "title.lotDate": "{name}: {n} with this date",
+  "f.newExpiry": "Correct expiry date",
+  "f.newExpiryHint": "Now {d}. The whole batch moves to the new date; the quantity stays the same.",
+  "err.needDate": "Enter a date.",
+  "msg.lotDateChanged": "Date changed to {d}",
+  "msg.lotMerged": "Moved to {d}, together with the stock already on that date",
 };

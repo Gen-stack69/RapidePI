@@ -57,6 +57,7 @@ export const {
   proofUrl,
   setItemPhoto,
   photoSrc,
+  changeLotExpiry,
 } = B;
 
 // Back online: send what was done offline, then fetch a fresh copy.
