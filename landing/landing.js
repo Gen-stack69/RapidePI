@@ -339,17 +339,6 @@ function showTheme() {
   document.querySelector('meta[name="theme-color"]').content = light ? "#faf7f2" : "#0e0a18";
 }
 
-// In light mode a pressed button turns a shade of purple, eased over 0.2 s,
-// and fades back once it is let go of.
-document.addEventListener("click", (ev) => {
-  const b = ev.target.closest("button, .btn, .pill, .links a, summary, .chip, .foot a");
-  if (!b || !document.documentElement.classList.contains("is-light")) return;
-  b.classList.remove("pressed");
-  void b.offsetWidth; // restart the fade when pressed twice quickly
-  b.classList.add("pressed");
-  clearTimeout(b._pressT);
-  b._pressT = setTimeout(() => b.classList.remove("pressed"), 650);
-});
 document.getElementById("theme").addEventListener("click", () => {
   const next = themeNow() == "light" ? "dark" : "light";
   document.documentElement.dataset.theme = next;
