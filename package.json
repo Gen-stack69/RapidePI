@@ -19,6 +19,7 @@
     "test": "npm run check-i18n && npm run test:unit && npm run test:db"
   },
   "dependencies": {
+    "@fontsource-variable/plus-jakarta-sans": "^5.3.0",
     "@fontsource/noto-sans-lao": "^5.3.0",
     "@supabase/supabase-js": "^2.118.0",
     "barcode-detector": "3.2.3",
