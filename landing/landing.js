@@ -253,8 +253,10 @@ if (!still && "IntersectionObserver" in window) {
   for (const el of items) io.observe(el);
 }
 
-// The till in the hero plays a sale on a loop: items are scanned one by one,
-// the total counts up, the customer scans the QR, and the payment lands.
+// The till in the hero plays a sale: items are scanned one by one, the total
+// counts up, the customer scans the QR, and the payment lands. It plays
+// PLAYS times, then stays on the paid sale. It plays again only after the
+// visitor has scrolled away from the top and come back (or reloads).
 (function playTill() {
   const mock = document.querySelector(".mock");
   if (!mock || still) return;
@@ -262,14 +264,19 @@ if (!still && "IntersectionObserver" in window) {
     pay = mock.querySelector(".mock-pay"),
     paid = mock.querySelector(".paid"),
     total = document.getElementById("mock-total");
+  const PLAYS = 2;
   const amounts = [10000, 240000, 8000];
   const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+  let run = 0, // the current showing; a newer one makes an older one stop
+    away = false; // scrolled away since the last showing
   mock.classList.add("play");
-  (async function loop() {
-    for (;;) {
+  async function show() {
+    const me = ++run;
+    for (let n = 0; n < PLAYS; n++) {
       for (const el of [...rows, pay, paid]) el.classList.remove("on");
       total.textContent = "0 ₭";
       await wait(900);
+      if (me != run) return;
       let sum = 0;
       for (let i = 0; i < rows.length; i++) {
         rows[i].classList.add("on");
@@ -277,13 +284,30 @@ if (!still && "IntersectionObserver" in window) {
         sum += amounts[i];
         countUpFrom(total, from, sum, 450);
         await wait(850);
+        if (me != run) return;
       }
       pay.classList.add("on");
       await wait(2400);
+      if (me != run) return;
       paid.classList.add("on");
       await wait(3200);
+      if (me != run) return;
     }
-  })();
+    // ends on the paid sale, everything shown
+  }
+  show();
+  // Out of view: note it. Back in view after that: play again.
+  if ("IntersectionObserver" in window)
+    new IntersectionObserver(
+      ([e]) => {
+        if (!e.isIntersecting) away = true;
+        else if (away) {
+          away = false;
+          show();
+        }
+      },
+      { threshold: 0.35 },
+    ).observe(mock);
   function countUpFrom(el, from, to, ms) {
     const t0 = performance.now();
     const step = (now) => {
