@@ -63,7 +63,7 @@ export function rows(s) {
       })
       .join(" ");
     const pic = photoSrc(i),
-      name = `${pic ? `<img class="thumb" src="${E(pic)}" alt="" loading="lazy">` : ""}${E(i.name)} <span class="tag ${kind}">${t("kind." + kind)}</span>${packs ? "<br>" + packs : ""}${
+      name = `${E(i.name)} <span class="tag ${kind}">${t("kind." + kind)}</span>${packs ? "<br>" + packs : ""}${
       e
         ? `<br><small class="${status(e) == "ok" ? "mut" : "warn"}">${t("exp.short")} ${dateText(e)}${expiryNote(e)}</small>`
         : ""
@@ -71,7 +71,12 @@ export function rows(s) {
     const cost =
       fmt(i.cost) +
       (i.cost_currency && i.cost_currency != "LAK" ? `<br><small class="mut">${SIGN[i.cost_currency]}${num(i.cost_orig)}</small>` : "");
-    return `<tr>${td(0, `<b>${E(i.sku)}</b>`, "sku")}${td(1, name, "nm")}${td(2, E(i.category))}${td(
+    // The product's photo, if it has one, sits beside its SKU.
+    return `<tr>${td(
+      0,
+      pic ? `<span class="skuph"><img class="ph" src="${E(pic)}" alt="" loading="lazy"><b>${E(i.sku)}</b></span>` : `<b>${E(i.sku)}</b>`,
+      pic ? "sku hasph" : "sku",
+    )}${td(1, name, "nm")}${td(2, E(i.category))}${td(
       3,
       num(i.qty) + (i.unit ? " " + E(i.unit) : "") + (low ? " ⚠" : ""),
       low ? "warn" : "",
