@@ -33,7 +33,7 @@ import admin, { load as loadAdmin } from "./views/admin.js";
 import { planName } from "./views/sys.js";
 import { tillQr, qrSvg } from "./lib/payqr.js";
 import { status, SOON_DAYS, setSoonDays, daysLeft } from "./lib/expiry.js";
-import { CUR, SIGN, kipPer } from "./lib/rates.js";
+import { CUR, SIGN } from "./lib/rates.js";
 import { registerSW } from "virtual:pwa-register";
 import { showTheme, switchTheme } from "./lib/theme.js";
 
@@ -322,7 +322,7 @@ function itemFields(id, i, why, pic) {
       label: t("f.costCur"),
       type: "select",
       value: i.cost_currency || "LAK",
-      options: CUR.map((c) => [c, c == "LAK" ? "₭ LAK" : `${SIGN[c]} ${c} (1 = ${num(Math.round(kipPer(c) * 100) / 100)} ₭)`]),
+      options: CUR.map((c) => [c, c == "LAK" ? "₭ LAK" : `${SIGN[c]} ${c}`]),
     },
     { k: "cost", label: t("f.costIn"), type: "number", value: i.cost_currency && i.cost_currency != "LAK" ? +i.cost_orig : +i.cost },
     { k: "price", label: t("f.price"), type: "number", value: +i.price || 0 },
