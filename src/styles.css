@@ -1020,37 +1020,105 @@ table.cart td {
   @page {
     margin: 4mm;
   }
-  /* A printed report: A4 sideways, plain heading row, no colour. */
+  /* A printed report, laid out like a warehouse form (lib/report.js): A4
+     sideways, black on white, numbered rows, totals, signatures. */
   @page report {
     size: A4 landscape;
     margin: 12mm;
   }
   body.printing .report {
     page: report;
-    font: 10px "RAPIDEWMS PDF", "Noto Sans Lao", sans-serif;
+    font: 9.5px "RAPIDEWMS PDF", "Noto Sans Lao", sans-serif;
     color: #000;
   }
-  body.printing .report h4 {
+  body.printing .report .rh {
+    margin-bottom: 8px;
+  }
+  body.printing .report .shop {
     font-size: 13px;
-    margin: 0 0 8px;
+  }
+  body.printing .report h4 {
+    font-size: 16px;
+    text-align: center;
+    margin: 4px 0 6px;
+  }
+  body.printing .report h5 {
+    font-size: 11px;
+    margin: 10px 0 4px;
+  }
+  body.printing .report .meta {
+    display: flex;
+    justify-content: space-between;
+  }
+  body.printing .report .meta .r {
+    text-align: right;
   }
   body.printing .report table {
     width: 100%;
     border-collapse: collapse;
+    margin-bottom: 8px;
+  }
+  body.printing .report th,
+  body.printing .report td {
+    border: 0.5px solid #777;
+    padding: 2px 5px;
   }
   body.printing .report th {
-    text-align: left;
     font-weight: 700;
-    background: none;
-    border-bottom: 1.5px solid #000;
-    padding: 4px 6px;
+    text-align: center;
+    background: #e7e6e6;
   }
-  body.printing .report td {
-    border-bottom: 0.5px solid #bbb;
-    padding: 3px 6px;
+  body.printing .report td.n {
+    text-align: right;
+    white-space: nowrap;
+  }
+  body.printing .report td.c {
+    text-align: center;
+    white-space: nowrap;
+  }
+  body.printing .report tr.grp td {
+    font-weight: 700;
+    background: #f5f5f5;
+  }
+  body.printing .report tr.tot td {
+    font-weight: 700;
+    background: #e7e6e6;
   }
   body.printing .report thead {
     display: table-header-group; /* the heading row repeats on every page */
+  }
+  body.printing .report tr {
+    break-inside: avoid;
+  }
+  body.printing .report table.sum {
+    width: 45%;
+    margin-left: auto;
+  }
+  body.printing .report table.sum th,
+  body.printing .report table.sum td {
+    border: 0;
+    background: none;
+  }
+  body.printing .report table.sum th {
+    text-align: left;
+  }
+  body.printing .report table.sum td.n {
+    font-weight: 700;
+  }
+  body.printing .report .sign {
+    display: flex;
+    justify-content: space-around;
+    margin-top: 18px;
+    text-align: center;
+    break-inside: avoid;
+  }
+  body.printing .report .sign div {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  body.printing .report .sign b {
+    margin-bottom: 40px;
   }
 }
 

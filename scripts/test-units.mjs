@@ -2,6 +2,9 @@
 // Run: npm run test:unit
 import { pageAll, PAGE } from "../src/data/page.js";
 import { backupDate, toKeep } from "./lib/retention.mjs";
+import { report, reportSheet, dataSheet } from "../src/lib/report.js";
+import { xlsxBlob } from "../src/lib/xlsxw.js";
+import { readTable } from "../src/lib/importer.js";
 
 let fails = 0;
 const ok = async (name, fn) => {
@@ -704,6 +707,78 @@ console.log("Till single-scan aim box");
   await ok("empty and unreadable codes are skipped", async () => {
     const a = aimed([{ rawValue: "", boundingBox: { x: 600, y: 330, width: 50, height: 20 } }], W, H);
     eq(a.inBox.length + a.ignored.length, 0, "nothing kept");
+  });
+}
+
+
+// ---------- printed-form reports (lib/report.js) ----------
+{
+  const shop = {
+    shop: { name: "Miracle test" },
+    user: { email: "owner@example.com" },
+    items: [
+      { id: "a", sku: "ST", name: "Strawberry", category: "Ice cream", barcode: "8560847100049", qty: 216, min_qty: 24, cost: 9000, price: 12000, unit: "box" },
+      { id: "b", sku: "MI", name: "Milk", category: "Ice cream", barcode: "", qty: 10, min_qty: 24, cost: 9000, price: 12000, unit: "box" },
+      { id: "c", sku: "SU", name: "Sugar", category: "Raw", barcode: "", qty: 2.5, min_qty: 1, cost: 15000, price: 0, unit: "kg" },
+    ],
+    packs: [{ id: "p", item_id: "a", name: "Carton", size: 12 }],
+    lots: [
+      { item_id: "a", expiry: "2020-01-01", qty: 16 },
+      { item_id: "a", expiry: "2099-01-01", qty: 200 },
+    ],
+    sales: [
+      { id: "s1", receipt_no: 1, created_at: "2026-11-01T09:00:00Z", subtotal: 24000, discount: 0, total: 24000, vat: 2182, method: "cash", status: "paid" },
+      { id: "s2", receipt_no: 2, created_at: "2026-11-02T09:00:00Z", subtotal: 12000, discount: 0, total: 12000, vat: 1091, method: "transfer", status: "void" },
+    ],
+    saleLines: [
+      { sale_id: "s1", sku: "ST", name: "Strawberry", qty: 2, unit_price: 12000, line_total: 24000 },
+      { sale_id: "s2", sku: "MI", name: "Milk", qty: 1, unit_price: 12000, line_total: 12000 },
+    ],
+    customers: [],
+    orders: [],
+    movements: [
+      { created_at: "2026-11-01T09:00:00Z", sku: "ST", type: "in", qty: 163, note: "batch 057" },
+      { created_at: "2026-11-01T10:00:00Z", sku: "SU", type: "out", qty: 1, note: "production" },
+    ],
+  };
+  await ok("the stock report groups by category, counts packs and never adds up different units", () => {
+    const R = report(shop, "Inventory", new Date(2026, 10, 20));
+    eq(R.no, "STK-20261120", "document number");
+    eq(R.date, "20/11/2026", "date");
+    const [ice, raw] = R.tables[0].groups;
+    eq(ice.title + "|" + raw.title, "Ice cream|Raw", "groups");
+    eq(ice.rows[0][3], "Milk", "sorted by name");
+    eq(ice.rows[1][5], "18 × Carton (12)", "216 boxes in cartons");
+    eq(ice.total[6], 226, "same unit: boxes add up");
+    eq(R.tables[0].grand[6], "", "boxes + kg are not added");
+    eq(R.tables[0].grand[10], 216 * 9000 + 10 * 9000 + 2.5 * 15000, "value always adds up");
+    eq(ice.rows[0][11] != "", true, "Milk is marked low");
+  });
+  await ok("the sales report keeps voided sales out of the summary", () => {
+    const R = report(shop, "Sales");
+    eq(R.tables[0].groups.length, 2, "paid and voided groups");
+    const net = R.summary.find((r) => r[0].includes("Net"));
+    eq(net[1], 24000, "net sales");
+  });
+  await ok("the expiry report shows every batch under its product with a total", () => {
+    const R = report(shop, "Expiry");
+    const g = R.tables[0].groups[0];
+    eq(g.rows.length, 2, "two batches");
+    eq(g.rows[0][1], "01/01/2020", "oldest first, day first");
+    eq(g.total[4], 216, "batch total");
+  });
+  await ok("the Excel report re-imports from its Data sheet", async () => {
+    const R = report(shop, "Inventory"),
+      plain = [["SKU", "Name", "Qty"], ...shop.items.map((i) => [i.sku, i.name, i.qty])],
+      blob = await xlsxBlob([reportSheet(R), dataSheet(plain)]),
+      file = new File([await blob.arrayBuffer()], "Inventory.xlsx");
+    const { head, rows } = await readTable(file);
+    eq(head.join(","), "SKU,Name,Qty", "header from Data");
+    eq(rows.length, 3, "rows");
+    const XLSX = await import("xlsx"),
+      wb = XLSX.read(await blob.arrayBuffer());
+    eq(wb.SheetNames.join(","), "Report,Data", "sheets");
+    eq(wb.Sheets.Report.A1.v, "Miracle test", "shop name on top");
   });
 }
 

@@ -71,7 +71,10 @@ export async function readTable(file) {
   if (/\.(xlsx|xls|ods)$/i.test(file.name)) {
     const XLSX = await import("xlsx"),
       wb = XLSX.read(await file.arrayBuffer(), { cellDates: true });
-    table = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, raw: true, defval: "" });
+    // Our own Excel export: the first sheet is the printed form, the plain
+    // table is on "Data" (lib/export.js).
+    const own = wb.SheetNames[0] == "Report" && wb.Sheets.Data;
+    table = XLSX.utils.sheet_to_json(own || wb.Sheets[wb.SheetNames[0]], { header: 1, raw: true, defval: "" });
   } else table = parseCsv((await file.text()).replace(/^﻿/, ""));
   table = table.filter((r) => r.some((v) => String(v ?? "").trim()));
   const [head = [], ...rows] = table;
