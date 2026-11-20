@@ -215,14 +215,16 @@ export function lookupCode(items, raw, packs = []) {
     gs1 = parseGS1(code),
     keys = codeVariants(gs1 ? gs1.gtin : code),
     lc = code.toLowerCase();
+  // A real barcode first (the product's, then a box's), the product code last:
+  // a product added from a scan keeps that code as its SKU after its barcode
+  // is corrected, and the code may since have become another product's box.
   let pack = null;
-  let item =
-    items.find((i) => i.barcode && keys.includes(String(i.barcode).trim())) ||
-    items.find((i) => i.sku.toLowerCase() == lc);
+  let item = items.find((i) => i.barcode && keys.includes(String(i.barcode).trim()));
   if (!item) {
     pack = packs.find((p) => p.barcode && keys.includes(String(p.barcode).trim())) || null;
     item = pack ? items.find((i) => i.id == pack.item_id) : undefined;
     if (!item) pack = null;
   }
+  if (!item) item = items.find((i) => i.sku.toLowerCase() == lc);
   return { item, pack, code: gs1 ? gs1.gtin : code, expiry: gs1?.expiry || null, batch: gs1?.batch || null };
 }

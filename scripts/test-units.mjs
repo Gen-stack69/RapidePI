@@ -782,5 +782,18 @@ console.log("Till single-scan aim box");
   });
 }
 
+
+await ok("a box barcode wins over another product's old SKU", async () => {
+  const { lookupCode } = await import("../src/lib/expiry.js");
+  const items = [
+      { id: "c", sku: "777000", barcode: "777001", name: "Cherry" },
+      { id: "b", sku: "B1", barcode: "B1", name: "Banana" },
+    ],
+    packs = [{ id: "t", item_id: "b", name: "Tray", size: 4, barcode: "777000" }];
+  const r = lookupCode(items, "777000", packs);
+  eq(r.item?.name + "/" + r.pack?.name, "Banana/Tray", "box found");
+  eq(lookupCode(items, "777000", []).item?.name, "Cherry", "SKU still works when no barcode has it");
+});
+
 console.log(fails ? `\n${fails} FAILED` : "\nAll unit checks passed");
 process.exit(fails ? 1 : 0);
