@@ -413,6 +413,20 @@ export async function setLotPrice(itemId, expiry, price) {
   await commit();
 }
 
+/** Correct a batch's expiry date; a batch already on that date takes it in (mirror 015). */
+export async function changeLotExpiry(lotId, expiry) {
+  writable();
+  if (!expiry) fail("err.needDate");
+  const lot = db.lots.find((l) => l.id == lotId && l.shop_id == shopId()) || fail("err.lotNotFound");
+  if (lot.expiry == expiry) return;
+  const to = db.lots.find((l) => l.item_id == lot.item_id && l.expiry == expiry && l.id != lot.id);
+  if (to) {
+    to.qty = +to.qty + +lot.qty;
+    db.lots = db.lots.filter((l) => l.id != lot.id);
+  } else lot.expiry = expiry;
+  await commit();
+}
+
 // ---------- customers and past sales (mirror 007_customers_import.sql) ----------
 
 export async function saveCustomer(id, f) {

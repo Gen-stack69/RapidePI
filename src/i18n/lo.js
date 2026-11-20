@@ -777,4 +777,12 @@ export default {
   "f.photoRemove": "ລຶບຮູບ",
   "err.photoSave": "ບັນທຶກສິນຄ້າແລ້ວ ແຕ່ຮູບບໍ່ໄດ້ບັນທຶກ: {why}",
   "err.photoFull": "ບຣາວເຊີນີ້ບໍ່ມີບ່ອນເກັບຮູບເພີ່ມໃນໂໝດທົດລອງ. ບັນທຶກສິນຄ້າແລ້ວ ແຕ່ບໍ່ມີຮູບ.",
+  // Correcting a batch's expiry date (015)
+  "exp.changeDate": "ປ່ຽນວັນທີ",
+  "title.lotDate": "{name}: {n} ທີ່ມີວັນທີນີ້",
+  "f.newExpiry": "ວັນໝົດອາຍຸທີ່ຖືກຕ້ອງ",
+  "f.newExpiryHint": "ຕອນນີ້ {d}. ທັງລັອດຈະຍ້າຍໄປວັນທີໃໝ່, ຈຳນວນຄືເກົ່າ.",
+  "err.needDate": "ກະລຸນາໃສ່ວັນທີ.",
+  "msg.lotDateChanged": "ປ່ຽນວັນທີເປັນ {d} ແລ້ວ",
+  "msg.lotMerged": "ຍ້າຍໄປ {d} ແລ້ວ, ລວມກັບສິນຄ້າທີ່ມີວັນທີນັ້ນຢູ່ແລ້ວ",
 };

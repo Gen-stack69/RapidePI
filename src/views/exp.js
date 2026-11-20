@@ -36,7 +36,7 @@ export default function exp(s) {
       st == "expired" ? "bad" : st == "soon" ? "warn" : "",
     )}${td(4, num(lot.qty))}${td(5, fmt(lot.qty * it.cost))}<td class="act">${priceBtn}<button class="g" data-act="writeOff" data-id="${E(
       lot.id,
-    )}">${t("exp.writeOff")}</button></td></tr>`;
+    )}">${t("exp.writeOff")}</button> <button class="g" data-act="lotDate" data-id="${E(lot.id)}">${t("exp.changeDate")}</button></td></tr>`;
   };
   const table = (list, empty) =>
     `<table class="rt"><thead><tr>${COLS.map((k) => `<th>${t(k)}</th>`).join("")}<th></th></tr></thead><tbody>${
