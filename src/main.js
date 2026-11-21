@@ -21,6 +21,7 @@ import { showAuth, showCreateShop, showNewPassword } from "./auth.js";
 import * as scanner from "./scanner.js";
 import dash, { ui as dashUi } from "./views/dash.js";
 import inv, { ui as invUi, rows as invRows } from "./views/inv.js";
+import { ui as expUi, lists as expLists } from "./views/exp.js";
 import ord from "./views/ord.js";
 import scan from "./views/scan.js";
 import rep, { conv, refreshRates } from "./views/rep.js";
@@ -192,6 +193,7 @@ function render(force) {
   const focused = document.activeElement;
   if (same && focused && $("#main").contains(focused) && focused.matches("input,select")) {
     if (view == "inv" && $("#tb")) $("#tb").innerHTML = invRows(state);
+    if (view == "exp" && $("#expl")) $("#expl").innerHTML = expLists(state);
     return;
   }
   if ($("#dlg").open && !force) return;
@@ -935,6 +937,12 @@ const A = {
   // is never rung up by mistake.
   posCam: () => (scanner.active() ? scanner.cam(false) : scanner.cam(true, till.addCode, { single: true })),
   closeDlg: () => $("#dlg").close(),
+  // Inventory's "+N more": that product's batches on the Expiry screen.
+  expFor(el) {
+    expUi.q = el.dataset.sku || "";
+    expUi.view = "date";
+    go("exp");
+  },
   quickScan: () => go("scan", true),
   scanView: () => go("scan"),
   camOn: () => scanner.cam(true),
@@ -1033,6 +1041,14 @@ const INPUT = {
     invUi.q = el.value;
     $("#tb").innerHTML = invRows(state);
   },
+  expSearch(el) {
+    expUi.q = el.value;
+    $("#expl").innerHTML = expLists(state);
+  },
+  expView(el) {
+    expUi.view = el.value;
+    $("#expl").innerHTML = expLists(state);
+  },
   conv,
   // Checkboxes and number boxes (data-num).
   async setting(el) {
@@ -1097,12 +1113,12 @@ document.addEventListener("click", (ev) => {
 document.addEventListener("input", (ev) => {
   const k = ev.target.dataset?.input;
   if (k == "scanExpiry") slashDate(ev.target, ev);
-  if (["search", "conv", "pos", "scanExpiry", "scanBatch", "custQ"].includes(k)) INPUT[k](ev.target);
+  if (["search", "expSearch", "conv", "pos", "scanExpiry", "scanBatch", "custQ"].includes(k)) INPUT[k](ev.target);
 });
 document.addEventListener("change", (ev) => {
   const k = ev.target.dataset?.input;
   if (
-    ["setting", "importFile", "lang", "invFilter", "invSort", "scanMode", "scanUnit", "dashCur"].includes(k) ||
+    ["setting", "importFile", "lang", "invFilter", "invSort", "expView", "scanMode", "scanUnit", "dashCur"].includes(k) ||
     (k == "conv" && ev.target.tagName == "SELECT")
   )
     run(INPUT[k], ev.target);

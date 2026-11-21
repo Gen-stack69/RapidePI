@@ -420,6 +420,24 @@ await ok("batch numbers: added beside the ones already there, each once (= lot_b
   AP.setBatch(d, "i", "2030-01-01", "Z");
   eq(d.lots.length, 1, "no batch on that date: nothing made");
 });
+await ok("latest arrivals: a delivery joining a batch on the same date counts, a void doesn't", async () => {
+  const { lastReceived } = await import("../src/lib/expiry.js");
+  const s = {
+    lots: [
+      { item_id: "i", expiry: "2027-01-01", created_at: "2026-10-01T08:00:00Z" },
+      { item_id: "i", expiry: "2027-06-01", created_at: "2026-11-01T08:00:00Z" },
+    ],
+    movements: [
+      { type: "in", item_id: "i", expiry: "2027-01-01", created_at: "2026-10-01T08:00:00Z" },
+      { type: "in", item_id: "i", expiry: "2027-01-01", created_at: "2026-11-20T09:00:00Z" },
+      { type: "in", item_id: "i", expiry: "2027-06-01", created_at: "2026-11-21T10:00:00Z", sale_id: "s1" },
+      { type: "out", item_id: "i", expiry: "2027-01-01", created_at: "2026-11-21T11:00:00Z" },
+    ],
+  };
+  const m = lastReceived(s);
+  eq(m.get("i|2027-01-01"), "2026-11-20T09:00:00Z", "second delivery on the same date");
+  eq(m.get("i|2027-06-01"), "2026-11-01T08:00:00Z", "a void is not a delivery: falls back to the batch");
+});
 await ok("receipt numbers: the till's own when it has one", async () => {
   eq(AP.saleNo({ till: "B", till_no: 42 }), "B-0042", "till");
   eq(AP.saleNo({ receipt_no: 7 }), "7", "server");
