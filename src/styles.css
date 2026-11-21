@@ -1256,23 +1256,43 @@ img.thumb {
 /* Inventory: a product with several batches rolls its list down under it.
    The detail row is always there; opening it grows it from 0 to its height,
    so the rows below slide down instead of jumping. */
+/* A rounded box, not a pill: with the batch numbers it is two lines tall, and
+   a pill's full rounding would puff it up into an oval. The arrow stays on the
+   first line; the text (summary, then the numbers) is one column beside it. */
 button.bt {
   display: inline-flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 6px;
+  max-width: 100%;
   margin-top: 4px;
-  padding: 3px 10px;
-  border-radius: 999px;
+  padding: 4px 10px;
+  border-radius: 10px;
+  font: inherit;
   font-size: 12px;
+  line-height: 1.35;
+  text-align: left;
   color: var(--muted);
   background: var(--btn-bg);
   border: 1px solid var(--edge);
+  cursor: pointer;
 }
-/* Long batch numbers wrap inside the button instead of widening the column. */
-button.bt {
-  flex-wrap: wrap;
-  text-align: left;
+button.bt .bt-t {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
   white-space: normal;
+  overflow-wrap: anywhere;
+}
+button.bt .bt-t b {
+  font-weight: 600;
+}
+button.bt .bt-n {
+  font-size: 11px;
+  color: var(--faint);
+}
+button.bt.warn .bt-n {
+  color: inherit;
+  opacity: 0.8;
 }
 button.bt.warn {
   color: var(--warn-text);
