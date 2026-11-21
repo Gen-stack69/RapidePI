@@ -927,5 +927,27 @@ await ok("the admin sets Rapide's bank QR and every user can read it", async () 
   eq((await one(C, "select pay_qr from billing")).pay_qr, "000201010211", "qr");
 });
 
+console.log("Batch numbers on sales");
+await ok("a sale's stock records which batch it left from, even one it empties; a void puts it back (017)", async () => {
+  const it = (await as(A, "insert into items (shop_id, sku, name, kind, price) values ($1, 'COKE-R', 'Coke', 'consumable', 10) returning id", [shopA])).rows[0].id;
+  try {
+  await as(A, "select adjust_stock($1, 2, 't', $2)", [it, "2099-01-01"]);
+  await as(A, "select set_lot_batch($1, $2, $3)", [it, "2099-01-01", "L100"]);
+  await as(A, "select adjust_stock($1, 3, 't', $2)", [it, "2099-06-01"]);
+  await as(A, "select set_lot_batch($1, $2, $3)", [it, "2099-06-01", "L200"]);
+  await as(A, "select write_off_expiry($1, $2, 1, 'damaged', 'wo-017-batch')", [it, "2099-06-01"]);
+  eq((await as(A, "select batch from movements where item_id = $1 and note = 'damaged'", [it])).rows[0].batch, "L200", "write-off keeps the number");
+  const till = (await as(A, "select register_till($1, 'Batch test') c", [shopA])).rows[0].c;
+  const sale = (await as(A, "select create_sale($1, 'c-017-batch', $2::jsonb, 0, 'cash', 1e9, null, $3) id", [shopA, JSON.stringify([{ item_id: it, qty: 4 }]), till])).rows[0].id;
+  const out = (await as(A, "select expiry::text as d, batch from movements where sale_id = $1 and type = 'out' order by expiry", [sale])).rows;
+  eq(out.map((r) => r.d + "=" + r.batch).join(","), "2099-01-01=L100,2099-06-01=L200", "batch of an emptied lot kept");
+  eq((await as(A, "select count(*)::int as n from lots where item_id = $1", [it])).rows[0].n, 0, "both batches sold out");
+  await as(A, "select void_sale_by_client($1, 'c-017-batch')", [shopA]);
+  const back = (await as(A, "select expiry::text as d, batch from lots where item_id = $1 order by expiry", [it])).rows;
+  eq(back.map((r) => r.d + "=" + r.batch).join(","), "2099-01-01=L100,2099-06-01=L200", "void puts the numbers back");
+  } finally {
+    await as(A, "delete from items where id = $1", [it]);
+  }
+});
 console.log(failures ? `\n${failures} FAILED` : "\nAll database checks passed");
 process.exit(failures ? 1 : 0);

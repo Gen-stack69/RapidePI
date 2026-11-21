@@ -52,7 +52,7 @@ export function stockMove(db, ctx, itemId, delta, note, expiry = null, saleId = 
   if (!delta) fail("err.zeroQty");
   const q = +it.qty + delta;
   if (q < 0 && delta < 0 && !ctx.short) fail("err.stock", { sku: it.sku, qty: +it.qty });
-  const log = (type, qty, exp) =>
+  const log = (type, qty, exp, batch = null) =>
     db.movements.push({
       id: uid(),
       shop_id: it.shop_id,
@@ -62,6 +62,7 @@ export function stockMove(db, ctx, itemId, delta, note, expiry = null, saleId = 
       qty,
       note: note || "",
       expiry: exp || null,
+      batch: batch || null,
       sale_id: saleId,
       created_at: at(ctx),
     });
@@ -74,7 +75,15 @@ export function stockMove(db, ctx, itemId, delta, note, expiry = null, saleId = 
       if (lot) lot.qty = +lot.qty + dated;
       else db.lots.push({ id: uid(), shop_id: it.shop_id, item_id: it.id, expiry, qty: dated, created_at: at(ctx) });
     }
-    log("in", delta, expiry);
+    // A void: the stock goes back with the batch number it left with (017).
+    let back = null;
+    if (saleId && expiry) {
+      back =
+        db.movements.find((m) => m.sale_id == saleId && m.item_id == it.id && m.expiry == expiry && m.type == "out" && m.batch)
+          ?.batch || null;
+      if (back) setBatch(db, it.id, expiry, back);
+    }
+    log("in", delta, expiry, back);
   } else {
     let left = -delta;
     const lots = db.lots.filter((l) => l.item_id == it.id).sort((a, b) => (a.expiry < b.expiry ? -1 : 1)),
@@ -85,7 +94,7 @@ export function stockMove(db, ctx, itemId, delta, note, expiry = null, saleId = 
       if (!n) return;
       lot.qty = +lot.qty - n;
       left -= n;
-      log("out", n, lot.expiry);
+      log("out", n, lot.expiry, lot.batch);
     };
     if (first) lots.filter((l) => l.expiry == first).forEach(take);
     lots.filter((l) => l.expiry >= now).forEach(take);
@@ -358,6 +367,7 @@ export function writeOff(db, ctx, itemId, expiry, qty, note = "expired") {
   const n = Math.min(+lot.qty, qty ?? +lot.qty);
   if (!(n > 0)) return +it.qty;
   lot.qty = +lot.qty - n;
+  const batch = lot.batch || null;
   drop(db.lots, (l) => l.qty <= 0);
   it.qty = +it.qty - n;
   it.updated_at = new Date().toISOString();
@@ -370,6 +380,7 @@ export function writeOff(db, ctx, itemId, expiry, qty, note = "expired") {
     qty: n,
     note,
     expiry,
+    batch,
     sale_id: null,
     created_at: at(ctx),
   });
@@ -394,6 +405,17 @@ export function setBatch(db, itemId, expiry, batch, add = true) {
   if (!expiry) return;
   const lot = db.lots.find((l) => l.item_id == itemId && l.expiry == expiry);
   if (lot) lot.batch = add ? addBatch(lot.batch, batch) : String(batch ?? "").trim().slice(0, 120) || null;
+}
+
+/** The batch numbers each product of a sale left from (017), for the
+ * receipt: item id → "L100, L200". Products with no batch number are left out. */
+export function saleBatches(movements, saleId) {
+  const m = new Map();
+  const mine = (movements || [])
+    .filter((mv) => mv.sale_id == saleId && mv.type == "out" && mv.batch && mv.item_id)
+    .sort((a, b) => (a.expiry < b.expiry ? -1 : a.expiry > b.expiry ? 1 : 0)); // soonest date first
+  for (const mv of mine) m.set(mv.item_id, addBatch(m.get(mv.item_id), mv.batch));
+  return m;
 }
 
 /** The number printed on a receipt: the till's own (A-0042) when it has one. */

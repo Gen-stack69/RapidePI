@@ -502,6 +502,7 @@ export default {
   "err.packBarcode": "Another pack already has this barcode",
   "err.vatRate": "VAT must be between 0 and 100%",
   "rc.cut": "expiring price",
+  "rc.batch": "Batch: {b}",
   "rc.vat": "VAT included ({r}%)",
   "note.expTitle": "{shop}: expiry dates",
   "note.expBody": "{n} batches expire within a week or have expired. Open Expiry dates to see which.",
