@@ -13,6 +13,25 @@ const isoOf = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDat
 export const today = () => isoOf(new Date());
 
 // Whole days from `from` to `expiry`: 0 = expires today, negative = expired.
+/** When each batch last had stock come in: "item|expiry" → ISO time. From
+ * the stock-in movements, so a delivery that joined a batch already on that
+ * date counts; sales put back by a void don't (they carry a sale). A batch
+ * with no such movement (older than the movements loaded, or its date
+ * corrected since) falls back to when the batch was made. */
+export function lastReceived(s) {
+  const m = new Map();
+  for (const mv of s.movements || [])
+    if (mv.type == "in" && mv.expiry && !mv.sale_id) {
+      const k = mv.item_id + "|" + mv.expiry;
+      if (!(m.get(k) >= mv.created_at)) m.set(k, mv.created_at);
+    }
+  for (const l of s.lots || []) {
+    const k = l.item_id + "|" + l.expiry;
+    if (!m.has(k) && l.created_at) m.set(k, l.created_at);
+  }
+  return m;
+}
+
 export const daysLeft = (expiry, from = today()) =>
   Math.round((Date.parse(expiry + "T00:00:00Z") - Date.parse(from + "T00:00:00Z")) / 864e5);
 

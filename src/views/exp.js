@@ -1,29 +1,43 @@
 // Expiry dates: every dated batch on the shelf, soonest first, so staff check
-// the few products the list points at instead of every shelf.
-import { E, num, fmt, dateText } from "../lib/util.js";
+// the few products the list points at instead of every shelf. A search finds
+// a batch by product or batch number (a recall), and "Latest arrivals" shows
+// what has just come in, to check its batch number and date.
+import { E, num, fmt, dateText, dt } from "../lib/util.js";
 import { t, tn } from "../i18n/index.js";
 import { isOwner } from "../data/store.js";
-import { daysLeft, status, SOON_DAYS } from "../lib/expiry.js";
+import { daysLeft, status, SOON_DAYS, lastReceived } from "../lib/expiry.js";
+
+// q: search text. view: date | latest | nobatch
+export const ui = { q: "", view: "date" };
 
 const COLS = ["th.sku", "th.name", "th.batch", "th.expiry", "th.left", "th.qty", "th.value"];
+const RECENT_DAYS = 30; // how far back "Latest arrivals" looks
 
-export default function exp(s) {
+const key = (lot) => lot.item_id + "|" + lot.expiry;
+
+// Batches received in the last RECENT_DAYS, newest first.
+function recent(lots, rec) {
+  const since = new Date(Date.now() - RECENT_DAYS * 864e5).toISOString();
+  return lots
+    .filter((x) => (rec.get(key(x)) || "") >= since)
+    .sort((a, b) => String(rec.get(key(b))).localeCompare(String(rec.get(key(a)))));
+}
+
+/** The tables under the search box: re-drawn alone while typing. */
+export function lists(s) {
   const byId = new Map(s.items.map((i) => [i.id, i])),
-    lots = s.lots.filter((l) => byId.has(l.item_id)),
-    expired = lots.filter((l) => status(l.expiry) == "expired"),
-    soon = lots.filter((l) => status(l.expiry) == "soon"),
-    // consumables with stock but no date recorded: what to date next
-    undated = s.items.filter(
-      (i) =>
-        i.kind == "consumable" &&
-        +i.qty > lots.filter((l) => l.item_id == i.id).reduce((a, l) => a + +l.qty, 0),
-    ),
-    l = COLS.map((k) => E(t(k))),
+    q = ui.q.trim().toLowerCase(),
+    lots = s.lots.filter((l) => {
+      const it = byId.get(l.item_id);
+      return it && (!q || [it.sku, it.name, it.barcode, l.batch].join(" ").toLowerCase().includes(q));
+    }),
+    l = [...COLS, "th.received"].map((k) => E(t(k))),
     td = (j, v, cls) => `<td data-l="${l[j]}"${cls ? ` class="${cls}"` : ""}><span class="v">${v}</span></td>`;
-  const row = (lot) => {
+  const row = (lot, rec) => {
     const it = byId.get(lot.item_id),
       d = daysLeft(lot.expiry),
-      st = status(lot.expiry);
+      st = status(lot.expiry),
+      when = rec && rec.get(key(lot));
     // A batch close to its date can sell for less (the till offers that price).
     const cut = lot.price != null ? ` <span class="tag warn">${t("exp.priceTag", { p: fmt(lot.price) })}</span>` : "",
       priceBtn =
@@ -38,16 +52,31 @@ export default function exp(s) {
       4,
       d < 0 ? t("exp.agoN", { n: -d }) : d == 0 ? t("exp.today") : t("exp.inN", { n: d }),
       st == "expired" ? "bad" : st == "soon" ? "warn" : "",
-    )}${td(5, num(lot.qty))}${td(6, fmt(lot.qty * it.cost))}<td class="act">${priceBtn}<button class="g" data-act="writeOff" data-id="${E(
+    )}${td(5, num(lot.qty))}${td(6, fmt(lot.qty * it.cost))}${rec ? td(7, when ? dt(when) : "—") : ""}<td class="act">${priceBtn}<button class="g" data-act="writeOff" data-id="${E(
       lot.id,
     )}">${t("exp.writeOff")}</button> <button class="g" data-act="lotDate" data-id="${E(lot.id)}">${t("exp.changeDate")}</button> <button class="g" data-act="lotBatch" data-id="${E(lot.id)}">${t(
       lot.batch ? "exp.editBatch" : "exp.addBatch",
     )}</button></td></tr>`;
   };
-  const table = (list, empty) =>
-    `<table class="rt"><thead><tr>${COLS.map((k) => `<th>${t(k)}</th>`).join("")}<th></th></tr></thead><tbody>${
-      list.length ? list.map(row).join("") : `<tr><td colspan="8" class="mut">${empty}</td></tr>`
+  const table = (list, empty, rec) =>
+    `<table class="rt"><thead><tr>${[...COLS, ...(rec ? ["th.received"] : [])].map((k) => `<th>${t(k)}</th>`).join("")}<th></th></tr></thead><tbody>${
+      list.length
+        ? list.map((x) => row(x, rec)).join("")
+        : `<tr><td colspan="${rec ? 9 : 8}" class="mut">${q ? t("exp.noMatch") : empty}</td></tr>`
     }</tbody></table>`;
+
+  if (ui.view != "date") {
+    const rec = lastReceived(s),
+      L = recent(lots, rec).filter((x) => ui.view != "nobatch" || !x.batch);
+    return `<div class="card ts"><h3>${t(ui.view == "nobatch" ? "exp.view.noBatchH" : "exp.view.latestH", { n: RECENT_DAYS })}</h3>${table(
+      L,
+      t(ui.view == "nobatch" ? "exp.noneNoBatch" : "exp.noneLatest", { n: RECENT_DAYS }),
+      rec,
+    )}</div>`;
+  }
+
+  const expired = lots.filter((x) => status(x.expiry) == "expired"),
+    soon = lots.filter((x) => status(x.expiry) == "soon");
   // "Soon" split into within a week, a month and two months, as far as the
   // shop's warning reaches (settings.expiry_days).
   const bands = (list) => {
@@ -61,6 +90,30 @@ export default function exp(s) {
     }
     return out;
   };
+  const parts = [
+    [t("exp.listExpired"), expired, t("exp.noneExpired")],
+    ...bands(soon).map(([h, L]) => [h, L, t("exp.noneSoon")]),
+    [t("exp.listAll"), lots.filter((x) => status(x.expiry) == "ok"), t("exp.noneDated")],
+  ]
+    // While searching, only the lists with something found.
+    .filter(([, L]) => !q || L.length);
+  if (!parts.length) return `<div class="card"><p class="mut">${t("exp.noMatch")}</p></div>`;
+  return parts.map(([h, L, empty]) => `<div class="card ts"><h3>${h}</h3>${table(L, empty)}</div>`).join("\n");
+}
+
+export default function exp(s) {
+  const byId = new Map(s.items.map((i) => [i.id, i])),
+    lots = s.lots.filter((l) => byId.has(l.item_id)),
+    expired = lots.filter((l) => status(l.expiry) == "expired"),
+    soon = lots.filter((l) => status(l.expiry) == "soon"),
+    // consumables with stock but no date recorded: what to date next
+    undated = s.items.filter(
+      (i) =>
+        i.kind == "consumable" &&
+        +i.qty > lots.filter((l) => l.item_id == i.id).reduce((a, l) => a + +l.qty, 0),
+    ),
+    // just-arrived batches still without a batch number: what to fill in next
+    noBatch = recent(lots, lastReceived(s)).filter((l) => !l.batch).length;
   const warn = `<div class="card"><div class="row"><b style="flex:1 1 200px">${t("exp.warnMe")}</b><select data-input="setting" data-key="expiry_days" data-num="1"${
     isOwner() ? "" : " disabled"
   }>${[7, 30, 60]
@@ -70,6 +123,15 @@ export default function exp(s) {
       ? `<button class="g" data-act="allowNotes">${t("exp.allowNotes")}</button>`
       : ""
   }</div></div>`;
+  const find = `<div class="card"><div class="row"><input id="expq" type="search" placeholder="${E(t("exp.search"))}" value="${E(
+    ui.q,
+  )}" data-input="expSearch" autocomplete="off"><select data-input="expView" aria-label="${E(t("exp.view.label"))}">${[
+    ["date", t("exp.view.byDate")],
+    ["latest", t("exp.view.latest", { n: RECENT_DAYS })],
+    ["nobatch", t("exp.view.noBatch", { n: noBatch })],
+  ]
+    .map(([v, label]) => `<option value="${v}"${v == ui.view ? " selected" : ""}>${E(label)}</option>`)
+    .join("")}</select></div></div>`;
   return `${warn}<div class="stats">${[
     ["exp.expired", expired, "bad"],
     ["exp.soon", soon, "warn"],
@@ -82,14 +144,7 @@ export default function exp(s) {
         )}</b><small>${tn("exp.batches", L.length)}</small></div>`,
     )
     .join("")}</div>
-<div class="card ts"><h3>${t("exp.listExpired")}</h3>${table(expired, t("exp.noneExpired"))}</div>
-${bands(soon)
-    .map(([h, L]) => `<div class="card ts"><h3>${h}</h3>${table(L, t("exp.noneSoon"))}</div>`)
-    .join("")}
-<div class="card ts"><h3>${t("exp.listAll")}</h3>${table(
-    lots.filter((x) => status(x.expiry) == "ok"),
-    t("exp.noneDated"),
-  )}</div>${
+${find}<div id="expl">${lists(s)}</div>${
     undated.length
       ? `<div class="card"><h3>${t("exp.undated", { n: undated.length })}</h3><p class="mut mt">${t(
           "exp.undatedNote",

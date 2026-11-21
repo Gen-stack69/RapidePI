@@ -19,9 +19,21 @@ const firstExpiry = (s) => {
   return m;
 };
 
+// Every dated batch per product, soonest first.
+const batchesOf = (s) => {
+  const m = new Map();
+  for (const l of s.lots) {
+    if (!m.has(l.item_id)) m.set(l.item_id, []);
+    m.get(l.item_id).push(l);
+  }
+  return m;
+};
+const SHOW_BATCHES = 3; // more than this: "+N more" opens the Expiry screen
+
 export function rows(s) {
   const q = ui.q.toLowerCase(),
     next = firstExpiry(s),
+    bats = batchesOf(s),
     pass = (i) => {
       const e = next.get(i.id);
       switch (ui.f) {
@@ -36,7 +48,12 @@ export function rows(s) {
       return true;
     },
     L = s.items.filter(
-      (i) => pass(i) && [i.sku, i.name, i.category, i.barcode].join(" ").toLowerCase().includes(q),
+      (i) =>
+        pass(i) &&
+        [i.sku, i.name, i.category, i.barcode, ...(bats.get(i.id) || []).map((l) => l.batch || "")]
+          .join(" ")
+          .toLowerCase()
+          .includes(q),
     );
   sortBy(L, next);
   if (!L.length)
@@ -45,7 +62,6 @@ export function rows(s) {
   return L.map((i) => {
     const low = +i.qty < +i.min_qty,
       id = E(i.id),
-      e = next.get(i.id),
       td = (j, v, cls) => `<td data-l="${l[j]}"${cls ? ` class="${cls}"` : ""}><span class="v">${v}</span></td>`,
       kind = i.kind == "consumable" ? "consumable" : "durable";
     // Its packs ("Carton × 24 · ₭210,000"). Tapping one changes it: the owner
@@ -62,12 +78,23 @@ export function rows(s) {
         }</${edit ? "button" : "span"}>`;
       })
       .join(" ");
+    // Each batch on its own line (date · batch no. · how many), so two
+    // deliveries of the same product are never mixed up.
+    const B = bats.get(i.id) || [],
+      lines =
+        B.slice(0, SHOW_BATCHES)
+          .map(
+            (l) =>
+              `<br><small class="${status(l.expiry) == "ok" ? "mut" : "warn"}">${t("exp.short")} ${dateText(l.expiry)}${expiryNote(l.expiry)}${
+                l.batch ? ` · ${t("exp.batchShort")} ${E(l.batch)}` : ""
+              } · ${num(l.qty)}</small>`,
+          )
+          .join("") +
+        (B.length > SHOW_BATCHES
+          ? `<br><small><a href="#exp" data-act="expFor" data-sku="${E(i.sku)}">${t("inv.moreBatches", { n: B.length - SHOW_BATCHES })}</a></small>`
+          : "");
     const pic = photoSrc(i),
-      name = `${E(i.name)} <span class="tag ${kind}">${t("kind." + kind)}</span>${packs ? "<br>" + packs : ""}${
-      e
-        ? `<br><small class="${status(e) == "ok" ? "mut" : "warn"}">${t("exp.short")} ${dateText(e)}${expiryNote(e)}</small>`
-        : ""
-    }`;
+      name = `${E(i.name)} <span class="tag ${kind}">${t("kind." + kind)}</span>${packs ? "<br>" + packs : ""}${lines}`;
     const cost =
       fmt(i.cost) +
       (i.cost_currency && i.cost_currency != "LAK" ? `<br><small class="mut">${SIGN[i.cost_currency]}${num(i.cost_orig)}</small>` : "");
