@@ -5,7 +5,7 @@ import "@fontsource/noto-sans-lao/lao-400.css";
 import "@fontsource/noto-sans-lao/lao-500.css";
 import "@fontsource/noto-sans-lao/lao-600.css";
 import "@fontsource/noto-sans-lao/lao-700.css";
-import { $, E, toast, form, pickPhoto, checkExpiry, slashDate, dateText, fmt, num, dt } from "./lib/util.js";
+import { $, E, toast, form, pickPhoto, checkExpiry, slashDate, dateText, fmt, num, dt, batchField } from "./lib/util.js";
 import { t, tn, errText, setLang, other, applyStatic, fDateTime, fTime } from "./i18n/index.js";
 import { readTable, guessKind, guessColumns, build, KINDS } from "./lib/importer.js";
 import { exportSet, exportZip } from "./lib/export.js";
@@ -265,14 +265,14 @@ function itemProblem(id, before, f) {
   // A date belongs to stock coming in: with none added it would be dropped.
   if (f.expiry && !(+f.qty > +(before.qty || 0))) return t("err.expiryNoQty");
   // A batch number is kept with the date of the stock it came on.
-  if (f.kind == "consumable" && f.batch?.trim() && !f.expiry) return t("err.batchNoDate");
+  if (f.batch?.trim() && !f.expiry) return t("err.batchNoDate");
   return "";
 }
 
-// The batch / production number printed on the goods, kept with their expiry date.
-const batchField = (label = "f.batch") => ({ k: "batch", label: t(label), hint: t("f.batchHint") });
 
-async function itemForm(id, code) {
+
+// start: { expiry (as typed, 31/12/2027), batch } to begin with, from the scanner.
+async function itemForm(id, code, start = null) {
   if (!needWrite()) return;
   const i = state.items.find((x) => x.id == id) || {
     // A scanned code is the barcode only; the product code is made (P0001…),
@@ -291,7 +291,7 @@ async function itemForm(id, code) {
     wholesale_min_qty: 0,
   };
   // The form comes back with what was typed when it can't be saved, and why.
-  let v = { ...i, expiry: "", batch: "" },
+  let v = { ...i, expiry: start?.expiry || "", batch: start?.batch || "" },
     why = "",
     pic; // the photo: undefined = as it was, a File = new, "" = removed
   for (;;) {
@@ -344,11 +344,12 @@ function itemFields(id, i, why, pic) {
       label: t(id ? "f.expiryAdded" : "f.expiry"),
       type: "expiry",
       value: i.expiry || "",
-      showIf: ["kind", "consumable"],
       tools: [{ act: "readDate", label: t("btn.readDate") }],
       hint: t("f.expiryHint"),
     },
-    { ...batchField(id ? "f.batchAdded" : "f.batch"), value: i.batch || "", showIf: ["kind", "consumable"] },
+    // Every product may have a date and batch no. (batteries, paint, cosmetics);
+    // only for consumables does the app ask for one and warn when it is missing.
+    { ...batchField(id ? "f.batchAdded" : "f.batch"), value: i.batch || "" },
     { k: "min_qty", label: t("f.min"), type: "number", value: +i.min_qty },
     {
       k: "cost_currency",
@@ -663,7 +664,9 @@ const A = {
     if ((await Notification.requestPermission()) == "granted") expiryNote(true);
     render();
   },
-  addItem: (el) => itemForm(null, el.dataset.code),
+  // From the scanner while receiving, the new product starts with the date
+  // and batch no. in the scanner's boxes (or the date printed in the code).
+  addItem: (el) => itemForm(null, el.dataset.code, view == "scan" ? scanner.receiveStart(el.dataset.exp) : null),
   editItem: (el) => itemForm(el.dataset.id),
   async delItem(el) {
     const it = state.items.find((x) => x.id == el.dataset.id);
@@ -675,7 +678,7 @@ const A = {
     if (!needWrite()) return;
     const it = state.items.find((x) => x.id == el.dataset.id),
       dir = +el.dataset.dir,
-      dated = dir > 0 && it.kind == "consumable",
+      dated = dir > 0,
       f = await form(t(dir > 0 ? "title.addStock" : "title.removeStock", { sku: it.sku }), [
         { k: "q", label: t("f.howMany", { qty: +it.qty }), type: "number", value: 1, required: true },
         ...(dated
@@ -709,13 +712,13 @@ const A = {
   },
   async doneOrder(el) {
     if (!needWrite()) return;
-    // Goods arriving for a consumable can carry their expiry date, so they
+    // Goods arriving can carry their expiry date and batch no., so they
     // show on the Expiry screen like stock received any other way.
     const o = state.orders.find((x) => x.id == el.dataset.id),
       it = o && state.items.find((i) => i.id == o.item_id);
     let expiry = null,
       batch = "";
-    if (o?.type == "in" && it?.kind == "consumable") {
+    if (o?.type == "in" && it) {
       const f = await form(
         t("title.receiveOrder", { qty: num(o.qty), name: it.name }),
         [
@@ -790,14 +793,16 @@ const A = {
   // Type or correct the batch / production number(s) of one batch.
   async lotBatch(el) {
     if (!needWrite()) return;
-    const lot = state.lots.find((l) => l.id == el.dataset.id),
+    // By product and date from the scanner's log: a batch received offline has no lasting id.
+    const lot = state.lots.find((l) => (el.dataset.id ? l.id == el.dataset.id : l.item_id == el.dataset.item && l.expiry == el.dataset.exp)),
       it = lot && state.items.find((i) => i.id == lot.item_id);
-    if (!it) return;
+    if (!it) return toast(t("err.lotNotFound"), true);
     const f = await form(t("title.lotBatch", { name: it.name, d: dateText(lot.expiry) }), [
       { k: "batch", label: t("f.batch"), value: lot.batch || "", hint: t("f.batchEditHint") },
     ]);
     if (!f || f.batch.trim() == (lot.batch || "")) return;
     await store.setLotBatch(it.id, lot.expiry, f.batch, false);
+    if (el.dataset.exp && el.isConnected) el.textContent = scanner.batchLabel(f.batch.trim());
     toast(t("msg.saved"));
   },
   async writeOff(el) {

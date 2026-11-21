@@ -167,6 +167,9 @@ export function checkExpiry(el) {
   }
 }
 
+// The batch / production number printed on the goods, kept with their expiry date.
+export const batchField = (label = "f.batch") => ({ k: "batch", label: t(label), hint: t("f.batchHint") });
+
 export const dateText = (iso) =>
   iso ? fDateLong(iso + "T00:00:00") : "";
 
