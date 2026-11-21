@@ -764,11 +764,12 @@ const A = {
   // A batch's date was typed wrong: move the whole batch to the right date.
   async lotDate(el) {
     if (!needWrite()) return;
-    const lot = state.lots.find((l) => l.id == el.dataset.id),
+    // a no-date batch (019) can be given its date here too
+    const lot = [...state.lots, ...state.ulots].find((l) => l.id == el.dataset.id),
       it = lot && state.items.find((i) => i.id == lot.item_id);
     if (!it) return;
     const f = await form(
-      t("title.lotDate", { name: it.name, n: num(lot.qty) }),
+      t(lot.expiry ? "title.lotDate" : "title.addDate", { name: it.name, n: num(lot.qty) }),
       [
         {
           k: "expiry",
@@ -777,7 +778,7 @@ const A = {
           value: scanner.typedDate(lot.expiry),
           required: true,
           tools: [{ act: "readDate", label: t("btn.readDate") }],
-          hint: t("f.newExpiryHint", { d: dateText(lot.expiry) }),
+          hint: lot.expiry ? t("f.newExpiryHint", { d: dateText(lot.expiry) }) : t("f.addExpiryHint"),
         },
       ],
     );
@@ -791,23 +792,36 @@ const A = {
   // Type or correct the batch / production number(s) of one batch.
   async lotBatch(el) {
     if (!needWrite()) return;
-    // By product and date from the scanner's log: a batch received offline has
-    // no lasting id. A product and no date: its undated stock (018).
-    const undated = !el.dataset.id && !el.dataset.exp,
-      lot = undated
-        ? (() => {
-            const p = state.items.find((i) => i.id == el.dataset.item);
-            return p && { item_id: p.id, expiry: null, batch: p.batch };
-          })()
-        : state.lots.find((l) => (el.dataset.id ? l.id == el.dataset.id : l.item_id == el.dataset.item && l.expiry == el.dataset.exp)),
+    // A batch by id (dated or no-date), or from the scanner's log, where a
+    // batch received offline has no lasting id: by product and date, the
+    // product's newest no-date batch (data-latest), or its latest no-date
+    // delivery that has no number yet (data-new).
+    const d = el.dataset,
+      lot = d.id
+        ? [...state.lots, ...state.ulots].find((l) => l.id == d.id)
+        : d.exp
+          ? state.lots.find((l) => l.item_id == d.item && l.expiry == d.exp)
+          : d.latest
+            ? state.ulots.filter((l) => l.item_id == d.item).at(-1)
+            : d.new
+              ? { item_id: d.item, expiry: null, batch: "", fresh: true }
+              : null,
       it = lot && state.items.find((i) => i.id == lot.item_id);
     if (!it) return toast(t("err.lotNotFound"), true);
-    const f = await form(t(undated ? "title.undatedBatch" : "title.lotBatch", { name: it.name, d: dateText(lot.expiry) }), [
-      { k: "batch", label: t("f.batch"), value: lot.batch || "", hint: t("f.batchEditHint") },
+    const f = await form(t(lot.expiry ? "title.lotBatch" : "title.undatedBatch", { name: it.name, d: dateText(lot.expiry) }), [
+      { k: "batch", label: t("f.batch"), value: lot.batch || "", hint: t(lot.expiry ? "f.batchEditHint" : "f.batchUndatedHint") },
     ]);
     if (!f || f.batch.trim() == (lot.batch || "")) return;
-    await store.setLotBatch(it.id, lot.expiry, f.batch, false);
-    if (el.dataset.exp && el.isConnected) el.textContent = scanner.batchLabel(f.batch.trim());
+    if (lot.fresh) await store.setLotBatch(it.id, null, f.batch, true);
+    else if (!lot.expiry) await store.setUndatedBatch(lot.id, f.batch);
+    else await store.setLotBatch(it.id, lot.expiry, f.batch, false);
+    if (!d.id && el.isConnected) {
+      el.textContent = scanner.batchLabel(f.batch.trim());
+      if (lot.fresh && f.batch.trim()) {
+        delete el.dataset.new;
+        el.dataset.latest = "1";
+      }
+    }
     toast(t("msg.saved"));
   },
   async writeOff(el) {

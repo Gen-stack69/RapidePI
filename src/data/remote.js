@@ -150,7 +150,9 @@ export async function reload() {
     orders: orders.rows,
     movements: movements.rows,
     shop,
-    lots: lots.rows,
+    // dated batches, and the no-date ones (019) apart, so "lots" stays dated
+    lots: lots.rows.filter((l) => l.expiry),
+    ulots: lots.rows.filter((l) => !l.expiry).sort((a, b) => String(a.created_at).localeCompare(String(b.created_at))),
     sales: sales.rows,
     saleLines: saleLines.rows,
     tills: tills.rows,
@@ -506,7 +508,8 @@ async function rebuild() {
     items: s.items,
     orders: s.orders,
     movements: s.movements,
-    lots: s.lots,
+    lots: (s.lots || []).filter((l) => l.expiry),
+    ulots: [...(s.ulots || []), ...(s.lots || []).filter((l) => !l.expiry)],
     sales: s.sales,
     saleLines: s.saleLines,
     tills: s.tills || [],
@@ -525,6 +528,7 @@ async function rebuild() {
       pack_receipts: state.packReceipts,
       customers: state.customers,
       lots: state.lots,
+      ulots: state.ulots,
       movements: state.movements,
       sales: state.sales,
       sale_lines: state.saleLines,
@@ -723,6 +727,12 @@ export const deletePack = (id) => write(sb.from("packs").delete().eq("id", id));
 export const setLotPrice = (itemId, expiry, price) =>
   write(sb.rpc("set_lot_price", { p_item: itemId, p_expiry: expiry, p_price: price }));
 /** Correct a batch's expiry date (015). Online only: the batch must be the server's. */
+/** Correct a no-date batch's number (019). Online only, like the date. */
+export function setUndatedBatch(lotId, batch) {
+  if (!navigator.onLine) fail("err.offline");
+  return write(sb.rpc("set_undated_lot_batch", { p_lot: lotId, p_batch: String(batch ?? "").trim() }));
+}
+
 export function changeLotExpiry(lotId, expiry) {
   if (!navigator.onLine) fail("err.offline");
   return write(sb.rpc("change_lot_expiry", { p_lot: lotId, p_expiry: expiry }));

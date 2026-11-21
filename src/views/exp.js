@@ -64,12 +64,12 @@ export function lists(s) {
       td(5, num(lot.qty)),
       td(6, fmt(lot.qty * it.cost)),
     ];
-    // Undated stock has no batch of its own to write off or re-date: only its number.
+    // A no-date batch: give it a date, or fix its number (no write-off by date).
     const acts = dated
       ? `${priceBtn}<button class="g" data-act="writeOff" data-id="${E(lot.id)}">${t("exp.writeOff")}</button> <button class="g" data-act="lotDate" data-id="${E(
           lot.id,
         )}">${t("exp.changeDate")}</button> <button class="g" data-act="lotBatch" data-id="${E(lot.id)}">`
-      : `<button class="g" data-act="lotBatch" data-item="${E(lot.item_id)}">`;
+      : `<button class="g" data-act="lotDate" data-id="${E(lot.id)}">${t("exp.addDate")}</button> <button class="g" data-act="lotBatch" data-id="${E(lot.id)}">`;
     return `<tr>${order.map((j) => cells[j]).join("")}${rec ? td(7, when ? dt(when) : "—") : ""}<td class="act">${acts}${t(
       lot.batch ? "exp.editBatch" : "exp.addBatch",
     )}</button></td></tr>`;

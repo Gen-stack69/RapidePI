@@ -105,7 +105,7 @@ export function rows(s) {
                 `<div class="br ${cls(l)}"><span>${when(l)}</span><span>${batchNo(l)}</span><span class="q">${num(
                   l.qty,
                 )}${i.unit ? " " + E(i.unit) : ""}</span><span><button class="g" data-act="lotBatch" ${
-                  l.id ? `data-id="${E(l.id)}"` : `data-item="${id}"`
+                  `data-id="${E(l.id)}"`
                 }>${t(
                   l.batch ? "exp.editBatch" : "exp.addBatch",
                 )}</button></span></div>`,

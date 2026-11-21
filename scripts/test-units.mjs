@@ -461,13 +461,15 @@ await ok("a sale keeps the batch numbers it left from, a void puts them back (= 
   AP.voidSale(d, ctx, s);
   eq(d.lots.find((l) => l.expiry == "2099-01-01")?.batch, "L100", "void: the number is back on its batch");
 });
-await ok("stock without a date keeps its batch no. on the product (= 018)", async () => {
+await ok("no-date deliveries each become a batch with its own qty, sold oldest first, a void puts them back (= 019)", async () => {
   const shopId = "s",
-    ctx = { shopId, at: "2026-11-21T10:00:00Z", short: true },
+    t0 = Date.parse("2026-11-21T10:00:00Z"),
+    ctx = (n) => ({ shopId, at: new Date(t0 + n * 60e3).toISOString(), short: true }),
     d = {
       items: [{ id: "w", shop_id: shopId, sku: "TIGER", name: "Tigerhead water", qty: 0, price: 5, min_qty: 0 }],
       packs: [],
       lots: [],
+      ulots: [],
       movements: [],
       sales: [],
       sale_lines: [],
@@ -475,16 +477,21 @@ await ok("stock without a date keeps its batch no. on the product (= 018)", asyn
       customers: [],
       settings: { [shopId]: {} },
     };
-  AP.stockMove(d, ctx, "w", 10, "scan");
+  const nd = () => d.ulots.map((l) => `${l.batch}=${l.qty}`).join(",");
+  AP.stockMove(d, ctx(0), "w", 2, "old stock"); // no date, no number
+  AP.stockMove(d, ctx(1), "w", 4, "scan");
   AP.setBatch(d, "w", null, "TH-01");
-  eq(d.items[0].batch, "TH-01", "number on the product");
-  const s = AP.sale(d, ctx, { id: "x2", client_id: "x2", lines: [{ item_id: "w", qty: 10 }], paid: 1e9 });
-  eq(AP.saleBatches(d.movements, s.id).get("w"), "TH-01", "on the receipt");
-  AP.stockMove(d, ctx, "w", 5, "scan");
-  eq(d.items[0].batch, null, "sold out, new delivery: the old number is gone");
+  AP.stockMove(d, ctx(2), "w", 6, "scan");
   AP.setBatch(d, "w", null, "TH-02");
-  AP.voidSale(d, ctx, s);
-  eq(d.items[0].batch, "TH-02, TH-01", "void puts the old number back beside the new");
+  eq(nd(), "TH-01=4,TH-02=6", "two batches, each its own qty");
+  const s = AP.sale(d, ctx(3), { id: "x3", client_id: "x3", lines: [{ item_id: "w", qty: 7 }], paid: 1e9 });
+  eq(AP.saleBatches(d.movements, s.id).get("w"), "TH-01, TH-02", "on the receipt");
+  eq(nd(), "TH-02=5", "free stock first, then the oldest batch");
+  AP.voidSale(d, ctx(4), s);
+  eq(nd().split(",").sort().join(","), "TH-01=4,TH-02=1,TH-02=5", "void: batches back as they left");
+  eq(d.items[0].qty, 12, "stock back");
+  AP.setUndatedBatch(d, d.ulots[0].id, "TH-0X");
+  eq(d.ulots[0].batch, "TH-0X", "number corrected");
 });
 await ok("receipt numbers: the till's own when it has one", async () => {
   eq(AP.saleNo({ till: "B", till_no: 42 }), "B-0042", "till");
