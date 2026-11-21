@@ -461,6 +461,31 @@ await ok("a sale keeps the batch numbers it left from, a void puts them back (= 
   AP.voidSale(d, ctx, s);
   eq(d.lots.find((l) => l.expiry == "2099-01-01")?.batch, "L100", "void: the number is back on its batch");
 });
+await ok("stock without a date keeps its batch no. on the product (= 018)", async () => {
+  const shopId = "s",
+    ctx = { shopId, at: "2026-11-21T10:00:00Z", short: true },
+    d = {
+      items: [{ id: "w", shop_id: shopId, sku: "TIGER", name: "Tigerhead water", qty: 0, price: 5, min_qty: 0 }],
+      packs: [],
+      lots: [],
+      movements: [],
+      sales: [],
+      sale_lines: [],
+      orders: [],
+      customers: [],
+      settings: { [shopId]: {} },
+    };
+  AP.stockMove(d, ctx, "w", 10, "scan");
+  AP.setBatch(d, "w", null, "TH-01");
+  eq(d.items[0].batch, "TH-01", "number on the product");
+  const s = AP.sale(d, ctx, { id: "x2", client_id: "x2", lines: [{ item_id: "w", qty: 10 }], paid: 1e9 });
+  eq(AP.saleBatches(d.movements, s.id).get("w"), "TH-01", "on the receipt");
+  AP.stockMove(d, ctx, "w", 5, "scan");
+  eq(d.items[0].batch, null, "sold out, new delivery: the old number is gone");
+  AP.setBatch(d, "w", null, "TH-02");
+  AP.voidSale(d, ctx, s);
+  eq(d.items[0].batch, "TH-02, TH-01", "void puts the old number back beside the new");
+});
 await ok("receipt numbers: the till's own when it has one", async () => {
   eq(AP.saleNo({ till: "B", till_no: 42 }), "B-0042", "till");
   eq(AP.saleNo({ receipt_no: 7 }), "7", "server");

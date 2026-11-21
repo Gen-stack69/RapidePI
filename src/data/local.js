@@ -184,7 +184,7 @@ export async function saveItem(id, f) {
   if (it) Object.assign(it, row);
   else db.items.push((it = { id: uid(), shop_id: shopId(), qty: 0, created_at: nowIso(), ...row }));
   setStockRaw(it.id, Math.max(0, +f.qty || 0), id ? "edit" : "initial", f.expiry || null);
-  if (f.expiry && f.batch) apply.setBatch(db, it.id, f.expiry, f.batch);
+  if (f.batch) apply.setBatch(db, it.id, f.expiry || null, f.batch);
   await commit();
 }
 
@@ -278,7 +278,7 @@ export async function completeOrder(id, expiry = null, batch = "") {
   const o = db.orders.find((x) => x.id == id && x.shop_id == shopId()) || fail("err.orderNotFound");
   if (o.status != "pending") fail("err.orderDone");
   adjustRaw(o.item_id, o.type == "in" ? o.qty : -o.qty, "order", o.type == "in" ? expiry : null);
-  if (o.type == "in" && expiry && batch) apply.setBatch(db, o.item_id, expiry, batch);
+  if (o.type == "in" && batch) apply.setBatch(db, o.item_id, expiry || null, batch);
   o.status = "done";
   o.completed_at = nowIso();
   await commit();

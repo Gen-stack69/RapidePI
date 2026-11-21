@@ -949,5 +949,25 @@ await ok("a sale's stock records which batch it left from, even one it empties; 
     await as(A, "delete from items where id = $1", [it]);
   }
 });
+await ok("stock without a date keeps its batch no. on the product; a new delivery after selling out starts fresh (018)", async () => {
+  const it = (await as(A, "insert into items (shop_id, sku, name, kind, price) values ($1, 'TIGER-W', 'Tigerhead water', 'durable', 5) returning id", [shopA])).rows[0].id;
+  try {
+    const num = async () => (await as(A, "select batch from items where id = $1", [it])).rows[0].batch;
+    await as(A, "select adjust_stock($1, 4, 'scan')", [it]);
+    await as(A, "select set_lot_batch($1, null, 'TH-01')", [it]);
+    eq(await num(), "TH-01", "set without a date");
+    const till = (await as(A, "select register_till($1, 'Water test') c", [shopA])).rows[0].c;
+    const sale = (await as(A, "select create_sale($1, 'c-018-water', $2::jsonb, 0, 'cash', 1e9, null, $3) id", [shopA, JSON.stringify([{ item_id: it, qty: 4 }]), till])).rows[0].id;
+    eq((await as(A, "select batch from movements where sale_id = $1 and type = 'out'", [sale])).rows[0].batch, "TH-01", "the sale carries it");
+    await as(A, "select adjust_stock($1, 6, 'scan')", [it]);
+    eq(await num(), null, "sold out, new delivery: the old number is cleared");
+    await as(A, "select set_lot_batch($1, null, 'TH-02')", [it]);
+    await as(A, "select adjust_stock($1, 2, 'scan')", [it]);
+    eq(await num(), "TH-02", "more undated stock while some is left keeps the number");
+  } finally {
+    await as(A, "delete from items where id = $1", [it]);
+  }
+});
+
 console.log(failures ? `\n${failures} FAILED` : "\nAll database checks passed");
 process.exit(failures ? 1 : 0);
