@@ -130,12 +130,11 @@ export default function exp(s) {
     lots = s.lots.filter((l) => byId.has(l.item_id)),
     expired = lots.filter((l) => status(l.expiry) == "expired"),
     soon = lots.filter((l) => status(l.expiry) == "soon"),
-    // consumables with stock but no date recorded: what to date next
-    undated = s.items.filter(
-      (i) =>
-        i.kind == "consumable" &&
-        +i.qty > lots.filter((l) => l.item_id == i.id).reduce((a, l) => a + +l.qty, 0),
-    ),
+    // products with stock but no date recorded for some of it
+    noDate = s.items.filter((i) => +i.qty > lots.filter((l) => l.item_id == i.id).reduce((a, l) => a + +l.qty, 0)),
+    // consumables: what to date next; non-consumables: only if they expire
+    undated = noDate.filter((i) => i.kind == "consumable"),
+    undatedNc = noDate.filter((i) => i.kind != "consumable"),
     // just-arrived batches still without a batch number: what to fill in next
     noBatch = recent(lots, lastReceived(s)).filter((l) => !l.batch).length;
   const warn = `<div class="card"><div class="row"><b style="flex:1 1 200px">${t("exp.warnMe")}</b><select data-input="setting" data-key="expiry_days" data-num="1"${
@@ -174,6 +173,12 @@ ${find}<div id="expl">${lists(s)}</div>${
       ? `<div class="card"><h3>${t("exp.undated", { n: undated.length })}</h3><p class="mut mt">${t(
           "exp.undatedNote",
         )}</p><p class="mt">${undated.map((i) => `<span class="tag">${E(i.sku)} · ${E(i.name)}</span>`).join(" ")}</p></div>`
+      : ""
+  }${
+    undatedNc.length
+      ? `<div class="card"><h3>${t("exp.undatedNc", { n: undatedNc.length })}</h3><p class="mut mt">${t(
+          "exp.undatedNcNote",
+        )}</p><p class="mt">${undatedNc.map((i) => `<span class="tag">${E(i.sku)} · ${E(i.name)}</span>`).join(" ")}</p></div>`
       : ""
   }`;
 }

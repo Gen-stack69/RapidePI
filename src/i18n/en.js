@@ -270,6 +270,8 @@ export default {
   "exp.noneDated": "No other dated stock. Dates are recorded when stock is received.",
   "exp.undated": "Consumables with no date recorded ({n})",
   "exp.undatedNote": "Some of their stock arrived without an expiry date. Record the date when the next delivery comes in.",
+  "exp.undatedNc": "Non-consumables with no date recorded ({n})",
+  "exp.undatedNcNote": "A date is optional for these. Add one only if the product expires (batteries, paint, cosmetics), when the next delivery comes in.",
   "th.expiry": "EXPIRY",
   "th.left": "TIME LEFT",
   "th.receipt": "RECEIPT",
