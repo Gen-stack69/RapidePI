@@ -9,7 +9,7 @@ import { state, isOwner, canWrite } from "../data/store.js";
 import { lookupCode, status } from "../lib/expiry.js";
 import { receiptHtml, printReceipt } from "../lib/receipt.js";
 import { isQr } from "../lib/camera.js";
-import { linePrice, priceOf, vatOf, saleNo } from "../data/apply.js";
+import { linePrice, priceOf, vatOf, saleNo, saleBatches } from "../data/apply.js";
 import { describe, tillQr, qrSvg, saleRef } from "../lib/payqr.js";
 
 // The shop's bank QR for this total, or null when there is nothing to show.
@@ -306,7 +306,13 @@ export function showReceipt(cid) {
   if (!sale) return;
   const id = sale.client_id,
     lines = state.saleLines.filter((l) => l.sale_id == sale.id),
-    html = receiptHtml(state.shop, sale, lines, state.customers.find((c) => c.id == sale.customer_id)),
+    html = receiptHtml(
+      state.shop,
+      sale,
+      lines,
+      state.customers.find((c) => c.id == sale.customer_id),
+      saleBatches(state.movements, sale.id),
+    ),
     dlg = $("#dlg");
   dlg.innerHTML = `${html}<div class="row mt"><button class="b" data-act="posPrint" data-id="${E(id)}">${t(
     "pos.print",
@@ -324,6 +330,7 @@ export function printSale(cid) {
         sale,
         state.saleLines.filter((l) => l.sale_id == sale.id),
         state.customers.find((c) => c.id == sale.customer_id),
+        saleBatches(state.movements, sale.id),
       ),
     );
 }
