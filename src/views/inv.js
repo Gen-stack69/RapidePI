@@ -94,10 +94,9 @@ export function rows(s) {
               B[0].batch ? ` · ${t("exp.batchShort")} ${E(B[0].batch)}` : ""
             } · ${num(B[0].qty)}</small>`
           : B.length > 1
-            ? `<br><button type="button" class="bt${open ? " on" : ""}${B.some((l) => cls(l) == "warn") ? " warn" : ""}" data-act="invBatches" data-id="${id}" aria-expanded="${!!open}"><i class="chev" aria-hidden="true">▸</i> ${t(
-                "inv.batchesN",
-                { n: B.length },
-              )}${nums(B)} · ${when(B[0])}</button>`
+            ? `<br><button type="button" class="bt${open ? " on" : ""}${B.some((l) => cls(l) == "warn") ? " warn" : ""}" data-act="invBatches" data-id="${id}" aria-expanded="${!!open}"><i class="chev" aria-hidden="true">▸</i><span class="bt-t"><b>${t("inv.batchesN", { n: B.length })}</b><span>${
+                B[0].expiry ? `${t("exp.short")} ${dateText(B[0].expiry)}` : t("inv.noDate")
+              }</span>${nums(B) ? `<small class="bt-n">${nums(B)}</small>` : ""}</span></button>`
             : "",
       detail =
         B.length > 1
@@ -143,14 +142,14 @@ export function rows(s) {
 
 const FILTERS = ["all", "consumable", "durable", "soon", "expired"];
 // The batch numbers of a product's batches, soonest date first, each once:
-// " · L001, L002" (the first 3, then "+N"), so they show without opening the list.
+// "L001, L002" (the first 3, then "+N"), so they show without opening the list.
 function nums(B) {
   const all = [];
   for (const l of B)
     for (const n of String(l.batch || "").split(","))
       if (n.trim() && !all.some((x) => x.toLowerCase() == n.trim().toLowerCase())) all.push(n.trim());
   if (!all.length) return "";
-  return ` · ${E(all.slice(0, 3).join(", "))}${all.length > 3 ? ` +${all.length - 3}` : ""}`;
+  return `${E(all.slice(0, 3).join(", "))}${all.length > 3 ? ` +${all.length - 3}` : ""}`;
 }
 
 const SORTS = ["name", "sku", "expiry", "recent", "qty", "low"];
