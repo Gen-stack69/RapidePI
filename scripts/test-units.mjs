@@ -404,6 +404,22 @@ await ok("an offline sale keeps its price and time; a resend is the same sale", 
   AP.voidSale(d, C0, s);
   eq(`${d.items[0].qty} ${s.status}`, "20 void", "voided once");
 });
+await ok("batch numbers: added beside the ones already there, each once (= lot_batch_add)", async () => {
+  eq(AP.addBatch(null, "L1"), "L1", "first");
+  eq(AP.addBatch("L1", " l1 "), "L1", "same number, any case");
+  eq(AP.addBatch("L1", "L2"), "L1, L2", "second delivery");
+  eq(AP.addBatch("L1, L2", ""), "L1, L2", "nothing typed");
+  const d = { lots: [{ id: "x", item_id: "i", expiry: "2027-01-01", qty: 3, batch: null }] };
+  AP.setBatch(d, "i", "2027-01-01", "A9");
+  AP.setBatch(d, "i", "2027-01-01", "B2");
+  eq(d.lots[0].batch, "A9, B2", "received twice");
+  AP.setBatch(d, "i", "2027-01-01", "C3", false);
+  eq(d.lots[0].batch, "C3", "corrected");
+  AP.setBatch(d, "i", "2027-01-01", " ", false);
+  eq(d.lots[0].batch, null, "cleared");
+  AP.setBatch(d, "i", "2030-01-01", "Z");
+  eq(d.lots.length, 1, "no batch on that date: nothing made");
+});
 await ok("receipt numbers: the till's own when it has one", async () => {
   eq(AP.saleNo({ till: "B", till_no: 42 }), "B-0042", "till");
   eq(AP.saleNo({ receipt_no: 7 }), "7", "server");
@@ -764,8 +780,9 @@ console.log("Till single-scan aim box");
     const R = report(shop, "Expiry");
     const g = R.tables[0].groups[0];
     eq(g.rows.length, 2, "two batches");
-    eq(g.rows[0][1], "01/01/2020", "oldest first, day first");
-    eq(g.total[4], 216, "batch total");
+    eq(g.rows[0][2], "01/01/2020", "oldest first, day first");
+    eq(g.total[5], 216, "batch total");
+    eq(R.tables[0].cols[1].h, "Batch no.", "batch number column");
   });
   await ok("the Excel report re-imports from its Data sheet", async () => {
     const R = report(shop, "Inventory"),

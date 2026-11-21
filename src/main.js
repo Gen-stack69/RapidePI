@@ -262,8 +262,13 @@ function itemProblem(id, before, f) {
   if (other) return t("err.dupBarcode", { name: other.name });
   // A date belongs to stock coming in: with none added it would be dropped.
   if (f.expiry && !(+f.qty > +(before.qty || 0))) return t("err.expiryNoQty");
+  // A batch number is kept with the date of the stock it came on.
+  if (f.kind == "consumable" && f.batch?.trim() && !f.expiry) return t("err.batchNoDate");
   return "";
 }
+
+// The batch / production number printed on the goods, kept with their expiry date.
+const batchField = (label = "f.batch") => ({ k: "batch", label: t(label), hint: t("f.batchHint") });
 
 async function itemForm(id, code) {
   if (!needWrite()) return;
@@ -284,7 +289,7 @@ async function itemForm(id, code) {
     wholesale_min_qty: 0,
   };
   // The form comes back with what was typed when it can't be saved, and why.
-  let v = { ...i, expiry: "" },
+  let v = { ...i, expiry: "", batch: "" },
     why = "",
     pic; // the photo: undefined = as it was, a File = new, "" = removed
   for (;;) {
@@ -341,6 +346,7 @@ function itemFields(id, i, why, pic) {
       tools: [{ act: "readDate", label: t("btn.readDate") }],
       hint: t("f.expiryHint"),
     },
+    { ...batchField(id ? "f.batchAdded" : "f.batch"), value: i.batch || "", showIf: ["kind", "consumable"] },
     { k: "min_qty", label: t("f.min"), type: "number", value: +i.min_qty },
     {
       k: "cost_currency",
@@ -679,12 +685,16 @@ const A = {
                 tools: [{ act: "readDate", label: t("btn.readDate") }],
                 hint: t("f.expiryHint"),
               },
+              batchField(),
             ]
           : []),
       ]);
     const q = f && +f.q;
     if (!q || q < 0) return;
+    const batch = (dated && f.batch?.trim()) || "";
+    if (batch && !f.expiry) return toast(t("err.batchNoDate"), true);
     await store.adjust(it.id, dir * q, "manual", (dated && f.expiry) || null);
+    if (batch) await store.setLotBatch(it.id, f.expiry, batch);
     toast(t("msg.adjusted", { sku: it.sku, sign: dir > 0 ? "+" : "−", q }));
   },
   async addOrder() {
@@ -701,7 +711,8 @@ const A = {
     // show on the Expiry screen like stock received any other way.
     const o = state.orders.find((x) => x.id == el.dataset.id),
       it = o && state.items.find((i) => i.id == o.item_id);
-    let expiry = null;
+    let expiry = null,
+      batch = "";
     if (o?.type == "in" && it?.kind == "consumable") {
       const f = await form(
         t("title.receiveOrder", { qty: num(o.qty), name: it.name }),
@@ -713,13 +724,16 @@ const A = {
             tools: [{ act: "readDate", label: t("btn.readDate") }],
             hint: t("f.expiryHint"),
           },
+          batchField(),
         ],
         t("ord.complete"),
       );
       if (!f) return;
       expiry = f.expiry || null;
+      batch = f.batch?.trim() || "";
+      if (batch && !expiry) return toast(t("err.batchNoDate"), true);
     }
-    await store.completeOrder(el.dataset.id, expiry);
+    await store.completeOrder(el.dataset.id, expiry, batch);
     toast(t("msg.orderDone"));
   },
   async delOrder(el) {
@@ -770,6 +784,19 @@ const A = {
     const merge = state.lots.some((l) => l.item_id == lot.item_id && l.expiry == f.expiry && l.id != lot.id);
     await store.changeLotExpiry(lot.id, f.expiry);
     toast(t(merge ? "msg.lotMerged" : "msg.lotDateChanged", { d: dateText(f.expiry) }));
+  },
+  // Type or correct the batch / production number(s) of one batch.
+  async lotBatch(el) {
+    if (!needWrite()) return;
+    const lot = state.lots.find((l) => l.id == el.dataset.id),
+      it = lot && state.items.find((i) => i.id == lot.item_id);
+    if (!it) return;
+    const f = await form(t("title.lotBatch", { name: it.name, d: dateText(lot.expiry) }), [
+      { k: "batch", label: t("f.batch"), value: lot.batch || "", hint: t("f.batchEditHint") },
+    ]);
+    if (!f || f.batch.trim() == (lot.batch || "")) return;
+    await store.setLotBatch(it.id, lot.expiry, f.batch, false);
+    toast(t("msg.saved"));
   },
   async writeOff(el) {
     if (!needWrite()) return;
@@ -998,8 +1025,7 @@ function switchLang(l) {
 
 // The scanner's expiry box only matters when receiving.
 function syncScanView() {
-  const l = $("#sexpl");
-  if (l) l.hidden = $("#mode").value != "in";
+  for (const l of [$("#sexpl"), $("#sbatchl")]) if (l) l.hidden = $("#mode").value != "in";
 }
 
 const INPUT = {
@@ -1049,6 +1075,8 @@ const INPUT = {
     checkExpiry(el);
     scanner.dateTyped();
   },
+  // Typed by hand: like the date, it is for the next product scanned.
+  scanBatch: () => scanner.dateTyped(),
 };
 
 // One delegated handler for every button; errors become a toast.
@@ -1069,7 +1097,7 @@ document.addEventListener("click", (ev) => {
 document.addEventListener("input", (ev) => {
   const k = ev.target.dataset?.input;
   if (k == "scanExpiry") slashDate(ev.target, ev);
-  if (["search", "conv", "pos", "scanExpiry", "custQ"].includes(k)) INPUT[k](ev.target);
+  if (["search", "conv", "pos", "scanExpiry", "scanBatch", "custQ"].includes(k)) INPUT[k](ev.target);
 });
 document.addEventListener("change", (ev) => {
   const k = ev.target.dataset?.input;

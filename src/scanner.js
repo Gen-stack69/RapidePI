@@ -189,9 +189,13 @@ async function handle(c, format) {
   if (pack && pack.size == null && m == "out")
     return log(`${packTag}<span class="warn">${E(it.sku)}: ${t("err.packNotCounted")}</span>`);
 
-  let expiry = null;
+  let expiry = null,
+    batch = "";
   if (m == "in") {
-    const box = $("#sexp");
+    const box = $("#sexp"),
+      bbox = $("#sbatch");
+    // The batch box, like the date box, was filled for one product.
+    if (bbox && expFor && expFor != it.id) bbox.value = "";
     // A GS1 barcode carries its own date. Otherwise use the box, asking when a
     // consumable arrives without one, or when the box was filled for another product.
     expiry = printed || parseTyped(box?.value) || null;
@@ -205,12 +209,14 @@ async function handle(c, format) {
       }
     }
     expFor = it.id;
+    batch = (expiry && bbox?.value.trim()) || "";
   }
   try {
     // Boxes received go through receivePack, which remembers the delivery; a
     // box with no count yet waits there and adds nothing to stock.
     if (pack && m == "in") await store.receivePack(pack.id, n, expiry);
     else await store.adjust(it.id, (m == "in" ? 1 : -1) * n * (pack ? +pack.size : 1), "scan", expiry);
+    if (batch) await store.setLotBatch(it.id, expiry, batch);
     const now = state.items.find((i) => i.id == it.id);
     if (pack && pack.size == null)
       return log(
@@ -224,7 +230,7 @@ async function handle(c, format) {
         sign: m == "in" ? "+" : "−",
         q,
         qty: `<b>${+now.qty}</b>`,
-      })}</span>${expTag(expiry)}`,
+      })}</span>${expTag(expiry)}${batch ? ` · <span class="mut">${t("exp.batchShort")} ${E(batch)}</span>` : ""}`,
     );
   } catch (e) {
     log(`<span class="warn">${E(it.sku)}: ${E(errText(e))}</span>`);

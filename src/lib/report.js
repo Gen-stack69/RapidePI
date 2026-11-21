@@ -152,7 +152,7 @@ const BUILD = {
       if (!per.has(l.item_id)) per.set(l.item_id, []);
       per.get(l.item_id).push(l);
     }
-    const cols = [col("no", "c"), col("expiry", "c"), col("days", "n"), col("status"), col("qty", "n"), col("cost", "m"), col("value", "m")];
+    const cols = [col("no", "c"), col("batch"), col("expiry", "c"), col("days", "n"), col("status"), col("qty", "n"), col("cost", "m"), col("value", "m")];
     const n = cols.length,
       word = (e) => ({ expired: t("rp.expired"), soon: t("rp.soon", { n: SOON_DAYS }), ok: t("rp.ok") })[status(e)];
     const items = [...per.keys()].map((id) => byId.get(id)).sort(byName);
@@ -161,12 +161,12 @@ const BUILD = {
         per
           .get(i.id)
           .sort((a, b) => String(a.expiry).localeCompare(String(b.expiry)))
-          .map((l) => [dmy(l.expiry), daysLeft(l.expiry), word(l.expiry), +l.qty, +i.cost, l.qty * i.cost]),
+          .map((l) => [l.batch || "", dmy(l.expiry), daysLeft(l.expiry), word(l.expiry), +l.qty, +i.cost, l.qty * i.cost]),
       );
       return {
         title: `${i.sku} · ${i.name}` + (i.unit ? ` (${i.unit})` : ""),
         rows,
-        total: totalRow(n, t("rp.total"), { 4: sum(rows, 4), 6: sum(rows, 6) }),
+        total: totalRow(n, t("rp.total"), { 5: sum(rows, 5), 7: sum(rows, 7) }),
       };
     });
     const valueIf = (st) => lots.filter((l) => status(l.expiry) == st).reduce((a, l) => a + l.qty * byId.get(l.item_id).cost, 0);
@@ -178,8 +178,8 @@ const BUILD = {
           grand:
             groups.length > 1
               ? totalRow(n, t("rp.grand"), {
-                  4: oneUnit(items.map((i) => i.unit)) ? sum(groups.flatMap((g) => g.rows), 4) : null,
-                  6: lots.reduce((a, l) => a + l.qty * byId.get(l.item_id).cost, 0),
+                  5: oneUnit(items.map((i) => i.unit)) ? sum(groups.flatMap((g) => g.rows), 5) : null,
+                  7: lots.reduce((a, l) => a + l.qty * byId.get(l.item_id).cost, 0),
                 })
               : null,
         },

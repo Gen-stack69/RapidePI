@@ -184,6 +184,7 @@ export async function saveItem(id, f) {
   if (it) Object.assign(it, row);
   else db.items.push((it = { id: uid(), shop_id: shopId(), qty: 0, created_at: nowIso(), ...row }));
   setStockRaw(it.id, Math.max(0, +f.qty || 0), id ? "edit" : "initial", f.expiry || null);
+  if (f.expiry && f.batch) apply.setBatch(db, it.id, f.expiry, f.batch);
   await commit();
 }
 
@@ -273,10 +274,11 @@ export async function addOrder(o) {
   await commit();
 }
 
-export async function completeOrder(id, expiry = null) {
+export async function completeOrder(id, expiry = null, batch = "") {
   const o = db.orders.find((x) => x.id == id && x.shop_id == shopId()) || fail("err.orderNotFound");
   if (o.status != "pending") fail("err.orderDone");
   adjustRaw(o.item_id, o.type == "in" ? o.qty : -o.qty, "order", o.type == "in" ? expiry : null);
+  if (o.type == "in" && expiry && batch) apply.setBatch(db, o.item_id, expiry, batch);
   o.status = "done";
   o.completed_at = nowIso();
   await commit();
@@ -413,6 +415,13 @@ export async function setLotPrice(itemId, expiry, price) {
   await commit();
 }
 
+/** A batch's batch / production number (mirror 016): add beside, or replace. */
+export async function setLotBatch(itemId, expiry, batch, add = true) {
+  writable();
+  apply.setBatch(db, itemId, expiry, batch, add);
+  await commit();
+}
+
 /** Correct a batch's expiry date; a batch already on that date takes it in (mirror 015). */
 export async function changeLotExpiry(lotId, expiry) {
   writable();
@@ -422,6 +431,7 @@ export async function changeLotExpiry(lotId, expiry) {
   const to = db.lots.find((l) => l.item_id == lot.item_id && l.expiry == expiry && l.id != lot.id);
   if (to) {
     to.qty = +to.qty + +lot.qty;
+    to.batch = apply.addBatch(to.batch, lot.batch);
     db.lots = db.lots.filter((l) => l.id != lot.id);
   } else lot.expiry = expiry;
   await commit();

@@ -128,6 +128,32 @@ await rejects("another shop cannot change a batch's date (015)", async () => {
   try { await as(B, "select change_lot_expiry($1, $2)", [lot, "2027-02-02"]); }
   finally { await as(A, "delete from items where id = $1", [it]); }
 });
+await ok("a batch keeps its batch / production numbers, each once, and they follow a date change (016)", async () => {
+  const it = (await as(A, "insert into items (shop_id, sku, name, kind) values ($1, 'COKE-B', 'Coke', 'consumable') returning id", [shopA])).rows[0].id;
+  const num = async (d) => (await as(A, "select batch from lots where item_id = $1 and expiry = $2", [it, d])).rows[0]?.batch ?? null;
+  await as(A, "select adjust_stock($1, 6, 't', $2)", [it, "2027-03-01"]);
+  await as(A, "select set_lot_batch($1, $2, $3)", [it, "2027-03-01", "L100"]);
+  await as(A, "select set_lot_batch($1, $2, $3)", [it, "2027-03-01", "l100"]);
+  eq(await num("2027-03-01"), "L100", "same number once");
+  await as(A, "select set_lot_batch($1, $2, $3)", [it, "2027-03-01", "L200"]);
+  eq(await num("2027-03-01"), "L100, L200", "two deliveries, one date");
+  await as(A, "select set_lot_batch($1, $2, $3, false)", [it, "2027-03-01", "L300"]);
+  eq(await num("2027-03-01"), "L300", "corrected");
+  await as(A, "select set_lot_batch($1, $2, $3)", [it, "2029-09-09", "NOPE"]);
+  eq((await as(A, "select count(*)::int as n from lots where item_id = $1", [it])).rows[0].n, 1, "no batch made for a date not in stock");
+  await as(A, "select adjust_stock($1, 2, 't', $2)", [it, "2027-04-01"]);
+  await as(A, "select set_lot_batch($1, $2, $3)", [it, "2027-04-01", "L400"]);
+  const lot = (await as(A, "select id from lots where item_id = $1 and expiry = '2027-04-01'", [it])).rows[0].id;
+  await as(A, "select change_lot_expiry($1, $2)", [lot, "2027-03-01"]);
+  eq(await num("2027-03-01"), "L300, L400", "numbers join with the batches");
+  await as(A, "delete from items where id = $1", [it]);
+});
+await rejects("another shop cannot set a batch number (016)", async () => {
+  const it = (await as(A, "insert into items (shop_id, sku, name, kind) values ($1, 'COKE-C', 'Coke', 'consumable') returning id", [shopA])).rows[0].id;
+  await as(A, "select adjust_stock($1, 2, 't', $2)", [it, "2027-02-02"]);
+  try { await as(B, "select set_lot_batch($1, $2, $3)", [it, "2027-02-02", "X"]); }
+  finally { await as(A, "delete from items where id = $1", [it]); }
+});
 await rejects("cannot order another shop's item", () =>
   as(B, "insert into orders (shop_id, item_id, type, qty) values ($1, $2, 'in', 1)", [shopB, item]));
 

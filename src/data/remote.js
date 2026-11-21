@@ -298,9 +298,11 @@ export async function saveItem(id, f) {
     cur = state.items.find((i) => i.id == id)?.qty ?? 0;
   const note = id ? "edit" : "initial";
   // Stock going up may carry an expiry date, which set_stock has no room for.
-  if (qty > cur)
+  if (qty > cur) {
     await must(sb.rpc("adjust_stock", { p_item: itemId, p_delta: qty - cur, p_note: note, p_expiry: f.expiry || null }));
-  else if (qty < cur) await must(sb.rpc("set_stock", { p_item: itemId, p_qty: qty, p_note: note }));
+    if (f.expiry && f.batch?.trim())
+      await must(sb.rpc("set_lot_batch", { p_item: itemId, p_expiry: f.expiry, p_batch: f.batch.trim(), p_add: true }));
+  } else if (qty < cur) await must(sb.rpc("set_stock", { p_item: itemId, p_qty: qty, p_note: note }));
   await reload();
 }
 
@@ -368,6 +370,11 @@ export function receivePack(packId, boxes, expiry = null) {
   const p = state.packs.find((x) => x.id == packId) || fail("err.packNotFound");
   return queued("box", { pack_id: p.id, item_id: p.item_id, boxes: +boxes, expiry: expiry || null });
 }
+
+/** The batch / production number of the stock of one date (016). add: put
+ * it beside the numbers already there (stock received); otherwise replace. */
+export const setLotBatch = (itemId, expiry, batch, add = true) =>
+  queued("batch", { item_id: itemId, expiry, batch: String(batch ?? "").trim(), add: !!add });
 
 // Keyed by product and date, not lot id: a lot received offline has no
 // server id yet.
@@ -447,6 +454,7 @@ const SEND = {
       p_at: r.at,
       p_offline: r.offline,
     }),
+  batch: (r, a) => rpc("set_lot_batch", { p_item: a.item_id, p_expiry: a.expiry, p_batch: a.batch, p_add: a.add }),
   writeoff: (r, a) =>
     rpc("write_off_expiry", {
       p_item: a.item_id,
@@ -482,6 +490,7 @@ function applyRecord(db, r) {
     if (r.op == "adjust") apply.stockMove(db, ctx, a.item_id, a.delta, a.note, a.expiry);
     if (r.op == "writeoff") apply.writeOff(db, ctx, a.item_id, a.expiry, a.qty, a.note);
     if (r.op == "box") apply.receivePack(db, ctx, a.pack_id, a.boxes, a.expiry);
+    if (r.op == "batch") apply.setBatch(db, a.item_id, a.expiry, a.batch, a.add);
   } catch {
     // The product is gone from this copy, say. The server decides when it's sent.
   }
@@ -663,8 +672,13 @@ export async function importItems(list) {
 export const addOrder = (o) => write(sb.from("orders").insert({ ...o, shop_id: state.shop.id }));
 // expiry: the date on goods received by an inbound order (013_order_expiry.sql).
 // Sent only when there is one, so this works against a database without 013.
-export const completeOrder = (id, expiry = null) =>
-  write(sb.rpc("complete_order", expiry ? { p_order: id, p_expiry: expiry } : { p_order: id }));
+// batch: the batch / production number on those goods (016), kept with the date.
+export async function completeOrder(id, expiry = null, batch = "") {
+  const o = state.orders.find((x) => x.id == id);
+  if (!(expiry && batch && o)) return write(sb.rpc("complete_order", expiry ? { p_order: id, p_expiry: expiry } : { p_order: id }));
+  await must(sb.rpc("complete_order", { p_order: id, p_expiry: expiry }));
+  await write(sb.rpc("set_lot_batch", { p_item: o.item_id, p_expiry: expiry, p_batch: batch, p_add: true }));
+}
 export const deleteOrder = (id) => write(sb.from("orders").delete().eq("id", id));
 
 // ---------- settings / danger zone ----------
