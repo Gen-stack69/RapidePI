@@ -4,7 +4,8 @@ import { $, E, fmt, num, dt } from "./util.js";
 import { t } from "../i18n/index.js";
 import { saleNo } from "../data/apply.js";
 
-export function receiptHtml(shop, sale, lines, customer = null) {
+// batches: item id → batch number(s) the stock left from (saleBatches).
+export function receiptHtml(shop, sale, lines, customer = null, batches = new Map()) {
   const row = (a, b, cls = "") => `<tr class="${cls}"><td>${a}</td><td>${b}</td></tr>`;
   return `<div class="receipt"><h4>${E(shop.name)}</h4><p class="c">${t("rc.no", { n: saleNo(sale) })}<br>${dt(
     sale.created_at,
@@ -22,7 +23,7 @@ export function receiptHtml(shop, sale, lines, customer = null) {
               }`,
           fmt(l.line_total),
           "sub",
-        )}`,
+        )}${batches.get(l.item_id) ? `<tr class="sub"><td colspan="2"><small>${t("rc.batch", { b: E(batches.get(l.item_id)) })}</small></td></tr>` : ""}`,
     )
     .join("")}</table><table class="sum">${row(t("pos.subtotal"), fmt(sale.subtotal))}${
     +sale.discount ? row(t("pos.discount"), "−" + fmt(sale.discount)) : ""

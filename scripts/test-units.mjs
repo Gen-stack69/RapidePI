@@ -438,6 +438,29 @@ await ok("latest arrivals: a delivery joining a batch on the same date counts, a
   eq(m.get("i|2027-01-01"), "2026-11-20T09:00:00Z", "second delivery on the same date");
   eq(m.get("i|2027-06-01"), "2026-11-01T08:00:00Z", "a void is not a delivery: falls back to the batch");
 });
+await ok("a sale keeps the batch numbers it left from, a void puts them back (= 017)", async () => {
+  const shopId = "s",
+    ctx = { shopId, at: "2026-11-21T10:00:00Z", short: true },
+    d = {
+      items: [{ id: "m", shop_id: shopId, sku: "MILK", name: "Milk", qty: 5, price: 10, min_qty: 0 }],
+      packs: [],
+      lots: [
+        { id: "a", shop_id: shopId, item_id: "m", expiry: "2099-01-01", qty: 2, batch: "L100" },
+        { id: "b", shop_id: shopId, item_id: "m", expiry: "2099-06-01", qty: 3, batch: "L200" },
+      ],
+      movements: [],
+      sales: [],
+      sale_lines: [],
+      orders: [],
+      customers: [],
+      settings: { [shopId]: {} },
+    };
+  const s = AP.sale(d, ctx, { id: "x1", client_id: "x1", lines: [{ item_id: "m", qty: 3 }], paid: 1e9 });
+  eq(AP.saleBatches(d.movements, s.id).get("m"), "L100, L200", "both batches on the receipt");
+  eq(d.lots.length, 1, "the first batch was emptied");
+  AP.voidSale(d, ctx, s);
+  eq(d.lots.find((l) => l.expiry == "2099-01-01")?.batch, "L100", "void: the number is back on its batch");
+});
 await ok("receipt numbers: the till's own when it has one", async () => {
   eq(AP.saleNo({ till: "B", till_no: 42 }), "B-0042", "till");
   eq(AP.saleNo({ receipt_no: 7 }), "7", "server");
