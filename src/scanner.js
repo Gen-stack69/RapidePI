@@ -222,7 +222,6 @@ async function handle(c, format) {
       const asked = await askReceive(it, box?.value || "", bbox?.value.trim() || "");
       if (asked === null) return log(`<span class="mut">${t("scan.cancelled", { sku: E(it.sku) })}</span>`);
       expiry = asked.expiry;
-      if (asked.batch && !expiry) return log(`<span class="warn">${E(it.sku)}: ${t("err.batchNoDate")}</span>`);
       if (box) {
         box.value = typedDate(expiry);
         checkExpiry(box);
@@ -231,7 +230,9 @@ async function handle(c, format) {
       if (bbox) bbox.value = asked.batch;
     }
     expFor = it.id;
-    batch = (expiry && bbox?.value.trim()) || "";
+    // With or without a date (undated stock keeps its number on the product).
+    // Boxes still waiting for their count add no stock, so no number either.
+    batch = pack && pack.size == null ? "" : bbox?.value.trim() || "";
   }
   try {
     // Boxes received go through receivePack, which remembers the delivery; a
@@ -252,7 +253,7 @@ async function handle(c, format) {
         sign: m == "in" ? "+" : "−",
         q,
         qty: `<b>${+now.qty}</b>`,
-      })}</span>${expTag(expiry)}${m == "in" && expiry ? ` ${batchBtn(it.id, expiry)}` : ""}`,
+      })}</span>${expTag(expiry)}${m == "in" ? ` ${batchBtn(it.id, expiry)}` : ""}`,
     );
   } catch (e) {
     log(`<span class="warn">${E(it.sku)}: ${E(errText(e))}</span>`);
@@ -262,9 +263,9 @@ async function handle(c, format) {
 // Received stock with a date: a button to add or correct its batch no. later,
 // for scans that went through without the dialog (box filled, GS1 date).
 function batchBtn(itemId, expiry) {
-  const lot = state.lots.find((l) => l.item_id == itemId && l.expiry == expiry);
-  return lot
-    ? `<button class="g" data-act="lotBatch" data-item="${E(itemId)}" data-exp="${E(expiry)}">${E(batchLabel(lot.batch || ""))}</button>`
+  const on = expiry ? state.lots.find((l) => l.item_id == itemId && l.expiry == expiry) : state.items.find((i) => i.id == itemId);
+  return on
+    ? `<button class="g" data-act="lotBatch" data-item="${E(itemId)}"${expiry ? ` data-exp="${E(expiry)}"` : ""}>${E(batchLabel(on.batch || ""))}</button>`
     : "";
 }
 

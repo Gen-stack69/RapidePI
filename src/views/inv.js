@@ -2,7 +2,7 @@ import { E, fmt, num, dateText, expiryNote } from "../lib/util.js";
 import { t } from "../i18n/index.js";
 import { isOwner, photoSrc } from "../data/store.js";
 import { waitingBoxes } from "../data/fields.js";
-import { status } from "../lib/expiry.js";
+import { status, undatedBatches } from "../lib/expiry.js";
 import { SIGN } from "../lib/rates.js";
 
 // q: search text. f: all | consumable | durable | soon | expired. s: sort order (SORTS)
@@ -20,15 +20,18 @@ const firstExpiry = (s) => {
   return m;
 };
 
-// Every dated batch per product, soonest first.
+// Every batch per product: the dated ones soonest first, then the undated
+// stock when it has a batch no. (018).
 const batchesOf = (s) => {
   const m = new Map();
-  for (const l of s.lots) {
+  for (const l of [...s.lots, ...undatedBatches(s)]) {
     if (!m.has(l.item_id)) m.set(l.item_id, []);
     m.get(l.item_id).push(l);
   }
   return m;
 };
+// "EXP 31/12/2026 · in 40 days", or "No date" for undated stock.
+const when = (l) => (l.expiry ? `${t("exp.short")} ${dateText(l.expiry)}${expiryNote(l.expiry)}` : t("inv.noDate"));
 
 export function rows(s) {
   const q = ui.q.toLowerCase(),
@@ -82,27 +85,29 @@ export function rows(s) {
     // Several: a button that rolls down a list of them under the product, so
     // two deliveries of the same product are never mixed up.
     const B = bats.get(i.id) || [],
-      cls = (l) => (status(l.expiry) == "ok" ? "mut" : "warn"),
+      cls = (l) => (!l.expiry || status(l.expiry) == "ok" ? "mut" : "warn"),
       batchNo = (l) => (l.batch ? `${t("exp.batchShort")} ${E(l.batch)}` : `<span class="mut">${t("inv.noBatchNo")}</span>`),
       open = B.length > 1 && (ui.open.has(i.id) || (q && B.some((l) => String(l.batch || "").toLowerCase().includes(q)))),
       lines =
         B.length == 1
-          ? `<br><small class="${cls(B[0])}">${t("exp.short")} ${dateText(B[0].expiry)}${expiryNote(B[0].expiry)}${
+          ? `<br><small class="${cls(B[0])}">${when(B[0])}${
               B[0].batch ? ` · ${t("exp.batchShort")} ${E(B[0].batch)}` : ""
             } · ${num(B[0].qty)}</small>`
           : B.length > 1
             ? `<br><button type="button" class="bt${open ? " on" : ""}${B.some((l) => cls(l) == "warn") ? " warn" : ""}" data-act="invBatches" data-id="${id}" aria-expanded="${!!open}"><i class="chev" aria-hidden="true">▸</i> ${t(
                 "inv.batchesN",
                 { n: B.length },
-              )}${nums(B)} · ${t("exp.short")} ${dateText(B[0].expiry)}</button>`
+              )}${nums(B)} · ${when(B[0])}</button>`
             : "",
       detail =
         B.length > 1
           ? `<tr class="bd${open ? " open" : ""}" data-for="${id}"><td colspan="9"><div class="bdw"><div class="bl">${B.map(
               (l) =>
-                `<div class="br ${cls(l)}"><span>${t("exp.short")} ${dateText(l.expiry)}${expiryNote(l.expiry)}</span><span>${batchNo(l)}</span><span class="q">${num(
+                `<div class="br ${cls(l)}"><span>${when(l)}</span><span>${batchNo(l)}</span><span class="q">${num(
                   l.qty,
-                )}${i.unit ? " " + E(i.unit) : ""}</span><span><button class="g" data-act="lotBatch" data-id="${E(l.id)}">${t(
+                )}${i.unit ? " " + E(i.unit) : ""}</span><span><button class="g" data-act="lotBatch" ${
+                  l.id ? `data-id="${E(l.id)}"` : `data-item="${id}"`
+                }>${t(
                   l.batch ? "exp.editBatch" : "exp.addBatch",
                 )}</button></span></div>`,
             ).join("")}<p class="mt"><a href="#exp" data-act="expFor" data-sku="${E(i.sku)}">${t("inv.openExpiry")}</a></p></div></div></td></tr>`

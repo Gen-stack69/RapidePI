@@ -300,8 +300,8 @@ export async function saveItem(id, f) {
   // Stock going up may carry an expiry date, which set_stock has no room for.
   if (qty > cur) {
     await must(sb.rpc("adjust_stock", { p_item: itemId, p_delta: qty - cur, p_note: note, p_expiry: f.expiry || null }));
-    if (f.expiry && f.batch?.trim())
-      await must(sb.rpc("set_lot_batch", { p_item: itemId, p_expiry: f.expiry, p_batch: f.batch.trim(), p_add: true }));
+    if (f.batch?.trim())
+      await must(sb.rpc("set_lot_batch", { p_item: itemId, p_expiry: f.expiry || null, p_batch: f.batch.trim(), p_add: true }));
   } else if (qty < cur) await must(sb.rpc("set_stock", { p_item: itemId, p_qty: qty, p_note: note }));
   await reload();
 }
@@ -675,9 +675,10 @@ export const addOrder = (o) => write(sb.from("orders").insert({ ...o, shop_id: s
 // batch: the batch / production number on those goods (016), kept with the date.
 export async function completeOrder(id, expiry = null, batch = "") {
   const o = state.orders.find((x) => x.id == id);
-  if (!(expiry && batch && o)) return write(sb.rpc("complete_order", expiry ? { p_order: id, p_expiry: expiry } : { p_order: id }));
-  await must(sb.rpc("complete_order", { p_order: id, p_expiry: expiry }));
-  await write(sb.rpc("set_lot_batch", { p_item: o.item_id, p_expiry: expiry, p_batch: batch, p_add: true }));
+  const args = expiry ? { p_order: id, p_expiry: expiry } : { p_order: id };
+  if (!(batch && o)) return write(sb.rpc("complete_order", args));
+  await must(sb.rpc("complete_order", args));
+  await write(sb.rpc("set_lot_batch", { p_item: o.item_id, p_expiry: expiry || null, p_batch: batch, p_add: true }));
 }
 export const deleteOrder = (id) => write(sb.from("orders").delete().eq("id", id));
 

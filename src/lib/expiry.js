@@ -32,6 +32,18 @@ export function lastReceived(s) {
   return m;
 }
 
+/** Stock without a date that has a batch no. (018): per product, its
+ * undated quantity (stock minus its dated batches) and the number(s) kept
+ * on the product. Shaped like a batch: { id: null, item_id, expiry: null, qty, batch }. */
+export function undatedBatches(s) {
+  const dated = new Map();
+  for (const l of s.lots || []) dated.set(l.item_id, (dated.get(l.item_id) || 0) + +l.qty);
+  return (s.items || [])
+    .filter((i) => i.batch)
+    .map((i) => ({ id: null, item_id: i.id, expiry: null, qty: +i.qty - (dated.get(i.id) || 0), batch: i.batch }))
+    .filter((x) => x.qty > 0);
+}
+
 export const daysLeft = (expiry, from = today()) =>
   Math.round((Date.parse(expiry + "T00:00:00Z") - Date.parse(from + "T00:00:00Z")) / 864e5);
 

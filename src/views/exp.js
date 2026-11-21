@@ -5,12 +5,14 @@
 import { E, num, fmt, dateText, dt } from "../lib/util.js";
 import { t, tn } from "../i18n/index.js";
 import { isOwner } from "../data/store.js";
-import { daysLeft, status, SOON_DAYS, lastReceived } from "../lib/expiry.js";
+import { daysLeft, status, SOON_DAYS, lastReceived, undatedBatches } from "../lib/expiry.js";
 
-// q: search text. view: date | latest | nobatch
+// q: search text. view: date | batch | latest | nobatch
 export const ui = { q: "", view: "date" };
 
 const COLS = ["th.sku", "th.name", "th.batch", "th.expiry", "th.left", "th.qty", "th.value"];
+// "By batch no." puts the batch number first.
+const BATCH_FIRST = [2, 0, 1, 3, 4, 5, 6];
 const RECENT_DAYS = 30; // how far back "Latest arrivals" looks
 
 const key = (lot) => lot.item_id + "|" + lot.expiry;
@@ -27,43 +29,63 @@ function recent(lots, rec) {
 export function lists(s) {
   const byId = new Map(s.items.map((i) => [i.id, i])),
     q = ui.q.trim().toLowerCase(),
-    lots = s.lots.filter((l) => {
+    found = (l) => {
       const it = byId.get(l.item_id);
       return it && (!q || [it.sku, it.name, it.barcode, l.batch].join(" ").toLowerCase().includes(q));
-    }),
+    },
+    lots = s.lots.filter(found),
+    // stock without a date that has a batch no. (018), any kind of product
+    undated = undatedBatches(s).filter(found),
     l = [...COLS, "th.received"].map((k) => E(t(k))),
     td = (j, v, cls) => `<td data-l="${l[j]}"${cls ? ` class="${cls}"` : ""}><span class="v">${v}</span></td>`;
-  const row = (lot, rec) => {
+  // One batch. order: the column order (COLS indexes); rec: add "Received".
+  const row = (lot, rec, order = COLS.map((_, j) => j)) => {
     const it = byId.get(lot.item_id),
-      d = daysLeft(lot.expiry),
-      st = status(lot.expiry),
+      dated = !!lot.expiry,
+      d = dated ? daysLeft(lot.expiry) : null,
+      st = dated ? status(lot.expiry) : "ok",
       when = rec && rec.get(key(lot));
     // A batch close to its date can sell for less (the till offers that price).
     const cut = lot.price != null ? ` <span class="tag warn">${t("exp.priceTag", { p: fmt(lot.price) })}</span>` : "",
       priceBtn =
-        isOwner() && st != "ok"
+        dated && isOwner() && st != "ok"
           ? `<button class="g" data-act="lotPrice" data-item="${E(lot.item_id)}" data-exp="${E(lot.expiry)}">${t("exp.setPrice")}</button> `
           : "";
-    return `<tr>${td(0, `<b>${E(it.sku)}</b>`)}${td(1, E(it.name) + cut)}${td(2, lot.batch ? E(lot.batch) : `<span class="mut">—</span>`)}${td(
-      3,
-      dateText(lot.expiry),
-      st == "ok" ? "" : "warn",
-    )}${td(
-      4,
-      d < 0 ? t("exp.agoN", { n: -d }) : d == 0 ? t("exp.today") : t("exp.inN", { n: d }),
-      st == "expired" ? "bad" : st == "soon" ? "warn" : "",
-    )}${td(5, num(lot.qty))}${td(6, fmt(lot.qty * it.cost))}${rec ? td(7, when ? dt(when) : "—") : ""}<td class="act">${priceBtn}<button class="g" data-act="writeOff" data-id="${E(
-      lot.id,
-    )}">${t("exp.writeOff")}</button> <button class="g" data-act="lotDate" data-id="${E(lot.id)}">${t("exp.changeDate")}</button> <button class="g" data-act="lotBatch" data-id="${E(lot.id)}">${t(
+    const cells = [
+      td(0, `<b>${E(it.sku)}</b>`),
+      td(1, E(it.name) + cut),
+      td(2, lot.batch ? `<b>${E(lot.batch)}</b>` : `<span class="mut">—</span>`),
+      td(3, dated ? dateText(lot.expiry) : `<span class="mut">${t("inv.noDate")}</span>`, st == "ok" ? "" : "warn"),
+      td(
+        4,
+        !dated ? "—" : d < 0 ? t("exp.agoN", { n: -d }) : d == 0 ? t("exp.today") : t("exp.inN", { n: d }),
+        st == "expired" ? "bad" : st == "soon" ? "warn" : "",
+      ),
+      td(5, num(lot.qty)),
+      td(6, fmt(lot.qty * it.cost)),
+    ];
+    // Undated stock has no batch of its own to write off or re-date: only its number.
+    const acts = dated
+      ? `${priceBtn}<button class="g" data-act="writeOff" data-id="${E(lot.id)}">${t("exp.writeOff")}</button> <button class="g" data-act="lotDate" data-id="${E(
+          lot.id,
+        )}">${t("exp.changeDate")}</button> <button class="g" data-act="lotBatch" data-id="${E(lot.id)}">`
+      : `<button class="g" data-act="lotBatch" data-item="${E(lot.item_id)}">`;
+    return `<tr>${order.map((j) => cells[j]).join("")}${rec ? td(7, when ? dt(when) : "—") : ""}<td class="act">${acts}${t(
       lot.batch ? "exp.editBatch" : "exp.addBatch",
     )}</button></td></tr>`;
   };
-  const table = (list, empty, rec) =>
-    `<table class="rt"><thead><tr>${[...COLS, ...(rec ? ["th.received"] : [])].map((k) => `<th>${t(k)}</th>`).join("")}<th></th></tr></thead><tbody>${
+  const table = (list, empty, rec, order = COLS.map((_, j) => j)) =>
+    `<table class="rt"><thead><tr>${[...order.map((j) => COLS[j]), ...(rec ? ["th.received"] : [])].map((k) => `<th>${t(k)}</th>`).join("")}<th></th></tr></thead><tbody>${
       list.length
-        ? list.map((x) => row(x, rec)).join("")
+        ? list.map((x) => row(x, rec, order)).join("")
         : `<tr><td colspan="${rec ? 9 : 8}" class="mut">${q ? t("exp.noMatch") : empty}</td></tr>`
     }</tbody></table>`;
+
+  // Every batch that has a number, the one to expire first on top; undated last.
+  if (ui.view == "batch") {
+    const L = [...lots.filter((x) => x.batch).sort((a, b) => (a.expiry < b.expiry ? -1 : a.expiry > b.expiry ? 1 : 0)), ...undated];
+    return `<div class="card ts"><h3>${t("exp.view.byBatchH")}</h3>${table(L, t("exp.noneBatch"), null, BATCH_FIRST)}</div>`;
+  }
 
   if (ui.view != "date") {
     const rec = lastReceived(s),
@@ -94,6 +116,8 @@ export function lists(s) {
     [t("exp.listExpired"), expired, t("exp.noneExpired")],
     ...bands(soon).map(([h, L]) => [h, L, t("exp.noneSoon")]),
     [t("exp.listAll"), lots.filter((x) => status(x.expiry) == "ok"), t("exp.noneDated")],
+    // only shown when there is some: most shops have none
+    ...(undated.length ? [[t("exp.noDateH"), undated, ""]] : []),
   ]
     // While searching, only the lists with something found.
     .filter(([, L]) => !q || L.length);
@@ -127,6 +151,7 @@ export default function exp(s) {
     ui.q,
   )}" data-input="expSearch" autocomplete="off"><select data-input="expView" aria-label="${E(t("exp.view.label"))}">${[
     ["date", t("exp.view.byDate")],
+    ["batch", t("exp.view.byBatch")],
     ["latest", t("exp.view.latest", { n: RECENT_DAYS })],
     ["nobatch", t("exp.view.noBatch", { n: noBatch })],
   ]

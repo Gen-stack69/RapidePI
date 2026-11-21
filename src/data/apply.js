@@ -75,13 +75,18 @@ export function stockMove(db, ctx, itemId, delta, note, expiry = null, saleId = 
       if (lot) lot.qty = +lot.qty + dated;
       else db.lots.push({ id: uid(), shop_id: it.shop_id, item_id: it.id, expiry, qty: dated, created_at: at(ctx) });
     }
-    // A void: the stock goes back with the batch number it left with (017).
+    // A void: the stock goes back with the batch number it left with (017/018).
     let back = null;
-    if (saleId && expiry) {
+    if (saleId) {
       back =
-        db.movements.find((m) => m.sale_id == saleId && m.item_id == it.id && m.expiry == expiry && m.type == "out" && m.batch)
-          ?.batch || null;
+        db.movements.find(
+          (m) => m.sale_id == saleId && m.item_id == it.id && (m.expiry || null) == (expiry || null) && m.type == "out" && m.batch,
+        )?.batch || null;
       if (back) setBatch(db, it.id, expiry, back);
+    } else if (!expiry) {
+      // Undated stock arriving when there was none: the old numbers went with it (018).
+      const before = +it.qty - db.lots.filter((l) => l.item_id == it.id).reduce((a, l) => a + +l.qty, 0);
+      if (before <= 0) it.batch = null;
     }
     log("in", delta, expiry, back);
   } else {
@@ -101,10 +106,10 @@ export function stockMove(db, ctx, itemId, delta, note, expiry = null, saleId = 
     if (left && free) {
       const n = Math.min(free, left);
       left -= n;
-      log("out", n, null);
+      log("out", n, null, it.batch); // undated stock: its numbers are on the product (018)
     }
     lots.filter((l) => l.expiry < now).forEach(take);
-    if (left) log("out", left, null);
+    if (left) log("out", left, null, it.batch);
     drop(db.lots, (l) => l.qty <= 0);
   }
   it.qty = q;
@@ -402,9 +407,11 @@ export function addBatch(cur, add) {
 /** set_lot_batch(): add a number to the batch of one date (receiving), or
  * replace it (correcting; empty clears it). No batch on that date: nothing. */
 export function setBatch(db, itemId, expiry, batch, add = true) {
-  if (!expiry) return;
-  const lot = db.lots.find((l) => l.item_id == itemId && l.expiry == expiry);
-  if (lot) lot.batch = add ? addBatch(lot.batch, batch) : String(batch ?? "").trim().slice(0, 120) || null;
+  // No date: the number of the product's undated stock (018).
+  const it = expiry ? null : db.items.find((i) => i.id == itemId),
+    lot = expiry && db.lots.find((l) => l.item_id == itemId && l.expiry == expiry),
+    on = it || lot;
+  if (on) on.batch = add ? addBatch(on.batch, batch) : String(batch ?? "").trim().slice(0, 120) || null;
 }
 
 /** The batch numbers each product of a sale left from (017), for the
