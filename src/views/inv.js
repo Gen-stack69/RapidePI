@@ -6,7 +6,8 @@ import { status } from "../lib/expiry.js";
 import { SIGN } from "../lib/rates.js";
 
 // q: search text. f: all | consumable | durable | soon | expired. s: sort order (SORTS)
-export const ui = { q: "", f: "all", s: "name" };
+// open: products whose batch list is rolled down (kept while the list redraws).
+export const ui = { q: "", f: "all", s: "name", open: new Set() };
 
 // Column order, shared by the header and the per-cell mobile labels
 // (styles.css shows `data-l` instead of the hidden header on narrow screens).
@@ -28,7 +29,6 @@ const batchesOf = (s) => {
   }
   return m;
 };
-const SHOW_BATCHES = 3; // more than this: "+N more" opens the Expiry screen
 
 export function rows(s) {
   const q = ui.q.toLowerCase(),
@@ -78,21 +78,35 @@ export function rows(s) {
         }</${edit ? "button" : "span"}>`;
       })
       .join(" ");
-    // Each batch on its own line (date · batch no. · how many), so two
-    // deliveries of the same product are never mixed up.
+    // One batch: its line under the name (date · batch no. · how many).
+    // Several: a button that rolls down a list of them under the product, so
+    // two deliveries of the same product are never mixed up.
     const B = bats.get(i.id) || [],
+      cls = (l) => (status(l.expiry) == "ok" ? "mut" : "warn"),
+      batchNo = (l) => (l.batch ? `${t("exp.batchShort")} ${E(l.batch)}` : `<span class="mut">${t("inv.noBatchNo")}</span>`),
+      open = B.length > 1 && (ui.open.has(i.id) || (q && B.some((l) => String(l.batch || "").toLowerCase().includes(q)))),
       lines =
-        B.slice(0, SHOW_BATCHES)
-          .map(
-            (l) =>
-              `<br><small class="${status(l.expiry) == "ok" ? "mut" : "warn"}">${t("exp.short")} ${dateText(l.expiry)}${expiryNote(l.expiry)}${
-                l.batch ? ` · ${t("exp.batchShort")} ${E(l.batch)}` : ""
-              } · ${num(l.qty)}</small>`,
-          )
-          .join("") +
-        (B.length > SHOW_BATCHES
-          ? `<br><small><a href="#exp" data-act="expFor" data-sku="${E(i.sku)}">${t("inv.moreBatches", { n: B.length - SHOW_BATCHES })}</a></small>`
-          : "");
+        B.length == 1
+          ? `<br><small class="${cls(B[0])}">${t("exp.short")} ${dateText(B[0].expiry)}${expiryNote(B[0].expiry)}${
+              B[0].batch ? ` · ${t("exp.batchShort")} ${E(B[0].batch)}` : ""
+            } · ${num(B[0].qty)}</small>`
+          : B.length > 1
+            ? `<br><button type="button" class="bt${open ? " on" : ""}${B.some((l) => cls(l) == "warn") ? " warn" : ""}" data-act="invBatches" data-id="${id}" aria-expanded="${!!open}"><i class="chev" aria-hidden="true">▸</i> ${t(
+                "inv.batchesN",
+                { n: B.length },
+              )} · ${t("exp.short")} ${dateText(B[0].expiry)}</button>`
+            : "",
+      detail =
+        B.length > 1
+          ? `<tr class="bd${open ? " open" : ""}" data-for="${id}"><td colspan="9"><div class="bdw"><div class="bl">${B.map(
+              (l) =>
+                `<div class="br ${cls(l)}"><span>${t("exp.short")} ${dateText(l.expiry)}${expiryNote(l.expiry)}</span><span>${batchNo(l)}</span><span class="q">${num(
+                  l.qty,
+                )}${i.unit ? " " + E(i.unit) : ""}</span><span><button class="g" data-act="lotBatch" data-id="${E(l.id)}">${t(
+                  l.batch ? "exp.editBatch" : "exp.addBatch",
+                )}</button></span></div>`,
+            ).join("")}<p class="mt"><a href="#exp" data-act="expFor" data-sku="${E(i.sku)}">${t("inv.openExpiry")}</a></p></div></div></td></tr>`
+          : "";
     const pic = photoSrc(i),
       name = `${E(i.name)} <span class="tag ${kind}">${t("kind." + kind)}</span>${packs ? "<br>" + packs : ""}${lines}`;
     const cost =
@@ -118,7 +132,7 @@ export function rows(s) {
       isOwner()
         ? ` <button class="g" data-act="delItem" data-id="${id}" title="${E(t("tip.delete"))}">🗑</button>`
         : ""
-    } <button class="g" data-act="addPack" data-id="${id}" title="${E(t("tip.addPack"))}">📦</button></td></tr>`;
+    } <button class="g" data-act="addPack" data-id="${id}" title="${E(t("tip.addPack"))}">📦</button></td></tr>${detail}`;
   }).join("");
 }
 

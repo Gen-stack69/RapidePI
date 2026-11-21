@@ -937,7 +937,18 @@ const A = {
   // is never rung up by mistake.
   posCam: () => (scanner.active() ? scanner.cam(false) : scanner.cam(true, till.addCode, { single: true })),
   closeDlg: () => $("#dlg").close(),
-  // Inventory's "+N more": that product's batches on the Expiry screen.
+  // Roll a product's batch list down or up, without redrawing the table, so
+  // the rows below slide instead of jumping.
+  invBatches(el) {
+    const id = el.dataset.id,
+      open = !el.classList.contains("on");
+    if (open) invUi.open.add(id);
+    else invUi.open.delete(id);
+    el.classList.toggle("on", open);
+    el.setAttribute("aria-expanded", open);
+    document.querySelector(`tr.bd[data-for="${CSS.escape(id)}"]`)?.classList.toggle("open", open);
+  },
+  // Inventory: that product's batches on the Expiry screen.
   expFor(el) {
     expUi.q = el.dataset.sku || "";
     expUi.view = "date";
