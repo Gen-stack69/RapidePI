@@ -22,7 +22,15 @@ function load() {
   } catch {}
   if (!d || !d.shops) d = { shops: [], settings: {} };
   // Data saved before expiry tracking and the till existed lacks these lists.
-  for (const k of ["items", "orders", "movements", "lots", "sales", "sale_lines", "packs", "pack_receipts", "customers"]) d[k] ||= [];
+  for (const k of ["items", "orders", "movements", "lots", "ulots", "sales", "sale_lines", "packs", "pack_receipts", "customers"]) d[k] ||= [];
+  // 018 kept a no-date number on the product; 019 makes it a batch of its own.
+  for (const i of d.items)
+    if (i.batch) {
+      const free = +i.qty - [...d.lots, ...d.ulots].filter((l) => l.item_id == i.id).reduce((a, l) => a + +l.qty, 0);
+      if (free > 0)
+        d.ulots.push({ id: crypto.randomUUID(), shop_id: i.shop_id, item_id: i.id, expiry: null, qty: free, batch: i.batch, created_at: new Date().toISOString() });
+      delete i.batch;
+    }
   // ...and settings saved before VAT and expiry reminders.
   for (const id in d.settings) d.settings[id] = { ...SETTINGS, ...d.settings[id] };
   return d;
@@ -100,6 +108,7 @@ export async function reload() {
     .filter((m) => new Date(m.created_at) >= since)
     .sort(byNewest);
   state.lots = mine(db.lots).sort((a, b) => (a.expiry < b.expiry ? -1 : 1));
+  state.ulots = mine(db.ulots).sort((a, b) => String(a.created_at).localeCompare(String(b.created_at)));
   state.sales = mine(db.sales)
     .filter((x) => new Date(x.created_at) >= since)
     .sort(byNewest);
@@ -216,6 +225,7 @@ export async function deleteItem(id) {
   db.items = db.items.filter((i) => !(i.id == id && i.shop_id == shopId()));
   db.orders = db.orders.filter((o) => o.item_id != id);
   db.lots = db.lots.filter((l) => l.item_id != id);
+  db.ulots = db.ulots.filter((l) => l.item_id != id);
   db.packs = db.packs.filter((p) => p.item_id != id);
   db.pack_receipts = db.pack_receipts.filter((r) => r.item_id != id);
   db.sale_lines.forEach((l) => l.item_id == id && (l.item_id = null)); // receipts keep the name
@@ -344,6 +354,7 @@ export async function eraseAll() {
   db.orders = db.orders.filter(keep);
   db.movements = db.movements.filter(keep);
   db.lots = db.lots.filter(keep);
+  db.ulots = db.ulots.filter(keep);
   db.sales = db.sales.filter(keep);
   db.sale_lines = db.sale_lines.filter(keep);
   db.packs = db.packs.filter(keep);
@@ -426,6 +437,17 @@ export async function setLotBatch(itemId, expiry, batch, add = true) {
 export async function changeLotExpiry(lotId, expiry) {
   writable();
   if (!expiry) fail("err.needDate");
+  // a no-date batch (019) getting its date moves over to the dated ones
+  const nd = db.ulots.find((l) => l.id == lotId && l.shop_id == shopId());
+  if (nd) {
+    db.ulots = db.ulots.filter((l) => l.id != lotId);
+    const to = db.lots.find((l) => l.item_id == nd.item_id && l.expiry == expiry);
+    if (to) {
+      to.qty = +to.qty + +nd.qty;
+      to.batch = apply.addBatch(to.batch, nd.batch);
+    } else db.lots.push({ ...nd, expiry });
+    return commit();
+  }
   const lot = db.lots.find((l) => l.id == lotId && l.shop_id == shopId()) || fail("err.lotNotFound");
   if (lot.expiry == expiry) return;
   const to = db.lots.find((l) => l.item_id == lot.item_id && l.expiry == expiry && l.id != lot.id);
@@ -434,6 +456,13 @@ export async function changeLotExpiry(lotId, expiry) {
     to.batch = apply.addBatch(to.batch, lot.batch);
     db.lots = db.lots.filter((l) => l.id != lot.id);
   } else lot.expiry = expiry;
+  await commit();
+}
+
+/** Correct a no-date batch's number (mirror 019). */
+export async function setUndatedBatch(lotId, batch) {
+  writable();
+  apply.setUndatedBatch(db, lotId, batch);
   await commit();
 }
 

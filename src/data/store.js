@@ -59,6 +59,7 @@ export const {
   photoSrc,
   changeLotExpiry,
   setLotBatch,
+  setUndatedBatch,
 } = B;
 
 // Back online: send what was done offline, then fetch a fresh copy.

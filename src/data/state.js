@@ -12,6 +12,7 @@ export const state = {
   orders: [],
   movements: [], // last 30 days
   lots: [], // units per expiry date, all of them
+  ulots: [], // no-date batches: a delivery with a batch no. but no date (019)
   sales: [], // last 30 days
   saleLines: [], // lines of those sales
   truncated: false, // true when the server held back older orders/movements

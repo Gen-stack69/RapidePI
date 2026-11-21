@@ -949,21 +949,43 @@ await ok("a sale's stock records which batch it left from, even one it empties; 
     await as(A, "delete from items where id = $1", [it]);
   }
 });
-await ok("stock without a date keeps its batch no. on the product; a new delivery after selling out starts fresh (018)", async () => {
+await ok("no-date deliveries each become a batch with its own qty; sold oldest first; a void puts them back (019)", async () => {
   const it = (await as(A, "insert into items (shop_id, sku, name, kind, price) values ($1, 'TIGER-W', 'Tigerhead water', 'durable', 5) returning id", [shopA])).rows[0].id;
   try {
-    const num = async () => (await as(A, "select batch from items where id = $1", [it])).rows[0].batch;
+    const nd = async () =>
+      (await as(A, "select batch || '=' || qty::int as b from lots where item_id = $1 and expiry is null order by created_at, id", [it])).rows.map((r) => r.b).join(",");
+    await as(A, "select adjust_stock($1, 2, 'old stock')", [it]); // no date, no number: free stock
     await as(A, "select adjust_stock($1, 4, 'scan')", [it]);
     await as(A, "select set_lot_batch($1, null, 'TH-01')", [it]);
-    eq(await num(), "TH-01", "set without a date");
-    const till = (await as(A, "select register_till($1, 'Water test') c", [shopA])).rows[0].c;
-    const sale = (await as(A, "select create_sale($1, 'c-018-water', $2::jsonb, 0, 'cash', 1e9, null, $3) id", [shopA, JSON.stringify([{ item_id: it, qty: 4 }]), till])).rows[0].id;
-    eq((await as(A, "select batch from movements where sale_id = $1 and type = 'out'", [sale])).rows[0].batch, "TH-01", "the sale carries it");
     await as(A, "select adjust_stock($1, 6, 'scan')", [it]);
-    eq(await num(), null, "sold out, new delivery: the old number is cleared");
     await as(A, "select set_lot_batch($1, null, 'TH-02')", [it]);
-    await as(A, "select adjust_stock($1, 2, 'scan')", [it]);
-    eq(await num(), "TH-02", "more undated stock while some is left keeps the number");
+    eq(await nd(), "TH-01=4,TH-02=6", "two batches, each its own qty");
+    await as(A, "select set_lot_batch($1, null, 'TH-02B')", [it]);
+    eq(await nd(), "TH-01=4,TH-02, TH-02B=6", "a second number for the same delivery joins its batch");
+    const till = (await as(A, "select register_till($1, 'Water test') c", [shopA])).rows[0].c;
+    const sale = (await as(A, "select create_sale($1, 'c-019-water', $2::jsonb, 0, 'cash', 1e9, null, $3) id", [shopA, JSON.stringify([{ item_id: it, qty: 7 }]), till])).rows[0].id;
+    const out = (await as(A, "select coalesce(batch, '-') || '=' || qty::int as b from movements where sale_id = $1 and type = 'out' order by batch nulls first", [sale])).rows.map((r) => r.b).join(",");
+    eq(out, "-=2,TH-01=4,TH-02, TH-02B=1", "free stock first, then the oldest batch");
+    eq(await nd(), "TH-02, TH-02B=5", "TH-01 sold out");
+    await as(A, "select void_sale_by_client($1, 'c-019-water')", [shopA]);
+    eq((await as(A, "select string_agg(batch || '=' || qty::int, ',' order by batch, qty) b from lots where item_id = $1 and expiry is null", [it])).rows[0].b, "TH-01=4,TH-02, TH-02B=1,TH-02, TH-02B=5", "void: batches back as they left");
+    eq(+(await as(A, "select qty from items where id = $1", [it])).rows[0].qty, 12, "stock back");
+    const lot = (await as(A, "select id from lots where item_id = $1 and batch = 'TH-01'", [it])).rows[0].id;
+    await as(A, "select set_undated_lot_batch($1, 'TH-01X')", [lot]);
+    eq((await as(A, "select batch from lots where id = $1", [lot])).rows[0].batch, "TH-01X", "number corrected");
+    await as(A, "select change_lot_expiry($1, $2)", [lot, "2030-01-01"]);
+    eq((await as(A, "select expiry::text as d, batch from lots where id = $1", [lot])).rows.map((r) => r.d + "=" + r.batch).join(), "2030-01-01=TH-01X", "a no-date batch gets a date");
+  } finally {
+    await as(A, "delete from items where id = $1", [it]);
+  }
+});
+await rejects("another shop cannot change a no-date batch's number (019)", async () => {
+  const it = (await as(A, "insert into items (shop_id, sku, name, kind) values ($1, 'TIGER-X', 'Water', 'durable') returning id", [shopA])).rows[0].id;
+  try {
+    await as(A, "select adjust_stock($1, 3, 'scan')", [it]);
+    await as(A, "select set_lot_batch($1, null, 'Z1')", [it]);
+    const lot = (await as(A, "select id from lots where item_id = $1", [it])).rows[0].id;
+    await as(B, "select set_undated_lot_batch($1, 'HACK')", [lot]);
   } finally {
     await as(A, "delete from items where id = $1", [it]);
   }

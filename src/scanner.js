@@ -253,7 +253,7 @@ async function handle(c, format) {
         sign: m == "in" ? "+" : "−",
         q,
         qty: `<b>${+now.qty}</b>`,
-      })}</span>${expTag(expiry)}${m == "in" ? ` ${batchBtn(it.id, expiry)}` : ""}`,
+      })}</span>${expTag(expiry)}${m == "in" ? ` ${batchBtn(it.id, expiry, batch)}` : ""}`,
     );
   } catch (e) {
     log(`<span class="warn">${E(it.sku)}: ${E(errText(e))}</span>`);
@@ -262,11 +262,17 @@ async function handle(c, format) {
 
 // Received stock with a date: a button to add or correct its batch no. later,
 // for scans that went through without the dialog (box filled, GS1 date).
-function batchBtn(itemId, expiry) {
-  const on = expiry ? state.lots.find((l) => l.item_id == itemId && l.expiry == expiry) : state.items.find((i) => i.id == itemId);
-  return on
-    ? `<button class="g" data-act="lotBatch" data-item="${E(itemId)}"${expiry ? ` data-exp="${E(expiry)}"` : ""}>${E(batchLabel(on.batch || ""))}</button>`
-    : "";
+function batchBtn(itemId, expiry, batch = "") {
+  const item = `data-act="lotBatch" data-item="${E(itemId)}"`;
+  if (expiry) {
+    const lot = state.lots.find((l) => l.item_id == itemId && l.expiry == expiry);
+    return lot ? `<button class="g" ${item} data-exp="${E(expiry)}">${E(batchLabel(lot.batch || ""))}</button>` : "";
+  }
+  // No date (019): this delivery became the product's newest no-date batch if
+  // it had a number; otherwise the button gives it one.
+  return batch
+    ? `<button class="g" ${item} data-latest="1">${E(batchLabel(batch))}</button>`
+    : `<button class="g" ${item} data-new="1">${E(batchLabel(""))}</button>`;
 }
 
 // A date typed into the scanner's box by hand applies to the next product scanned.

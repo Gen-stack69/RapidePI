@@ -6,7 +6,8 @@
 // It mirrors the database functions in supabase/migrations, so the screen
 // shows what the server will end up with.
 //
-// db: { items, packs, pack_receipts, customers, lots, movements, sales, sale_lines, orders, settings }, where
+// db: { items, packs, pack_receipts, customers, lots, ulots, movements, sales, sale_lines, orders, settings }, where
+// lots are the dated batches and ulots the no-date ones (019: a delivery with a batch no. but no date),
 // settings maps shop id → { auto_reorder, vat_rate, ... }. Lists are changed in place.
 // ctx: { shopId, userId, at (ISO time it happened), short (may go below zero) }
 import { err } from "../i18n/index.js";
@@ -20,6 +21,7 @@ const drop = (list, gone) => {
   for (let i = list.length; i--; ) if (gone(list[i])) list.splice(i, 1);
 };
 const at = (ctx) => ctx.at || new Date().toISOString();
+const U = (db) => (db.ulots ||= []);
 
 // Same rule as create_sale(): the wholesale price from the wholesale quantity.
 export function linePrice(it, qty) {
@@ -75,24 +77,31 @@ export function stockMove(db, ctx, itemId, delta, note, expiry = null, saleId = 
       if (lot) lot.qty = +lot.qty + dated;
       else db.lots.push({ id: uid(), shop_id: it.shop_id, item_id: it.id, expiry, qty: dated, created_at: at(ctx) });
     }
-    // A void: the stock goes back with the batch number it left with (017/018).
+    // A void: the stock goes back with the batch number it left with (017),
+    // and no-date batches come back as they left (019).
     let back = null;
-    if (saleId) {
+    if (saleId && expiry) {
       back =
-        db.movements.find(
-          (m) => m.sale_id == saleId && m.item_id == it.id && (m.expiry || null) == (expiry || null) && m.type == "out" && m.batch,
-        )?.batch || null;
+        db.movements.find((m) => m.sale_id == saleId && m.item_id == it.id && m.expiry == expiry && m.type == "out" && m.batch)
+          ?.batch || null;
       if (back) setBatch(db, it.id, expiry, back);
-    } else if (!expiry) {
-      // Undated stock arriving when there was none: the old numbers went with it (018).
-      const before = +it.qty - db.lots.filter((l) => l.item_id == it.id).reduce((a, l) => a + +l.qty, 0);
-      if (before <= 0) it.batch = null;
+    } else if (saleId) {
+      const per = new Map();
+      for (const m of db.movements)
+        if (m.sale_id == saleId && m.item_id == it.id && !m.expiry && m.type == "out" && m.batch)
+          per.set(m.batch, (per.get(m.batch) || 0) + +m.qty);
+      for (const [batch, n] of per)
+        U(db).push({ id: uid(), shop_id: it.shop_id, item_id: it.id, expiry: null, qty: n, batch, created_at: at(ctx) });
     }
     log("in", delta, expiry, back);
   } else {
     let left = -delta;
     const lots = db.lots.filter((l) => l.item_id == it.id).sort((a, b) => (a.expiry < b.expiry ? -1 : 1)),
-      free = Math.max(+it.qty - lots.reduce((a, l) => a + +l.qty, 0), 0),
+      // no-date batches, the oldest delivery first (019)
+      ul = U(db)
+        .filter((l) => l.item_id == it.id)
+        .sort((a, b) => String(a.created_at).localeCompare(String(b.created_at))),
+      free = Math.max(+it.qty - [...lots, ...ul].reduce((a, l) => a + +l.qty, 0), 0),
       now = today();
     const take = (lot) => {
       const n = Math.min(+lot.qty, left);
@@ -103,14 +112,17 @@ export function stockMove(db, ctx, itemId, delta, note, expiry = null, saleId = 
     };
     if (first) lots.filter((l) => l.expiry == first).forEach(take);
     lots.filter((l) => l.expiry >= now).forEach(take);
+    // stock with no date and no number, then the no-date batches
     if (left && free) {
       const n = Math.min(free, left);
       left -= n;
-      log("out", n, null, it.batch); // undated stock: its numbers are on the product (018)
+      log("out", n, null);
     }
+    ul.forEach(take);
     lots.filter((l) => l.expiry < now).forEach(take);
-    if (left) log("out", left, null, it.batch);
+    if (left) log("out", left, null);
     drop(db.lots, (l) => l.qty <= 0);
+    drop(U(db), (l) => l.qty <= 0);
   }
   it.qty = q;
   it.updated_at = new Date().toISOString();
@@ -407,11 +419,37 @@ export function addBatch(cur, add) {
 /** set_lot_batch(): add a number to the batch of one date (receiving), or
  * replace it (correcting; empty clears it). No batch on that date: nothing. */
 export function setBatch(db, itemId, expiry, batch, add = true) {
-  // No date: the number of the product's undated stock (018).
-  const it = expiry ? null : db.items.find((i) => i.id == itemId),
-    lot = expiry && db.lots.find((l) => l.item_id == itemId && l.expiry == expiry),
-    on = it || lot;
-  if (on) on.batch = add ? addBatch(on.batch, batch) : String(batch ?? "").trim().slice(0, 120) || null;
+  const b = String(batch ?? "").trim().slice(0, 120) || null;
+  if (expiry) {
+    const lot = db.lots.find((l) => l.item_id == itemId && l.expiry == expiry);
+    if (lot) lot.batch = add ? addBatch(lot.batch, b) : b;
+    return;
+  }
+  // No date (019): the product's latest delivery without one becomes its own batch.
+  if (!b) return;
+  const it = db.items.find((i) => i.id == itemId),
+    m = db.movements
+      .filter((x) => x.item_id == itemId && x.type == "in" && !x.expiry && !x.sale_id && x.note != "void")
+      .reduce((best, x) => (!best || String(x.created_at) >= String(best.created_at) ? x : best), null);
+  if (!it || !m) return;
+  let lot = U(db).find((l) => l.move_id == m.id);
+  if (lot) lot.batch = add ? addBatch(lot.batch, b) : b;
+  else {
+    const free = +it.qty - [...db.lots, ...U(db)].filter((l) => l.item_id == itemId).reduce((a, l) => a + +l.qty, 0),
+      n = Math.min(+m.qty, free);
+    if (!(n > 0)) return;
+    U(db).push((lot = { id: uid(), shop_id: it.shop_id, item_id: itemId, expiry: null, qty: n, batch: b, move_id: m.id, created_at: m.created_at }));
+  }
+  m.batch = lot.batch;
+}
+
+/** set_undated_lot_batch() (019): correct a no-date batch's number; none left
+ * puts its stock back with the stock that has neither date nor number. */
+export function setUndatedBatch(db, lotId, batch) {
+  const lot = U(db).find((l) => l.id == lotId) || fail("err.lotNotFound"),
+    b = String(batch ?? "").trim().slice(0, 120);
+  if (b) lot.batch = b;
+  else drop(U(db), (l) => l.id == lotId);
 }
 
 /** The batch numbers each product of a sale left from (017), for the
@@ -420,7 +458,12 @@ export function saleBatches(movements, saleId) {
   const m = new Map();
   const mine = (movements || [])
     .filter((mv) => mv.sale_id == saleId && mv.type == "out" && mv.batch && mv.item_id)
-    .sort((a, b) => (a.expiry < b.expiry ? -1 : a.expiry > b.expiry ? 1 : 0)); // soonest date first
+    // soonest date first (no date last); the same date in batch-number order
+    .sort(
+      (a, b) =>
+        String(a.expiry || "9999").localeCompare(String(b.expiry || "9999")) ||
+        String(a.batch).localeCompare(String(b.batch), undefined, { numeric: true }),
+    );
   for (const mv of mine) m.set(mv.item_id, addBatch(m.get(mv.item_id), mv.batch));
   return m;
 }
