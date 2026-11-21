@@ -1252,3 +1252,103 @@ img.thumb {
 .rt td.sku.hasph {
   max-width: none;
 }
+
+/* Inventory: a product with several batches rolls its list down under it.
+   The detail row is always there; opening it grows it from 0 to its height,
+   so the rows below slide down instead of jumping. */
+button.bt {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 4px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  color: var(--muted);
+  background: var(--btn-bg);
+  border: 1px solid var(--edge);
+}
+button.bt.warn {
+  color: var(--warn-text);
+  border-color: var(--warn);
+}
+button.bt .chev {
+  font-style: normal;
+  display: inline-block;
+  transition: transform 0.2s ease;
+}
+button.bt.on .chev {
+  transform: rotate(90deg);
+}
+.rt tr.bd > td {
+  padding: 0 8px;
+  border-bottom: 0;
+  white-space: normal;
+}
+.rt tr.bd.open > td {
+  border-bottom: 1px solid var(--line);
+}
+.bdw {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 0.25s ease;
+}
+.rt tr.bd.open .bdw {
+  grid-template-rows: 1fr;
+}
+.bdw > .bl {
+  overflow: hidden;
+  min-height: 0;
+}
+.rt tr.bd.open .bl {
+  padding: 4px 0 12px;
+}
+.bl .br {
+  display: grid;
+  grid-template-columns: minmax(180px, 1.4fr) minmax(120px, 1fr) 90px auto;
+  gap: 12px;
+  align-items: center;
+  padding: 6px 10px;
+  margin-left: 12px;
+  border-left: 2px solid var(--edge);
+  font-size: 13px;
+}
+.bl .br.warn {
+  border-left-color: var(--warn);
+}
+.bl .br.warn > span:first-child {
+  color: var(--warn-text);
+}
+.bl .br .q {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.bl p {
+  margin-left: 12px;
+  font-size: 12px;
+}
+@media (max-width: 700px) {
+  .rt tr.bd,
+  .rt tr.bd > td {
+    display: block;
+    padding: 0;
+    border: 0;
+  }
+  .rt tr.bd > td:before {
+    content: none;
+  }
+  .bl .br {
+    grid-template-columns: 1fr auto;
+    margin-left: 0;
+    text-align: left;
+  }
+  .bl .br > span:last-child {
+    grid-column: 1 / -1;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .bdw,
+  button.bt .chev {
+    transition: none;
+  }
+}
