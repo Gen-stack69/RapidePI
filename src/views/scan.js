@@ -15,7 +15,9 @@ export default function scan() {
     t("f.expiryPh"),
   )}"><button type="button" class="g" data-act="readDate" data-for="sexp">${t(
     "btn.readDate",
-  )}</button></span><small class="said"></small></label><div class="row mt"><button class="b" data-act="camOn">${t(
+  )}</button></span><small class="said"></small></label><label class="mt" id="sbatchl">${t("f.batch")}<input id="sbatch" data-input="scanBatch" autocomplete="off" placeholder="${E(
+    t("scan.batchPh"),
+  )}"></label><div class="row mt"><button class="b" data-act="camOn">${t(
     "scan.camOn",
   )}</button><button class="g" data-act="camOff">${t(
     "scan.camOff",

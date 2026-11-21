@@ -377,6 +377,25 @@ export function writeOff(db, ctx, itemId, expiry, qty, note = "expired") {
   return it.qty;
 }
 
+/** "A1, B2" + "C3" → "A1, B2, C3", as lot_batch_add() does (016): a batch
+ * holds every batch / production number received on its date, each once. */
+export function addBatch(cur, add) {
+  const c = String(cur ?? "").trim(),
+    n = String(add ?? "").trim();
+  if (!n) return c || null;
+  if (!c) return n.slice(0, 120);
+  if (c.split(",").some((x) => x.trim().toLowerCase() == n.toLowerCase())) return c;
+  return (c + ", " + n).slice(0, 120);
+}
+
+/** set_lot_batch(): add a number to the batch of one date (receiving), or
+ * replace it (correcting; empty clears it). No batch on that date: nothing. */
+export function setBatch(db, itemId, expiry, batch, add = true) {
+  if (!expiry) return;
+  const lot = db.lots.find((l) => l.item_id == itemId && l.expiry == expiry);
+  if (lot) lot.batch = add ? addBatch(lot.batch, batch) : String(batch ?? "").trim().slice(0, 120) || null;
+}
+
 /** The number printed on a receipt: the till's own (A-0042) when it has one. */
 export const saleNo = (s) =>
   s.till ? `${s.till}-${String(s.till_no).padStart(4, "0")}` : s.receipt_no != null ? String(s.receipt_no) : "…";

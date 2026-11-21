@@ -5,7 +5,7 @@ import { t, tn } from "../i18n/index.js";
 import { isOwner } from "../data/store.js";
 import { daysLeft, status, SOON_DAYS } from "../lib/expiry.js";
 
-const COLS = ["th.sku", "th.name", "th.expiry", "th.left", "th.qty", "th.value"];
+const COLS = ["th.sku", "th.name", "th.batch", "th.expiry", "th.left", "th.qty", "th.value"];
 
 export default function exp(s) {
   const byId = new Map(s.items.map((i) => [i.id, i])),
@@ -30,17 +30,23 @@ export default function exp(s) {
         isOwner() && st != "ok"
           ? `<button class="g" data-act="lotPrice" data-item="${E(lot.item_id)}" data-exp="${E(lot.expiry)}">${t("exp.setPrice")}</button> `
           : "";
-    return `<tr>${td(0, `<b>${E(it.sku)}</b>`)}${td(1, E(it.name) + cut)}${td(2, dateText(lot.expiry), st == "ok" ? "" : "warn")}${td(
+    return `<tr>${td(0, `<b>${E(it.sku)}</b>`)}${td(1, E(it.name) + cut)}${td(2, lot.batch ? E(lot.batch) : `<span class="mut">—</span>`)}${td(
       3,
+      dateText(lot.expiry),
+      st == "ok" ? "" : "warn",
+    )}${td(
+      4,
       d < 0 ? t("exp.agoN", { n: -d }) : d == 0 ? t("exp.today") : t("exp.inN", { n: d }),
       st == "expired" ? "bad" : st == "soon" ? "warn" : "",
-    )}${td(4, num(lot.qty))}${td(5, fmt(lot.qty * it.cost))}<td class="act">${priceBtn}<button class="g" data-act="writeOff" data-id="${E(
+    )}${td(5, num(lot.qty))}${td(6, fmt(lot.qty * it.cost))}<td class="act">${priceBtn}<button class="g" data-act="writeOff" data-id="${E(
       lot.id,
-    )}">${t("exp.writeOff")}</button> <button class="g" data-act="lotDate" data-id="${E(lot.id)}">${t("exp.changeDate")}</button></td></tr>`;
+    )}">${t("exp.writeOff")}</button> <button class="g" data-act="lotDate" data-id="${E(lot.id)}">${t("exp.changeDate")}</button> <button class="g" data-act="lotBatch" data-id="${E(lot.id)}">${t(
+      lot.batch ? "exp.editBatch" : "exp.addBatch",
+    )}</button></td></tr>`;
   };
   const table = (list, empty) =>
     `<table class="rt"><thead><tr>${COLS.map((k) => `<th>${t(k)}</th>`).join("")}<th></th></tr></thead><tbody>${
-      list.length ? list.map(row).join("") : `<tr><td colspan="7" class="mut">${empty}</td></tr>`
+      list.length ? list.map(row).join("") : `<tr><td colspan="8" class="mut">${empty}</td></tr>`
     }</tbody></table>`;
   // "Soon" split into within a week, a month and two months, as far as the
   // shop's warning reaches (settings.expiry_days).

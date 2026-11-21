@@ -93,12 +93,12 @@ export const sets = (s) => {
       }),
     ],
     Expiry: [
-      ["SKU", "Name", "Expiry", "Qty", "Value (LAK)"],
+      ["SKU", "Name", "Expiry", "Qty", "Value (LAK)", "Batch"],
       ...(s.lots || [])
         .filter((l) => byId.has(l.item_id))
         .map((l) => {
           const i = byId.get(l.item_id);
-          return [i.sku, i.name, l.expiry, +l.qty, l.qty * i.cost];
+          return [i.sku, i.name, l.expiry, +l.qty, l.qty * i.cost, l.batch || ""];
         }),
     ],
     Orders: [
