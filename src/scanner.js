@@ -1,4 +1,4 @@
-import { $, E, toast, form, dateText, expiryNote, checkExpiry } from "./lib/util.js";
+import { $, E, toast, form, dateText, expiryNote, checkExpiry, batchField } from "./lib/util.js";
 import { t, errText } from "./i18n/index.js";
 import * as store from "./data/store.js";
 import { state } from "./data/store.js";
@@ -40,8 +40,9 @@ const expTag = (iso) =>
 // "31/12/2027" — the form an expiry box shows a date in, and reads back.
 export const typedDate = (iso) => (iso ? iso.split("-").reverse().join("/") : "");
 
-/** Ask for the expiry date of stock being received. null = don't receive. */
-export async function askExpiry(it, current = "") {
+/** Ask for the expiry date and batch no. of stock being received.
+ * { expiry, batch }, or null = don't receive. */
+export async function askReceive(it, date = "", batch = "") {
   const f = await form(
     t("scan.expTitle", { name: it.name }),
     [
@@ -49,15 +50,31 @@ export async function askExpiry(it, current = "") {
         k: "expiry",
         type: "expiry",
         label: t("f.expiry"),
-        value: current,
+        value: date,
         tools: [{ act: "readDate", label: t("btn.readDate") }],
         hint: t("scan.expHint"),
       },
+      { ...batchField(), value: batch },
     ],
     t("scan.expOk"),
   );
-  return f ? f.expiry : null;
+  return f ? { expiry: f.expiry || null, batch: f.batch?.trim() || "" } : null;
 }
+
+/** What a new product made from the scanner starts with: in Receive mode, the
+ * date printed in the code, else the boxes when they were typed for the next
+ * product (not left over from another one). Look up / Remove: nothing. */
+export function receiveStart(printed = "") {
+  if ($("#mode")?.value != "in") return null;
+  const fresh = !expFor;
+  return {
+    expiry: typedDate(printed) || (fresh ? $("#sexp")?.value || "" : ""),
+    batch: fresh ? $("#sbatch")?.value.trim() || "" : "",
+  };
+}
+
+/** The scan log's batch button: "Batch L100 ✎", or "Add batch no." */
+export const batchLabel = (b) => (b ? `${t("exp.batchShort")} ${b} ✎` : t("exp.addBatch"));
 
 // "QR" or "Barcode EAN-13" in front of a result, when the camera read it.
 const kindTag = (format) =>
@@ -169,7 +186,7 @@ async function handle(c, format) {
   // it as that product's box rather than make a second product of it.
   if (!it)
     return log(
-      `${kindTag(format)}<span class="warn">${t("scan.unknown", { code: `<b>${E(code)}</b>` })}</span> <button class="g" data-act="linkBox" data-code="${E(code)}" data-scan="${E(c)}">${t("scan.linkBox")}</button> <button class="g" data-act="addItem" data-code="${E(code)}">${t("scan.addNew")}</button>`,
+      `${kindTag(format)}<span class="warn">${t("scan.unknown", { code: `<b>${E(code)}</b>` })}</span> <button class="g" data-act="linkBox" data-code="${E(code)}" data-scan="${E(c)}">${t("scan.linkBox")}</button> <button class="g" data-act="addItem" data-code="${E(code)}" data-exp="${E(printed || "")}">${t("scan.addNew")}</button>`,
     );
   if (m == "look")
     return log(
@@ -199,14 +216,19 @@ async function handle(c, format) {
     // A GS1 barcode carries its own date. Otherwise use the box, asking when a
     // consumable arrives without one, or when the box was filled for another product.
     expiry = printed || parseTyped(box?.value) || null;
+    // A non-consumable is never asked, but doesn't take a date meant for another product either.
+    if (!printed && it.kind != "consumable" && expFor && expFor != it.id) expiry = null;
     if (!printed && it.kind == "consumable" && (!expiry || (expFor && expFor != it.id))) {
-      const asked = await askExpiry(it, box?.value || "");
+      const asked = await askReceive(it, box?.value || "", bbox?.value.trim() || "");
       if (asked === null) return log(`<span class="mut">${t("scan.cancelled", { sku: E(it.sku) })}</span>`);
-      expiry = asked || null;
+      expiry = asked.expiry;
+      if (asked.batch && !expiry) return log(`<span class="warn">${E(it.sku)}: ${t("err.batchNoDate")}</span>`);
       if (box) {
         box.value = typedDate(expiry);
         checkExpiry(box);
       }
+      // Kept in the box for the next scans of this product, like the date.
+      if (bbox) bbox.value = asked.batch;
     }
     expFor = it.id;
     batch = (expiry && bbox?.value.trim()) || "";
@@ -230,11 +252,20 @@ async function handle(c, format) {
         sign: m == "in" ? "+" : "−",
         q,
         qty: `<b>${+now.qty}</b>`,
-      })}</span>${expTag(expiry)}${batch ? ` · <span class="mut">${t("exp.batchShort")} ${E(batch)}</span>` : ""}`,
+      })}</span>${expTag(expiry)}${m == "in" && expiry ? ` ${batchBtn(it.id, expiry)}` : ""}`,
     );
   } catch (e) {
     log(`<span class="warn">${E(it.sku)}: ${E(errText(e))}</span>`);
   }
+}
+
+// Received stock with a date: a button to add or correct its batch no. later,
+// for scans that went through without the dialog (box filled, GS1 date).
+function batchBtn(itemId, expiry) {
+  const lot = state.lots.find((l) => l.item_id == itemId && l.expiry == expiry);
+  return lot
+    ? `<button class="g" data-act="lotBatch" data-item="${E(itemId)}" data-exp="${E(expiry)}">${E(batchLabel(lot.batch || ""))}</button>`
+    : "";
 }
 
 // A date typed into the scanner's box by hand applies to the next product scanned.
