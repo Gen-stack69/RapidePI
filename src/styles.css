@@ -1268,6 +1268,12 @@ button.bt {
   background: var(--btn-bg);
   border: 1px solid var(--edge);
 }
+/* Long batch numbers wrap inside the button instead of widening the column. */
+button.bt {
+  flex-wrap: wrap;
+  text-align: left;
+  white-space: normal;
+}
 button.bt.warn {
   color: var(--warn-text);
   border-color: var(--warn);
