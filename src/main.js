@@ -291,6 +291,7 @@ async function itemForm(id, code, start = null) {
     wholesale_min_qty: 0,
   };
   // The form comes back with what was typed when it can't be saved, and why.
+  const shown = +i.qty; // the stock the form opened with
   let v = { ...i, expiry: start?.expiry || "", batch: start?.batch || "" },
     why = "",
     pic; // the photo: undefined = as it was, a File = new, "" = removed
@@ -302,6 +303,9 @@ async function itemForm(id, code, start = null) {
     why = itemProblem(id, i, f);
     if (!why) {
       if (!f.sku.trim()) f.sku = newSku();
+      // Quantity left as it was shown: keep the stock as it is now. A sale or
+      // delivery on another till while the form was open must not be undone.
+      if (id && +f.qty == shown) f.qty = state.items.find((x) => x.id == id)?.qty ?? f.qty;
       await store.saveItem(id, f);
       // The product is saved first, so a photo that can't be sent (no
       // internet, too big) never loses what was typed.

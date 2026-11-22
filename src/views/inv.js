@@ -43,10 +43,11 @@ export function rows(s) {
         case "consumable":
         case "durable":
           return (i.kind || "durable") == ui.f;
+        // any of its dated batches, not only the first: a product with an
+        // expired batch can also have one expiring soon
         case "soon":
-          return e && status(e) == "soon";
         case "expired":
-          return e && status(e) == "expired";
+          return e && s.lots.some((l) => l.item_id == i.id && status(l.expiry) == ui.f);
       }
       return true;
     },
