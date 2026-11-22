@@ -541,6 +541,7 @@ export default {
   "tip.addPack": "Add a pack (carton, box…)",
   "pos.cutTag": "expiring price ({d})",
   "pos.cutOff": "Normal price",
+  "pos.cutOnly": "Only {n} left at this price. Set this line to {n} and add the rest again at the normal price.",
   "pos.cutOn": "Expiring price {p} ({n} left)",
   "pos.vatIn": "VAT included ({r}%): {v}",
   "sys.prices": "Tax (VAT)",

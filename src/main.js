@@ -1247,6 +1247,8 @@ if (!store.configured) {
       if (!session && !navigator.onLine && ev != "SIGNED_OUT") session = storedSession();
       if (!session) {
         Object.assign(state, { user: null, shop: null, items: [], orders: [], movements: [] });
+        // The next person to sign in on this till starts with an empty sale.
+        till.clear();
         await scanner.cam(false);
         return showAuth();
       }

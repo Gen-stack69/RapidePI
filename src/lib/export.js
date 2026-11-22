@@ -3,6 +3,7 @@ import { toCsv } from "./csv.js";
 import { $, E, dt, download } from "./util.js";
 import { t, lang } from "../i18n/index.js";
 import { saleNo } from "../data/apply.js";
+import { today as localToday } from "./expiry.js";
 import { report, fmtNum, NUM, labelSpan, reportSheet, dataSheet } from "./report.js";
 import { xlsxBlob } from "./xlsxw.js";
 import regularUrl from "../assets/fonts/pdf-regular.ttf?url";
@@ -134,7 +135,8 @@ function pdfFont() {
   }));
 }
 
-const today = () => new Date().toISOString().slice(0, 10);
+// The shop's own date: in Laos the UTC date is still yesterday before 7 am.
+const today = () => localToday();
 const fileName = (s, k, ext) =>
   `${k}-${String(s.shop?.name || "shop")
     .replace(/[\\/:*?"<>|\s]+/g, "-")
@@ -343,7 +345,7 @@ export async function exportZip(s) {
       1,
     ),
   );
-  const day = new Date().toISOString().slice(0, 10),
+  const day = today(),
     shop = String(s.shop?.name || "shop")
       .replace(/[\\/:*?"<>|\s]+/g, "-")
       .slice(0, 40);

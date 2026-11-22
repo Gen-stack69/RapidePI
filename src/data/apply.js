@@ -90,8 +90,12 @@ export function stockMove(db, ctx, itemId, delta, note, expiry = null, saleId = 
       for (const m of db.movements)
         if (m.sale_id == saleId && m.item_id == it.id && !m.expiry && m.type == "out" && m.batch)
           per.set(m.batch, (per.get(m.batch) || 0) + +m.qty);
-      for (const [batch, n] of per)
-        U(db).push({ id: uid(), shop_id: it.shop_id, item_id: it.id, expiry: null, qty: n, batch, created_at: at(ctx) });
+      // into a batch with the same number when one is still on the shelf (020)
+      for (const [batch, n] of per) {
+        const same = sameBatch(db, it.id, batch);
+        if (same) same.qty = +same.qty + n;
+        else U(db).push({ id: uid(), shop_id: it.shop_id, item_id: it.id, expiry: null, qty: n, batch, created_at: at(ctx) });
+      }
     }
     log("in", delta, expiry, back);
   } else {
@@ -435,13 +439,25 @@ export function setBatch(db, itemId, expiry, batch, add = true) {
   let lot = U(db).find((l) => l.move_id == m.id);
   if (lot) lot.batch = add ? addBatch(lot.batch, b) : b;
   else {
+    // already joined to a batch of the same number (020)
+    if (m.batch) return;
     const free = +it.qty - [...db.lots, ...U(db)].filter((l) => l.item_id == itemId).reduce((a, l) => a + +l.qty, 0),
       n = Math.min(+m.qty, free);
     if (!(n > 0)) return;
-    U(db).push((lot = { id: uid(), shop_id: it.shop_id, item_id: itemId, expiry: null, qty: n, batch: b, move_id: m.id, created_at: m.created_at }));
+    // A number the product already has: the delivery joins that batch (020),
+    // so scanning 5 cans of one batch one by one makes one batch of 5.
+    lot = sameBatch(db, itemId, b);
+    if (lot) lot.qty = +lot.qty + n;
+    else U(db).push((lot = { id: uid(), shop_id: it.shop_id, item_id: itemId, expiry: null, qty: n, batch: b, move_id: m.id, created_at: m.created_at }));
   }
   m.batch = lot.batch;
 }
+
+// The product's oldest no-date batch with exactly this number (any case).
+const sameBatch = (db, itemId, batch) =>
+  U(db)
+    .filter((l) => l.item_id == itemId && String(l.batch || "").toLowerCase() == String(batch).toLowerCase())
+    .sort((a, b) => String(a.created_at).localeCompare(String(b.created_at)))[0] || null;
 
 /** set_undated_lot_batch() (019): correct a no-date batch's number; none left
  * puts its stock back with the stock that has neither date nor number. */

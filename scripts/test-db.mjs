@@ -968,7 +968,7 @@ await ok("no-date deliveries each become a batch with its own qty; sold oldest f
     eq(out, "-=2,TH-01=4,TH-02, TH-02B=1", "free stock first, then the oldest batch");
     eq(await nd(), "TH-02, TH-02B=5", "TH-01 sold out");
     await as(A, "select void_sale_by_client($1, 'c-019-water')", [shopA]);
-    eq((await as(A, "select string_agg(batch || '=' || qty::int, ',' order by batch, qty) b from lots where item_id = $1 and expiry is null", [it])).rows[0].b, "TH-01=4,TH-02, TH-02B=1,TH-02, TH-02B=5", "void: batches back as they left");
+    eq((await as(A, "select string_agg(batch || '=' || qty::int, ',' order by batch, qty) b from lots where item_id = $1 and expiry is null", [it])).rows[0].b, "TH-01=4,TH-02, TH-02B=6", "void: batches back as they left, into the batch still there (020)");
     eq(+(await as(A, "select qty from items where id = $1", [it])).rows[0].qty, 12, "stock back");
     const lot = (await as(A, "select id from lots where item_id = $1 and batch = 'TH-01'", [it])).rows[0].id;
     await as(A, "select set_undated_lot_batch($1, 'TH-01X')", [lot]);
@@ -986,6 +986,27 @@ await rejects("another shop cannot change a no-date batch's number (019)", async
     await as(A, "select set_lot_batch($1, null, 'Z1')", [it]);
     const lot = (await as(A, "select id from lots where item_id = $1", [it])).rows[0].id;
     await as(B, "select set_undated_lot_batch($1, 'HACK')", [lot]);
+  } finally {
+    await as(A, "delete from items where id = $1", [it]);
+  }
+});
+
+await ok("scanning one batch no. again and again keeps one batch; a resend adds nothing (020)", async () => {
+  const it = (await as(A, "insert into items (shop_id, sku, name, kind) values ($1, 'TIGER-020', 'Water', 'durable') returning id", [shopA])).rows[0].id;
+  try {
+    const nd = async () =>
+      (await as(A, "select batch || '=' || qty::int as b from lots where item_id = $1 and expiry is null order by created_at, id", [it])).rows.map((r) => r.b).join(",");
+    for (let i = 0; i < 3; i++) {
+      await as(A, "select adjust_stock($1, 1, 'scan')", [it]);
+      await as(A, "select set_lot_batch($1, null, 'TH123')", [it]);
+    }
+    eq(await nd(), "TH123=3", "three scans, one batch");
+    await as(A, "select set_lot_batch($1, null, 'th123')", [it]);
+    eq(await nd(), "TH123=3", "the same call sent twice adds nothing");
+    await as(A, "select adjust_stock($1, 2, 'scan')", [it]);
+    await as(A, "select set_lot_batch($1, null, 'TH999')", [it]);
+    eq(await nd(), "TH123=3,TH999=2", "another number is its own batch");
+    eq((await as(A, "select count(*)::int n from movements where item_id = $1 and type = 'in' and batch = 'TH123'", [it])).rows[0].n, 3, "each delivery carries its number");
   } finally {
     await as(A, "delete from items where id = $1", [it]);
   }

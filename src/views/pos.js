@@ -76,6 +76,15 @@ const priceLine = (it, l) => {
 const cutLot = (it) =>
   state.lots.filter((x) => x.item_id == it.id && x.price != null).sort((a, b) => a.price - b.price)[0] || null;
 
+// A line at a batch's expiring price for more than that batch holds: the
+// price would go on every unit, the full-price ones too. Charge waits until
+// the rest is on its own line. Returns how many the batch has, or 0 when fine.
+const cutShort = (l) => {
+  if (!l.exp || l.pack) return 0;
+  const lot = state.lots.find((x) => x.item_id == l.id && x.expiry == l.exp && x.price != null);
+  return lot && l.qty > +lot.qty ? +lot.qty : 0;
+};
+
 // linePrice: the same rule as create_sale() in the database; shown here, decided there.
 export { linePrice };
 
@@ -90,6 +99,7 @@ function totals() {
     sub += p * l.qty;
     need.set(it.id, (need.get(it.id) || 0) + base);
     if (!(p > 0)) problems++;
+    if (cutShort(l)) problems++;
   }
   // Offline, the count on this device can be behind (another till received
   // stock): the goods are in the customer's hand, so the sale goes ahead and
@@ -359,6 +369,7 @@ function cartHtml(need) {
           pack ? `<span class="tag">${E(pack.name)} × ${num(pack.size)}${it.unit ? " " + E(it.unit) : ""}</span>` : "",
           ws ? `<span class="tag in">${t("pos.wholesale")}</span>` : "",
           l.exp ? `<span class="tag warn">${t("pos.cutTag", { d: dateText(l.exp) })}</span>` : "",
+          cutShort(l) ? `<span class="bad">${t("pos.cutOnly", { n: num(cutShort(l)) })}</span>` : "",
           // A batch of this product sells for less: one tap switches the line to it.
           cut
             ? `<button class="g" data-act="posCut" data-id="${k}">${
