@@ -488,7 +488,7 @@ await ok("no-date deliveries each become a batch with its own qty, sold oldest f
   eq(AP.saleBatches(d.movements, s.id).get("w"), "TH-01, TH-02", "on the receipt");
   eq(nd(), "TH-02=5", "free stock first, then the oldest batch");
   AP.voidSale(d, ctx(4), s);
-  eq(nd().split(",").sort().join(","), "TH-01=4,TH-02=1,TH-02=5", "void: batches back as they left");
+  eq(nd().split(",").sort().join(","), "TH-01=4,TH-02=6", "void: batches back as they left, into the batch still there (020)");
   eq(d.items[0].qty, 12, "stock back");
   AP.setUndatedBatch(d, d.ulots[0].id, "TH-0X");
   eq(d.ulots[0].batch, "TH-0X", "number corrected");
@@ -883,6 +883,25 @@ await ok("a box barcode wins over another product's old SKU", async () => {
   const r = lookupCode(items, "777000", packs);
   eq(r.item?.name + "/" + r.pack?.name, "Banana/Tray", "box found");
   eq(lookupCode(items, "777000", []).item?.name, "Cherry", "SKU still works when no barcode has it");
+});
+
+await ok("scanning one batch no. again and again keeps one batch (= 020)", async () => {
+  const shopId = "s",
+    t0 = Date.parse("2026-11-22T10:00:00Z");
+  let n = 0;
+  const ctx = () => ({ shopId, at: new Date(t0 + n++ * 60e3).toISOString(), short: true }),
+    d = { items: [{ id: "w", shop_id: shopId, sku: "W", name: "Water", qty: 0, price: 5, min_qty: 0 }], packs: [], lots: [], ulots: [], movements: [], sales: [], sale_lines: [], orders: [], customers: [], settings: { [shopId]: {} } },
+    nd = () => d.ulots.map((l) => `${l.batch}=${l.qty}`).join(",");
+  for (let i = 0; i < 3; i++) {
+    AP.stockMove(d, ctx(), "w", 1, "scan");
+    AP.setBatch(d, "w", null, "TH123");
+  }
+  eq(nd(), "TH123=3", "three scans, one batch");
+  AP.setBatch(d, "w", null, "th123");
+  eq(nd(), "TH123=3", "sent twice adds nothing");
+  AP.stockMove(d, ctx(), "w", 2, "scan");
+  AP.setBatch(d, "w", null, "TH999");
+  eq(nd(), "TH123=3,TH999=2", "another number is its own batch");
 });
 
 console.log(fails ? `\n${fails} FAILED` : "\nAll unit checks passed");
