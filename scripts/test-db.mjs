@@ -1079,6 +1079,23 @@ for (const [name, fn] of [
     }
   }],
   ["add a pack", () => as(F, "insert into packs (shop_id, item_id, name, barcode) values ($1, $2, 'Six', 'K-SIX')", [shopK, kSoap])],
+  ["change a selling price", async () => {
+    const r = await as(F, "update items set price = 1 where id = $1", [kSoap]);
+    if (!r.affectedRows) throw new Error("nothing changed");
+  }],
+  ["change a cost price", async () => {
+    const r = await as(F, "update items set cost = 1 where id = $1", [kSoap]);
+    if (!r.affectedRows) throw new Error("nothing changed");
+  }],
+  ["change a box price", async () => {
+    const r = await as(F, "update packs set price = 1 where id = $1", [kBox]);
+    if (!r.affectedRows) throw new Error("nothing changed");
+  }],
+  ["set an expiring price on a batch", async () => as(F, "select set_lot_price($1, 1)", [await kLot()])],
+  ["set a quantity directly", async () => {
+    const r = await as(F, "update items set qty = 999 where id = $1", [kSoap]);
+    if (!r.affectedRows) throw new Error("nothing changed");
+  }],
 ])
   await rejects("the cashier cannot " + name, fn);
 await ok("the manager still adds stock and receives boxes", async () => {
