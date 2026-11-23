@@ -102,6 +102,7 @@ export async function openShop(m) {
     await rebuild();
     await Promise.all([loadPeople(), loadBilling()]);
     await refresh().catch(() => reload());
+    await ensureTill();
     signPhotos();
   } else await reload();
   watch();
