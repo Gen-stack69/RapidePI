@@ -451,8 +451,52 @@ function salesHtml() {
 // through with the old number, not the one on screen, so Charge waits.
 const qtyBeingFixed = () => !!document.querySelector("#cart input.bad");
 
+// ---------- the sale in progress survives a reload ----------
+// A reload (an app update, a phone closing the browser) would otherwise lose
+// the sale being rung up. Kept per shop on this device; a sale left for a day
+// is not brought back. cid is kept too: a sale already sent before the reload
+// keeps its id, so the server does not take it twice.
+const cartKey = (shop) => "rapidewms.cart." + shop;
+const DAY_MS = 864e5;
+function save() {
+  const shop = st.shop || state.shop?.id;
+  if (!shop) return;
+  try {
+    if (!st.cart.length) localStorage.removeItem(cartKey(shop));
+    else {
+      const { cart, discount, method, paid, cust, cid } = st;
+      localStorage.setItem(cartKey(shop), JSON.stringify({ cart, discount, method, paid, cust, cid, at: Date.now() }));
+    }
+  } catch {
+    // storage blocked or full: the till still works, the sale just isn't kept
+  }
+}
+function restore() {
+  const shop = state.shop?.id;
+  if (!shop || st.shop == shop) return;
+  st.shop = shop;
+  let saved = null;
+  try {
+    saved = JSON.parse(localStorage.getItem(cartKey(shop)) || "null");
+  } catch {}
+  if (!saved || !(Date.now() - saved.at < DAY_MS) || !Array.isArray(saved.cart)) return;
+  // A product or pack deleted since then can't be sold.
+  const cart = saved.cart.filter((l) => item(l.id) && (!l.pack || state.packs.some((p) => p.id == l.pack)));
+  if (!cart.length || st.cart.length) return;
+  Object.assign(st, {
+    cart,
+    discount: saved.discount ?? "",
+    method: saved.method == "transfer" ? "transfer" : "cash",
+    paid: saved.paid ?? "",
+    cust: state.customers.some((c) => c.id == saved.cust) ? saved.cust : null,
+    cid: cart.length == saved.cart.length ? saved.cid || null : null,
+  });
+  toast(t("pos.restored"));
+}
+
 /** Redraw the parts that change, never the fields being typed in. */
 export function refresh() {
+  save();
   if (!$("#pos")) return;
   const tt = totals(),
     focus = document.activeElement;
@@ -508,6 +552,7 @@ export function refresh() {
 }
 
 export default function pos() {
+  restore();
   queueMicrotask(() => {
     refresh();
     suggest();
