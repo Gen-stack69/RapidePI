@@ -3,6 +3,7 @@ import { $, E } from "./lib/util.js";
 import { t, errText } from "./i18n/index.js";
 import { sb, configured, createShop, joinShop, signOut } from "./data/store.js";
 import { showTheme } from "./lib/theme.js";
+import { pendingJoin } from "./lib/invite.js";
 
 // The ☀/☾ button is here too, so light mode can be picked before signing in
 // (main.js's click handler runs data-act="theme").
@@ -38,6 +39,8 @@ async function submit(formEl, errEl, fn) {
 
 export function showAuth(mode = "in", note = "") {
   const up = mode == "up";
+  // Opened from an invite link: say what happens after signing in.
+  if (!note && pendingJoin()) note = t("auth.invited");
   shell(`<form class="card" id="authf"><h2>${t(up ? "auth.createAcct" : "auth.signIn")}</h2><p class="mut">${t(
     up ? "auth.trialNote" : "auth.tagline",
   )}</p><label>${t("auth.email")}<input name="email" type="email" autocomplete="email" required></label><label>${t(
@@ -62,7 +65,9 @@ export function showAuth(mode = "in", note = "") {
     let data;
     const msg = await submit(ev.target, "#aerr", async (f) => {
       const r = up
-        ? await sb.auth.signUp({ email: f.email, password: f.password })
+        ? // The confirmation email comes back to this site (the cashier site for
+          // a cashier), where an invite link's code is waiting.
+          await sb.auth.signUp({ email: f.email, password: f.password, options: { emailRedirectTo: appUrl() } })
         : await sb.auth.signInWithPassword({ email: f.email, password: f.password });
       data = r.data;
       return r;
@@ -129,7 +134,7 @@ export function showCreateShop(onDone) {
           "auth.joinNote",
         )}</p><label>${t(
           "auth.joinCode",
-        )}<input name="code" required maxlength="20" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="ABCD-2345"></label><p class="err" id="jerr"></p>${btn(
+        )}<input name="code" required maxlength="20" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="ABCD-2345" value="${E(pendingJoin() || "")}"></label><p class="err" id="jerr"></p>${btn(
           "auth.join",
         )}</form>`
       : ""

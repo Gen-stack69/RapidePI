@@ -45,3 +45,5 @@ export const CASHIER_SITE =
 export const cashierUi = () => CASHIER_SITE || isCashier();
 /** Where cashiers sign in. */
 export const CASHIER_URL = "https://cashier.rapidewms.workers.dev/";
+/** Where owners and managers sign in. */
+export const MANAGER_URL = "https://rapidepi.rapidewms.workers.dev/";
