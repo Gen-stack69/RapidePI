@@ -362,6 +362,12 @@ await ok("refused while the person waits: the error goes back to them", async ()
 console.log("\nOffline copy (apply.js, the same rules as the database)");
 const AP = await import("../src/data/apply.js");
 
+await ok("invite links go to the right site", async () => {
+  const { inviteLink } = await import("../src/lib/invite.js");
+  eq(inviteLink("ABCD2345", "cashier"), "https://cashier.rapidewms.workers.dev/#join=ABCD2345", "cashier");
+  eq(inviteLink("ABCD2345", "staff"), "https://rapidepi.rapidewms.workers.dev/#join=ABCD2345", "manager");
+});
+
 await ok("dashboard movement chart leaves voided sales out", () => {
   const sales = [
       { id: "s1", status: "done" },

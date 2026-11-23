@@ -18,6 +18,7 @@ const fail = (code, params) => {
   throw err(code, params);
 };
 import { showAuth, showCreateShop, showNewPassword, showCashierSite } from "./auth.js";
+import { pendingJoin, clearJoin, inviteLink } from "./lib/invite.js";
 import * as scanner from "./scanner.js";
 import dash, { ui as dashUi } from "./views/dash.js";
 import inv, { ui as invUi, rows as invRows } from "./views/inv.js";
@@ -1052,8 +1053,13 @@ const A = {
   // ---- staff ----
   // el.dataset.role: staff (a manager) or cashier.
   async addStaff(el) {
-    const code = await store.createInvite(el.dataset.role == "cashier" ? "cashier" : "staff");
-    toast(t("msg.codeMade", { code: code.slice(0, 4) + "-" + code.slice(4) }));
+    const role = el.dataset.role == "cashier" ? "cashier" : "staff";
+    showInvite(await store.createInvite(role), role);
+  },
+  shareInvite: (el) => showInvite(el.dataset.code, el.dataset.role),
+  async copyInvite(el) {
+    await navigator.clipboard.writeText(el.dataset.link);
+    toast(t("invite.copied"));
   },
   async cancelInvite(el) {
     await store.cancelInvite(el.dataset.code);
@@ -1246,6 +1252,23 @@ function storedSession() {
   }
 }
 
+// An invite code with its link, to send: copy it, or share on WhatsApp.
+function showInvite(code, role) {
+  const link = inviteLink(code, role),
+    who = t(role == "cashier" ? "role.cashier" : "role.staff"),
+    msg = t("invite.msg", { shop: state.shop.name, role: who, url: link }),
+    dlg = $("#dlg");
+  dlg.innerHTML = `<div class="qrdlg"><h3>${t(role == "cashier" ? "sys.addCashier" : "sys.addManager")}</h3><p class="mut">${t("invite.note", {
+    shop: E(state.shop.name),
+    role: E(who),
+  })}</p><p class="mt"><b class="code big">${E(code.slice(0, 4) + "-" + code.slice(4))}</b></p><input class="mt" readonly value="${E(link)}" onfocus="this.select()"><div class="row mt"><button class="b" data-act="copyInvite" data-link="${E(link)}">${t(
+    "invite.copy",
+  )}</button><a class="g" href="https://wa.me/?text=${encodeURIComponent(msg)}" target="_blank" rel="noopener">${t("invite.whatsapp")}</a><button class="g" data-act="closeDlg">${t(
+    "btn.close",
+  )}</button></div></div>`;
+  dlg.showModal();
+}
+
 // Open another of this account's shops (Switch shop, Create another shop).
 async function openOther(m) {
   const was = state.shopList?.find((x) => x.shops.id == state.shop?.id);
@@ -1271,6 +1294,19 @@ async function enter() {
     // No connection: open the copy of the shop kept on this device.
     if (await store.openCached()) return;
     throw e;
+  }
+  // Opened from an invite link: join that shop now, and open it.
+  const code = store.configured && pendingJoin();
+  if (code) {
+    clearJoin();
+    try {
+      const id = await store.joinShop(code);
+      localStorage["rapidewms.lastShop." + state.user?.id] = id;
+      shops = await store.myShops();
+      toast(t("msg.joined", { shop: shops.find((x) => x.shops.id == id)?.shops.name || "" }));
+    } catch (e) {
+      toast(errText(e), true);
+    }
   }
   if (!shops.length) return showCreateShop(enter);
   state.shopList = shops; // for "Switch shop" in Shop & backup

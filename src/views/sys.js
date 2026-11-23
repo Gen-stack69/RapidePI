@@ -139,7 +139,7 @@ function staff(s) {
       (i) =>
         `<div class="row mt"><b class="code">${E(showCode(i.code))}</b><span class="tag">${roleName(i.role)}</span><span class="mut">${t("sys.codeUntil", {
           d: fDateTime(new Date(i.expires_at)),
-        })}</span><button class="g" data-act="cancelInvite" data-code="${E(i.code)}">${t("sys.cancel")}</button></div>`,
+        })}</span><button class="g" data-act="shareInvite" data-code="${E(i.code)}" data-role="${E(i.role || "staff")}">${t("invite.share")}</button><button class="g" data-act="cancelInvite" data-code="${E(i.code)}">${t("sys.cancel")}</button></div>`,
     )
     .join("");
   return `<div class="card"><h3>${t("sys.staff")}</h3><p class="mut">${t("sys.staffNote")}</p><p class="mut">${t("sys.cashierSite", { url: `<a href="${CASHIER_URL}" target="_blank" rel="noopener">${CASHIER_URL.slice("https://".length, -1)}</a>` })}</p>${people}${
