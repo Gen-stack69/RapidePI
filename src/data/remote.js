@@ -8,6 +8,7 @@ import { pageAll } from "./page.js";
 import * as apply from "./apply.js";
 import * as Q from "./queue.js";
 import * as C from "./cache.js";
+import { mergeChanges } from "./delta.js";
 import { costFields, packRow, custRow, newCustomers, amount, keepOwnerPrices } from "./fields.js";
 import { toJpeg, productJpeg } from "../lib/photo.js";
 
@@ -87,24 +88,90 @@ export async function openShop(m) {
   state.role = m.role;
   localStorage.lastShop = state.shop.id;
   server = null;
-  await reload();
+  // This device's copy, if recent: the shop opens from it at once, and only
+  // what changed since is downloaded (022). Otherwise the whole shop.
+  const snap = await C.get("snap", state.shop.id).catch(() => null);
+  if (snap?.v == SNAP_V && snap.cursor && snap.role == m.role && Date.now() - new Date(snap.savedAt) < 7 * 864e5) {
+    server = snap;
+    sentSince = [];
+    state.savedAt = snap.savedAt;
+    localStorage["rapidewms.lastShop." + state.user.id] = state.shop.id;
+    await rebuild();
+    await Promise.all([loadPeople(), loadBilling()]);
+    await refresh().catch(() => reload());
+    signPhotos();
+  } else await reload();
   watch();
   if (state.pending) sync().catch(() => {});
 }
 
-// Realtime: a change by another device in this shop brings a fresh copy.
+// What the copy on the device is made of; a copy from an older app version
+// is downloaded again rather than trusted.
+const SNAP_V = 2;
+
+// Realtime: a change by another device in this shop is a cue to fetch what
+// changed (refresh), never the whole shop. After the connection drops and
+// comes back, the same call catches up on everything missed meanwhile.
 let channel = null,
   reloadTimer = null;
 function watch() {
   if (channel) sb.removeChannel(channel);
   const filter = `shop_id=eq.${state.shop.id}`;
+  let down = false;
   channel = sb.channel("shop-" + state.shop.id);
   for (const table of ["items", "orders", "movements", "settings", "lots", "sales", "sale_lines", "tills", "members", "packs", "pack_receipts", "customers"])
     channel.on("postgres_changes", { event: "*", schema: "public", table, filter }, () => {
+      if (table == "members") return loadPeople().then(emit, () => {});
       clearTimeout(reloadTimer);
-      reloadTimer = setTimeout(() => navigator.onLine && reload().catch(() => {}), 300);
+      reloadTimer = setTimeout(() => navigator.onLine && refresh().catch(() => {}), 300);
     });
-  channel.subscribe();
+  channel.subscribe((status) => {
+    if (status == "SUBSCRIBED" && down) refresh().catch(() => {});
+    down = status != "SUBSCRIBED";
+  });
+}
+
+// ---------- only what changed (022) ----------
+// The rows changed since this copy's cursor (the server's clock when it was
+// taken), merged in. Falls back to the whole shop when the copy has no
+// cursor, the server lacks sync_changes, or too much changed at once.
+let refreshing = null,
+  again = false;
+export function refresh() {
+  if (!server || server.shop.id != state.shop?.id || !server.cursor) return reload();
+  if (refreshing) {
+    again = true;
+    return refreshing;
+  }
+  refreshing = (async () => {
+    const id = state.shop.id,
+      had = sentSince.length;
+    const { data: ch, error } = await sb.rpc("sync_changes", { p_shop: id, p_since: server.cursor });
+    // PGRST202: the server has no sync_changes (022 not run there yet).
+    if (error) {
+      if (error.code == "PGRST202" || /sync_changes/i.test(error.message || "")) return reload();
+      throw friendly(error);
+    }
+    if (state.shop?.id != id) return;
+    if (!ch || ch.too_many) return reload();
+    const totals = ch.sales?.length ? await rpc("customer_totals", { p_shop: id }).catch(() => null) : null;
+    server = { ...mergeChanges(server, ch), cursor: ch.now };
+    if (totals) server.custTotals = Object.fromEntries(totals.map((r) => [r.customer_id, r]));
+    // What this device sent before asking is in the answer now.
+    sentSince = sentSince.slice(had);
+    state.savedAt = new Date().toISOString();
+    await C.put("snap", id, { ...server, role: state.role, savedAt: state.savedAt, v: SNAP_V }).catch(() => {});
+    await rebuild();
+    await ensureTill();
+    if (ch.items?.some((i) => i.photo)) signPhotos();
+  })().finally(() => {
+    refreshing = null;
+    if (again) {
+      again = false;
+      refresh().catch(() => {});
+    }
+  });
+  return refreshing;
 }
 
 // Read a whole table, not just the first page the server feels like giving us.
@@ -121,6 +188,9 @@ export async function reload() {
   const id = state.shop.id,
     since = new Date(Date.now() - 30 * 864e5).toISOString(),
     sel = (table) => sb.from(table).select("*", { count: "exact" }).eq("shop_id", id);
+  // The server's clock before reading: later changes are fetched from here
+  // (refresh). Missing (022 not run yet): every refresh is a full download.
+  const clock = await rpc("sync_changes", { p_shop: id, p_since: null }).catch(() => null);
   const [items, orders, movements, settings, shop, lots, sales, saleLines, tills, packs, customers, totals, packReceipts] =
     await Promise.all([
     all(() => sel("items").order("sku")),
@@ -162,11 +232,13 @@ export async function reload() {
     custTotals: Object.fromEntries((totals || []).map((r) => [r.customer_id, r])),
     settings: settings || state.settings,
     truncated: [items, orders, movements, sales, saleLines].some((r) => r.rows.length < r.total),
+    cursor: clock?.now || null,
   };
   sentSince = [];
   state.savedAt = new Date().toISOString();
-  // Kept on the device, so the shop opens with no internet.
-  await C.put("snap", id, { ...server, role: state.role, savedAt: state.savedAt }).catch(() => {});
+  // Kept on the device, so the shop opens with no internet, and next time
+  // opens from it and downloads only what changed.
+  await C.put("snap", id, { ...server, role: state.role, savedAt: state.savedAt, v: SNAP_V }).catch(() => {});
   localStorage["rapidewms.lastShop." + state.user.id] = id;
   await loadPeople();
   await loadBilling();
@@ -280,7 +352,7 @@ export async function openCached() {
 
 const write = async (p) => {
   const r = await must(p);
-  await reload();
+  await refresh();
   return r;
 };
 
@@ -312,7 +384,7 @@ export async function saveItem(id, f) {
     if (f.batch?.trim())
       await must(sb.rpc("set_lot_batch", { p_item: itemId, p_expiry: f.expiry || null, p_batch: f.batch.trim(), p_add: true }));
   } else if (qty < cur) await must(sb.rpc("set_stock", { p_item: itemId, p_qty: qty, p_note: note }));
-  await reload();
+  await refresh();
 }
 
 export async function deleteItem(id) {
@@ -564,7 +636,7 @@ export async function sync(freshId = null) {
   await sb.auth.getSession().catch(() => {});
   const out = await Q.flush(state.shop.id, (r) => SEND[r.op](r, r.args), isNet, freshId);
   sentSince.push(...out.sent);
-  if (!out.stopped && navigator.onLine) await reload().catch(() => rebuild());
+  if (!out.stopped && navigator.onLine) await refresh().catch(() => rebuild());
   else await rebuild();
   clearTimeout(timer);
   if (state.pending) timer = setTimeout(() => sync().catch(() => {}), 30e3);
@@ -639,7 +711,7 @@ async function register() {
 /** "Use as a till" on a device that has none, e.g. after its till was retired. */
 export async function registerTill() {
   await register();
-  await reload();
+  await refresh();
 }
 function setFull(full) {
   if (state.tillFull == full && !full) return;
@@ -655,7 +727,7 @@ function deviceName() {
 /** Owner: free a till's place, for a phone that is lost, broken or replaced. */
 export async function retireTill(code) {
   await rpc("retire_till", { p_shop: state.shop.id, p_code: code });
-  await reload();
+  await refresh();
 }
 
 // Bulk import: new SKUs only, existing ones are skipped. Returns count added.
@@ -674,7 +746,7 @@ export async function importItems(list) {
     if (x?.qty > 0)
       await must(sb.rpc("adjust_stock", { p_item: r.id, p_delta: x.qty, p_note: "import", p_expiry: x.expiry || null }));
   }
-  await reload();
+  await refresh();
   return rows.length;
 }
 
@@ -755,7 +827,7 @@ export async function saveCustomer(id, f) {
     return id;
   }
   const r = await must(sb.from("customers").insert({ ...row, shop_id: state.shop.id }).select("id").single());
-  await reload();
+  await refresh();
   return r.id;
 }
 export const deleteCustomer = (id) => write(sb.from("customers").delete().eq("id", id));
@@ -766,7 +838,7 @@ export async function importCustomers(list) {
   const fresh = newCustomers(list, state.customers);
   for (let i = 0; i < fresh.length; i += 500)
     await must(sb.from("customers").insert(fresh.slice(i, i + 500).map((c) => ({ ...c, shop_id: state.shop.id }))));
-  await reload();
+  await refresh();
   return fresh.length;
 }
 
@@ -780,6 +852,6 @@ export async function importSales(rows, progress = () => {}) {
     done.skipped += r.skipped;
     progress(Math.min(i + 500, rows.length), rows.length);
   }
-  await reload();
+  await refresh();
   return done;
 }
