@@ -1158,11 +1158,13 @@ await ok("an old cursor still gets only rows changed after it", async () => {
   eq(c.items.length + c.sales.length + c.movements.length, 0, "nothing newer than an hour ahead");
 });
 await ok("too much at once tells the device to download the whole shop", async () => {
+  await db.exec(`update shops set max_items = 10000 where id = '${shopK}'`); // past the trial limit (023)
   await as(O, "insert into items (shop_id, sku, name) select $1, 'BULK-' || g, 'Bulk' from generate_series(1, 5001) g", [shopK]);
   try {
     eq((await changes(O, cur)).too_many, true, "too_many");
   } finally {
     await as(O, "delete from items where shop_id = $1 and sku like 'BULK-%'", [shopK]);
+    await db.exec(`update shops set max_items = 2000 where id = '${shopK}'`);
   }
 });
 await ok("every synced table stamps updated_at on change", async () => {
@@ -1171,6 +1173,57 @@ await ok("every synced table stamps updated_at on change", async () => {
   await as(O, "update customers set note = 'x' where shop_id = $1", [shopK]);
   const after = (await one(O, "select updated_at from customers where shop_id = $1 limit 1", [shopK])).updated_at;
   eq(new Date(after) > new Date(before), true, "newer");
+});
+
+console.log("Plan limits (023)");
+await ok("plans and new shops carry the limits", async () => {
+  eq((await one(O, "select max_items, max_staff, max_photos from plans where code = 'mini'")).max_items, 10000, "Minimart products");
+  const k = await one(O, "select max_items, max_staff, max_photos from shops where id = $1", [shopK]);
+  eq([k.max_items, k.max_staff, k.max_photos].join(), "2000,3,500", "trial defaults");
+});
+const kItems = async () => (await one(O, "select count(*)::int n from items where shop_id = $1", [shopK])).n;
+await ok("adding products stops at the limit, selling does not", async () => {
+  const n = await kItems();
+  await db.exec(`update shops set max_items = ${n + 1} where id = '${shopK}'`);
+  await as(O, "insert into items (shop_id, sku, name) values ($1, 'LIM-1', 'One more')", [shopK]);
+  let threw = "";
+  await as(O, "insert into items (shop_id, sku, name) values ($1, 'LIM-2', 'Too many')", [shopK]).catch((e) => (threw = e.message));
+  eq(/plan limit: products/.test(threw), true, "refused: " + threw);
+  const before = await kQty(kSoap);
+  await one(O, "select create_sale($1, $2, $3::jsonb, 0, 'cash', 1e9, null, $4) id", [
+    shopK, "till-limit-0001", JSON.stringify([{ item_id: kSoap, qty: 1 }]), kTill,
+  ]);
+  eq(await kQty(kSoap), before - 1, "a sale still goes through");
+  await as(O, "update items set name = 'Edited' where shop_id = $1 and sku = 'LIM-1'", [shopK]);
+});
+await ok("an import over the limit is refused as a whole", async () => {
+  const n = await kItems();
+  let threw = false;
+  await as(O, "insert into items (shop_id, sku, name) select $1, 'IMP-' || g, 'x' from generate_series(1, 3) g", [shopK]).catch(() => (threw = true));
+  eq(threw, true, "refused");
+  eq(await kItems(), n, "nothing half-added");
+  await db.exec(`update shops set max_items = 2000 where id = '${shopK}'`);
+});
+await ok("photos stop at the limit; existing ones stay", async () => {
+  await db.exec(`update shops set max_photos = 1 where id = '${shopK}'`);
+  await as(O, "update items set photo = $2 where id = $1", [kMilk, shopK + "/" + kMilk + "-a1.jpg"]);
+  let threw = "";
+  await as(O, "update items set photo = $2 where id = $1", [kSoap, shopK + "/" + kSoap + "-a1.jpg"]).catch((e) => (threw = e.message));
+  eq(/plan limit: photos/.test(threw), true, "refused: " + threw);
+  await as(O, "update items set photo = $2 where id = $1", [kMilk, null]); // taking one away is fine
+  await db.exec(`update shops set max_photos = 500 where id = '${shopK}'; update items set photo = null where shop_id = '${shopK}'`);
+});
+await ok("staff stop at the limit (the owner doesn't count)", async () => {
+  await db.exec(`update shops set max_staff = 1 where id = '${shopK}'`); // M is already staff
+  const c = (await one(O, "select create_invite($1, 'cashier') c", [shopK])).c;
+  let threw = "";
+  await as(F, "select join_shop($1)", [c]).catch((e) => (threw = e.message));
+  eq(/plan limit: staff/.test(threw), true, "refused: " + threw);
+  await db.exec(`update shops set max_staff = 3 where id = '${shopK}'`);
+});
+await ok("devices get the limits with the shop's changes", async () => {
+  const c = await changes(O, new Date(Date.now() - 60e3).toISOString());
+  eq(c.shop.max_items, 2000, "max_items");
 });
 
 console.log(failures ? `\n${failures} FAILED` : "\nAll database checks passed");

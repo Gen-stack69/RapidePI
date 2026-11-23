@@ -243,11 +243,27 @@ function render(force) {
     state.settings.low_alert && lo && !["auto", "pos"].includes(view)
       ? `<div class="card warn">${tn("msg.low", lo)}</div>`
       : ""
-  }${VIEWS[view](state)}`;
+  }${limitNotes()}${VIEWS[view](state)}`;
   if (view == "rep") conv();
   if (view == "scan") syncScanView();
 }
 store.onChange(render);
+
+// 023: products and photos at 80% of the plan or more, for the owner and
+// managers on the screens where they add them. Adding stops at the limit;
+// selling never does.
+function limitNotes() {
+  const s = state.shop;
+  if (cashierUi() || !s?.max_items || !["dash", "inv", "sys"].includes(view)) return "";
+  const up = isOwner() && store.configured && view != "sys" ? ` <a href="#sys">${t("lim.upgrade")}</a>` : "";
+  return [
+    [state.items.length, s.max_items, "lim.items"],
+    [state.items.filter((i) => i.photo).length, s.max_photos, "lim.photos"],
+  ]
+    .filter(([n, max]) => max && n >= 0.8 * max)
+    .map(([n, max, k]) => `<div class="card warn">${t(k, { n: num(n), max: num(max) })}${up}</div>`)
+    .join("");
+}
 
 async function go(v, camOn) {
   await scanner.cam(false);

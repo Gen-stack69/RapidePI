@@ -53,6 +53,9 @@ function friendly(e) {
   if (/unknown till/i.test(m)) return err("err.till");
   const full = /till limit reached: (\d+) of (\d+)/i.exec(m);
   if (full) return err("err.tillFull", { max: full[2] });
+  // 023: what the plan includes
+  const lim = /plan limit: (products|staff|photos) (\d+)/i.exec(m);
+  if (lim) return err({ products: "err.limItems", staff: "err.limStaff", photos: "err.limPhotos" }[lim[1]], { max: lim[2] });
   if (/not a till/i.test(m)) return err("err.noTill");
   if (/till retired/i.test(m)) return err("err.tillRetired");
   if (/invite code not valid/i.test(m)) return err("err.badInvite");
@@ -201,7 +204,7 @@ export async function reload() {
       CAP.movements,
     ),
     must(sb.from("settings").select("*").eq("shop_id", id).maybeSingle()),
-    must(sb.from("shops").select("id, name, plan, plan_until, max_tills").eq("id", id).single()),
+    must(sb.from("shops").select("id, name, plan, plan_until, max_tills, max_items, max_staff, max_photos").eq("id", id).single()),
     // Lots are never capped: like products, a missing one is a missing expiry warning.
     all(() => sel("lots").order("expiry").order("id")),
     all(() => sel("sales").gte("created_at", since).order("created_at", { ascending: false }).order("id"), CAP.sales),
@@ -256,7 +259,7 @@ async function loadBilling() {
   const id = state.shop.id;
   try {
     const [plans, billing, admin, payments] = await Promise.all([
-      must(sb.from("plans").select("code, price_kip, max_tills, sort").eq("active", true).order("sort")),
+      must(sb.from("plans").select("code, price_kip, max_tills, max_items, max_staff, sort").eq("active", true).order("sort")),
       must(sb.from("billing").select("pay_qr").maybeSingle()),
       rpc("is_platform_admin"),
       state.role == "owner"
