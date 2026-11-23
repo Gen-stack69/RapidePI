@@ -1,4 +1,4 @@
-# RAPIDÉWMS
+# RAPIDÉ POS-IMS
 
 Inventory and warehouse app for small shops in Laos, in **Lao and English**. Vanilla JS + Vite frontend, Supabase (Postgres, Auth, Realtime) backend.
 
@@ -45,7 +45,7 @@ separate desktop project, no `.exe` to sign or distribute, and updates arrive by
 themselves.
 
 In Chrome or Edge, open the app and use **⬇ Install app** in the header (or the
-install icon in the address bar). Afterwards RAPIDÉWMS is in the Start menu or
+install icon in the address bar). Afterwards RAPIDÉ POS-IMS is in the Start menu or
 on the home screen, with its own icon and window.
 
 **What works with no internet:** the app opens, the Lao font renders and the
@@ -84,7 +84,7 @@ Supabase's free plan includes no backups at all, so until you run this the only
 copy of a shop's data is the live database.
 
 ```
-npm run backup          # writes ../rapidewms-backups/rapidewms-<timestamp>.ndjson.gz
+npm run backup          # writes ../rapidewms-backups/rapide-pos-ims-<timestamp>.ndjson.gz
 npm run backup:verify   # restores the newest one and checks it holds together
 ```
 

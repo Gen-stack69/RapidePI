@@ -286,8 +286,8 @@ export async function printSet(s, k) {
   // The print font loads only when first used: wait for it, or the first
   // printout comes out in the fallback font.
   await Promise.all([
-    document.fonts.load('10px "RAPIDEWMS PDF"'),
-    document.fonts.load('bold 10px "RAPIDEWMS PDF"'),
+    document.fonts.load('10px "RAPIDE POS-IMS PDF"'),
+    document.fonts.load('bold 10px "RAPIDE POS-IMS PDF"'),
   ]).catch(() => {});
   $("#print").innerHTML = reportHtml(report(s, k));
   document.body.classList.add("printing");
@@ -349,5 +349,5 @@ export async function exportZip(s) {
     shop = String(s.shop?.name || "shop")
       .replace(/[\\/:*?"<>|\s]+/g, "-")
       .slice(0, 40);
-  download(await z.generateAsync({ type: "blob" }), `RAPIDEWMS-${shop}-${day}.zip`);
+  download(await z.generateAsync({ type: "blob" }), `RAPIDE-POS-IMS-${shop}-${day}.zip`);
 }

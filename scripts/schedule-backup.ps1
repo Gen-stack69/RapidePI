@@ -64,7 +64,7 @@ $settings = New-ScheduledTaskSettingsSet -StartWhenAvailable `
   -ExecutionTimeLimit (New-TimeSpan -Hours 1)
 
 Register-ScheduledTask -TaskName $Name -Action $action -Trigger $trigger `
-  -Settings $settings -Description "Daily logical backup of the RAPIDEWMS Supabase database." -Force | Out-Null
+  -Settings $settings -Description "Daily logical backup of the RAPIDE POS-IMS Supabase database." -Force | Out-Null
 
 ""
 "Scheduled '$Name' daily at $At."

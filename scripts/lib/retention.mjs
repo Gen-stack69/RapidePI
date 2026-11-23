@@ -11,9 +11,10 @@
 
 const DAY = 864e5;
 
-// Filenames look like rapidewms-2026-11-03T23-40-12Z.ndjson.gz
+// Filenames look like rapide-pos-ims-2026-11-03T23-40-12Z.ndjson.gz
+// (rapidewms-… before the product was renamed; both are recognised).
 export function backupDate(name) {
-  const m = /^rapidewms-(.+)\.ndjson\.gz$/.exec(name);
+  const m = /^(?:rapidewms|rapide-pos-ims)-(\d{4}-.+)\.ndjson\.gz$/.exec(name);
   if (!m) return null;
   const d = new Date(m[1].replace(/-(\d\d)-(\d\d)Z$/, ":$1:$2Z"));
   return isNaN(d) ? null : d;

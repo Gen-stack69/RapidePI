@@ -1,8 +1,8 @@
-# RAPIDÉWMS: project summary
+# RAPIDÉ POS-IMS: project summary
 
 _Last updated: 2026-10-31_
 
-RAPIDÉWMS is an inventory and warehouse app for **small shops and warehouses in Laos**. Shops use it to track products and stock, scan barcodes to receive and ship goods, manage orders, get low-stock alerts and auto-reorders, and export reports (PDF, Excel, CSV, ZIP backup).
+RAPIDÉ POS-IMS (point of sale and inventory management system), made by Rapide, is a till and stock app for **small shops in Laos**. Shops use it to track products and stock, scan barcodes to receive and ship goods, manage orders, get low-stock alerts and auto-reorders, and export reports (PDF, Excel, CSV, ZIP backup).
 
 - **Goal:** a paid product within 7 weeks. Target 5+ pilot shops by week 3 and 10 paying shops by week 7.
 - **Team:** owner + 1–2 helpers.

@@ -33,12 +33,16 @@ const die = (msg) => {
 };
 
 // ---------- pick a file ----------
+// The date part of a backup file name: rapide-pos-ims-2026-…, rapidewms-2026-… → 2026-…
+const stamp = (name) => name.replace(/^.*?-(?=\d{4}-)/, "");
 const dir = resolve(root, opt("--dir", process.env.BACKUP_DIR || "../rapidewms-backups"));
 let file = opt("--file", null);
 if (!file) {
   let names = [];
   try {
-    names = readdirSync(dir).filter((f) => /^rapidewms-.*\.ndjson\.gz$/.test(f)).sort();
+    names = readdirSync(dir).filter((f) => /^(?:rapidewms|rapide-pos-ims)-\d{4}-.*\.ndjson\.gz$/.test(f))
+      // by date, whichever name the file has (rapidewms-… before the rename)
+      .sort((a, b) => stamp(a).localeCompare(stamp(b)));
   } catch {
     die(`No backup folder at ${dir}.\nRun: npm run backup`);
   }
@@ -67,15 +71,15 @@ for await (const line of lines) {
   } catch (e) {
     die(`Line ${lineNo} is not valid JSON, so the file is damaged.\n${e.message}`);
   }
-  if (obj.kind === "rapidewms-backup") header = obj;
-  else if (obj.kind === "rapidewms-backup-end") trailer = obj;
+  if (obj.kind === "rapide-pos-ims-backup" || obj.kind === "rapidewms-backup") header = obj;
+  else if (obj.kind === "rapide-pos-ims-backup-end" || obj.kind === "rapidewms-backup-end") trailer = obj;
   else if (obj.t) {
     if (!rowsByTable.has(obj.t)) rowsByTable.set(obj.t, []);
     rowsByTable.get(obj.t).push(obj.r);
   }
 }
 
-if (!header) die("No header line: this is not a RAPIDEWMS backup.");
+if (!header) die("No header line: this is not a RAPIDÉ POS-IMS backup.");
 // The trailer is written last, so its absence means the run was cut short.
 if (!trailer) die("No trailer line: the backup is incomplete and must not be relied on.\nTake a fresh one: npm run backup");
 

@@ -174,6 +174,14 @@ await ok("a filename round-trips back to its date", () => {
   eq(d.toISOString(), "2026-11-03T23:40:12.000Z", "parsed date");
 });
 
+await ok("backups named after the rename (rapide-pos-ims-…) are read the same", () => {
+  const d = backupDate("rapide-pos-ims-2026-11-03T23-40-12Z.ndjson.gz");
+  eq(d && d.toISOString(), "2026-11-03T23:40:12.000Z", "parsed date");
+  eq(backupDate("rapide-pos-ims-nonsense.ndjson.gz"), null, "unparseable stamp");
+  const keep = toKeep(["rapidewms-2026-11-01T23-40-12Z.ndjson.gz", "rapide-pos-ims-2026-11-03T03-00-00Z.ndjson.gz"], NOW);
+  eq(keep.size, 2, "old and new names both kept");
+});
+
 await ok("anything that is not a backup file is ignored", () => {
   eq(backupDate("notes.txt"), null, "plain file");
   eq(backupDate("rapidewms-nonsense.ndjson.gz"), null, "unparseable stamp");

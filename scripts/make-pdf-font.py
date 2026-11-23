@@ -46,8 +46,8 @@ def build(lao, latin, out):
         # A changed OFL font must not go out under the original's name.
         bold = "Bold" in os.path.basename(out) or "bold" in os.path.basename(out)
         style = "Bold" if bold else "Regular"
-        names = {1: "RAPIDEWMS PDF", 2: style, 3: f"RAPIDEWMS PDF {style}", 4: f"RAPIDEWMS PDF {style}",
-                 6: f"RAPIDEWMSPDF-{style}", 16: "RAPIDEWMS PDF", 17: style}
+        names = {1: "RAPIDE POS-IMS PDF", 2: style, 3: f"RAPIDE POS-IMS PDF {style}", 4: f"RAPIDE POS-IMS PDF {style}",
+                 6: f"RAPIDEPOSIMSPDF-{style}", 16: "RAPIDE POS-IMS PDF", 17: style}
         tbl = merged["name"]
         for rec in list(tbl.names):
             if rec.nameID in names:
