@@ -911,24 +911,24 @@ const A = {
   // time (reload() keeps it as this account's last shop). Work queued on this
   // device stays with its own shop (queue.js) and is sent on coming back.
   async switchShop(el) {
-    const m = state.shopList?.find((x) => x.shops.id == el.dataset.id),
-      was = state.shopList?.find((x) => x.shops.id == state.shop?.id);
-    if (!m || m === was) return;
+    const m = state.shopList?.find((x) => x.shops.id == el.dataset.id);
+    if (!m || m.shops.id == state.shop?.id) return;
     // The other shop has to be fetched; offline there is only this one's copy.
     if (store.configured && !navigator.onLine) return toast(t("err.offline"), true);
     if (state.pending && !confirm(t("ask.switchPending"))) return;
-    toast(t("msg.opening", { name: m.shops.name }));
-    // A sale in progress belongs to this shop: its lines are this shop's products.
-    till.reset();
-    try {
-      await store.openShop(m);
-    } catch (e) {
-      // Half-opened (the connection dropped): go back, so the name on screen
-      // and the data under it are the same shop.
-      if (was) await store.openShop(was).catch(() => {});
-      throw e;
-    }
-    go("dash");
+    await openOther(m);
+  },
+  // A second shop for this account (another branch): its own stock, staff,
+  // tills and 14-day trial, made as at sign-up (create_shop), then opened.
+  async newShop() {
+    if (store.configured && !navigator.onLine) return toast(t("err.offline"), true);
+    const name = (prompt(t("sys.newShopName"), "") ?? "").trim().slice(0, 80);
+    if (!name) return;
+    if (state.pending && !confirm(t("ask.switchPending"))) return;
+    const id = await store.createShop(name);
+    state.shopList = await store.myShops();
+    const m = state.shopList.find((x) => x.shops.id == id);
+    if (m) await openOther(m);
   },
   adminLoad: () => loadAdmin(),
   async adminProof(el) {
@@ -1214,6 +1214,23 @@ function storedSession() {
   } catch {
     return null;
   }
+}
+
+// Open another of this account's shops (Switch shop, Create another shop).
+async function openOther(m) {
+  const was = state.shopList?.find((x) => x.shops.id == state.shop?.id);
+  toast(t("msg.opening", { name: m.shops.name }));
+  // A sale in progress belongs to this shop: its lines are this shop's products.
+  till.reset();
+  try {
+    await store.openShop(m);
+  } catch (e) {
+    // Half-opened (the connection dropped): go back, so the name on screen
+    // and the data under it are the same shop.
+    if (was) await store.openShop(was).catch(() => {});
+    throw e;
+  }
+  go("dash");
 }
 
 async function enter() {

@@ -28,10 +28,12 @@ function payQr(s) {
 }
 
 // The other shops this account is in (an owner with two branches, a cashier
-// in two shops, a Rapide admin with a test shop): open one in a tap.
+// in two shops, a Rapide admin with a test shop): open one in a tap, or
+// start another one.
 function otherShops(s) {
-  const others = (s.shopList || []).filter((m) => m.shops.id != s.shop.id);
-  if (!others.length) return "";
+  const others = (s.shopList || []).filter((m) => m.shops.id != s.shop.id),
+    add = `<div class="row mt"><button class="g" data-act="newShop">${t("sys.newShop")}</button></div>`;
+  if (!others.length) return add;
   return `<p class="mut mt">${t("sys.otherShops")}</p>${others
     .map(
       (m) =>
@@ -39,7 +41,7 @@ function otherShops(s) {
           m.shops.id,
         )}">${t("sys.open")}</button></div>`,
     )
-    .join("")}`;
+    .join("")}${add}`;
 }
 
 // Owner only, with a server: pay for a plan. The shop transfers the amount to
