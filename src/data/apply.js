@@ -484,6 +484,20 @@ export function saleBatches(movements, saleId) {
   return m;
 }
 
+/** Units in and out (the Dashboard's stock-movement chart). A voided sale
+ * never happened: its units going out and the void bringing them back are
+ * both left out. */
+export function moveFlow(movements, sales) {
+  const voided = new Set(sales.filter((s) => s.status == "void").map((s) => s.id)),
+    f = [0, 0];
+  for (const m of movements) {
+    if (m.note == "void" || (m.sale_id && voided.has(m.sale_id))) continue;
+    if (m.type == "in") f[0] += +m.qty;
+    else if (m.type == "out") f[1] += +m.qty;
+  }
+  return f;
+}
+
 /** The number printed on a receipt: the till's own (A-0042) when it has one. */
 export const saleNo = (s) =>
   s.till ? `${s.till}-${String(s.till_no).padStart(4, "0")}` : s.receipt_no != null ? String(s.receipt_no) : "…";

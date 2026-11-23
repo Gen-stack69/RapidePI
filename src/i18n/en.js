@@ -336,6 +336,7 @@ export default {
   "pos.void": "Void",
   "pos.noSales": "No sales yet today.",
   "pos.lines": "{n} units",
+  "pos.restored": "The sale you were ringing up is back.",
   "pos.search": "Scan a barcode, or type a name or SKU…",
   "pos.cam": "📷 Camera",
   "pos.cart": "Current sale",

@@ -361,6 +361,21 @@ await ok("refused while the person waits: the error goes back to them", async ()
 
 console.log("\nOffline copy (apply.js, the same rules as the database)");
 const AP = await import("../src/data/apply.js");
+
+await ok("dashboard movement chart leaves voided sales out", () => {
+  const sales = [
+      { id: "s1", status: "done" },
+      { id: "s2", status: "void" },
+    ],
+    moves = [
+      { type: "in", qty: 50, sale_id: null, note: "delivery" },
+      { type: "out", qty: 3, sale_id: "s1", note: "" },
+      { type: "out", qty: 5, sale_id: "s2", note: "" }, // the voided sale
+      { type: "in", qty: 5, sale_id: "s2", note: "void" }, // its stock coming back
+      { type: "out", qty: 2, sale_id: null, note: "write-off" },
+    ];
+  eq(AP.moveFlow(moves, sales).join(","), "50,5", "in,out");
+});
 const shopDb = () => ({
   items: [
     { id: "i1", shop_id: "s", sku: "MILK", name: "Milk", qty: 20, min_qty: 0, price: 10000, price_wholesale: 9000, wholesale_min_qty: 12 },

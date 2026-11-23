@@ -3,7 +3,7 @@ import { CUR, SIGN } from "../lib/rates.js";
 import { t, tn } from "../i18n/index.js";
 import { status } from "../lib/expiry.js";
 import { dt } from "../lib/util.js";
-import { saleNo } from "../data/apply.js";
+import { saleNo, moveFlow } from "../data/apply.js";
 import { errText } from "../i18n/index.js";
 import { isOwner } from "../data/store.js";
 import { waitingBoxes } from "../data/fields.js";
@@ -81,9 +81,8 @@ export default function dash(s) {
   I.forEach((i) => (c[i.category] = (c[i.category] || 0) + +i.qty));
   const ks = Object.keys(c).filter((k) => c[k] > 0),
     tot = ks.reduce((a, k) => a + c[k], 0),
-    inb = s.movements.filter((m) => m.type == "in").reduce((a, m) => a + +m.qty, 0),
-    ob = s.movements.filter((m) => m.type == "out").reduce((a, m) => a + +m.qty, 0),
-    v = [inb, ob],
+    v = moveFlow(s.movements, s.sales),
+    [inb, ob] = v,
     mx = Math.max(1, ...v);
   let off = 0;
   const seg = ks.length

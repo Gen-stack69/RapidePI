@@ -1294,9 +1294,10 @@ if (!store.configured) {
       // Work from it; it is renewed when the network returns.
       if (!session && !navigator.onLine && ev != "SIGNED_OUT") session = storedSession();
       if (!session) {
-        Object.assign(state, { user: null, shop: null, items: [], orders: [], movements: [] });
-        // The next person to sign in on this till starts with an empty sale.
+        // The next person to sign in on this till starts with an empty sale
+        // (also the one kept for a reload: cleared while the shop is known).
         till.clear();
+        Object.assign(state, { user: null, shop: null, items: [], orders: [], movements: [] });
         await scanner.cam(false);
         return showAuth();
       }
