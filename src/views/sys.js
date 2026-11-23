@@ -1,4 +1,4 @@
-import { E, fmt } from "../lib/util.js";
+import { E, fmt, num } from "../lib/util.js";
 import { t, tn, lang, LANGS, fDate, fDateTime } from "../i18n/index.js";
 import { isOwner, configured, myTill, canWrite, cashierUi, CASHIER_URL } from "../data/store.js";
 
@@ -73,7 +73,7 @@ function billing(s) {
       (p) =>
         `<div class="row mt"><b>${planName(p.code)}</b><span class="mut">${tn("bill.planLine", p.max_tills, {
           price: fmt(p.price_kip),
-        })}</span><button class="g" data-act="payStart" data-plan="${E(p.code)}">${t("bill.choose")}</button></div>`,
+        })}${p.max_items ? " · " + t("bill.planIncl", { items: num(p.max_items), staff: num(p.max_staff) }) : ""}</span><button class="g" data-act="payStart" data-plan="${E(p.code)}">${t("bill.choose")}</button></div>`,
     )
     .join("");
   return `${head}<p class="mut">${t("bill.note")}</p><label class="mt">${t("bill.months")}<select id="paymonths">${PAY_MONTHS.map(
@@ -142,7 +142,9 @@ function staff(s) {
         })}</span><button class="g" data-act="shareInvite" data-code="${E(i.code)}" data-role="${E(i.role || "staff")}">${t("invite.share")}</button><button class="g" data-act="cancelInvite" data-code="${E(i.code)}">${t("sys.cancel")}</button></div>`,
     )
     .join("");
-  return `<div class="card"><h3>${t("sys.staff")}</h3><p class="mut">${t("sys.staffNote")}</p><p class="mut">${t("sys.cashierSite", { url: `<a href="${CASHIER_URL}" target="_blank" rel="noopener">${CASHIER_URL.slice("https://".length, -1)}</a>` })}</p>${people}${
+  const used = s.people.members.filter((m) => m.role != "owner").length,
+    seats = s.shop.max_staff != null ? `<p class="mut">${t("lim.staff", { n: used, max: s.shop.max_staff })}</p>` : "";
+  return `<div class="card"><h3>${t("sys.staff")}</h3><p class="mut">${t("sys.staffNote")}</p>${seats}<p class="mut">${t("sys.cashierSite", { url: `<a href="${CASHIER_URL}" target="_blank" rel="noopener">${CASHIER_URL.slice("https://".length, -1)}</a>` })}</p>${people}${
     codes ? `<p class="mut mt">${t("sys.codesOpen")}</p>${codes}` : ""
   }<div class="row mt"><button class="g" data-act="addStaff" data-role="staff">${t("sys.addManager")}</button><button class="g" data-act="addStaff" data-role="cashier">${t(
     "sys.addCashier",
