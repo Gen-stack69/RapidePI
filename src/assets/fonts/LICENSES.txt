@@ -1,4 +1,4 @@
-pdf-regular.ttf and pdf-bold.ttf (font name "RAPIDEWMS PDF") are built by
+pdf-regular.ttf and pdf-bold.ttf (font name "RAPIDE POS-IMS PDF") are built by
 scripts/make-pdf-font.py from two fonts, merged and cut down to the characters
 the PDF export needs:
 

@@ -54,7 +54,7 @@ const EN = {
   "mq.7": "58 mm receipts",
   "mq.8": "Excel / PDF reports",
   "mq.9": "Lao language",
-  "svc.title": "What RAPIDÉWMS does for your shop",
+  "svc.title": "What RAPIDÉ POS-IMS does for your shop",
   "svc.till.h": "Till and bank QR",
   "svc.till.p":
     "Scan a barcode or search by name, take cash or a transfer. Your shop's bank QR shows the total for the customer to scan with BCEL One, LDB or JDB.",
@@ -139,9 +139,9 @@ const LO = {
   "contact.phone": "ໂທຫາພວກເຮົາ",
   "contact.fb": "Facebook",
   "contact.none": "ຂໍ້ມູນຕິດຕໍ່ຈະມີໄວໆນີ້.",
-  "hero.waText": "ສະບາຍດີ, ຂ້ອຍສົນໃຈ RAPIDÉWMS ສຳລັບຮ້ານຂອງຂ້ອຍ.",
+  "hero.waText": "ສະບາຍດີ, ຂ້ອຍສົນໃຈ RAPIDÉ POS-IMS ສຳລັບຮ້ານຂອງຂ້ອຍ.",
 };
-EN["hero.waText"] = "Hello, I'm interested in RAPIDÉWMS for my shop.";
+EN["hero.waText"] = "Hello, I'm interested in RAPIDÉ POS-IMS for my shop.";
 
 const KEY = "lang"; // the app's own key (src/i18n/index.js), so the choice carries over
 const nodes = [...document.querySelectorAll("[data-t]")];
@@ -188,7 +188,7 @@ function apply() {
   document.body.classList.toggle("en", lang == "en");
   for (const n of nodes) n.innerHTML = lang == "en" && EN[n.dataset.t] != null ? EN[n.dataset.t] : n.dataset.lo;
   document.title =
-    lang == "en" ? "RAPIDÉWMS — Point of sale and stock for shops in Laos" : "RAPIDÉWMS — ລະບົບຂາຍໜ້າຮ້ານ ແລະ ສາງສິນຄ້າ";
+    lang == "en" ? "RAPIDÉ POS-IMS — Point of sale and stock for shops in Laos" : "RAPIDÉ POS-IMS — ລະບົບຂາຍໜ້າຮ້ານ ແລະ ສາງສິນຄ້າ";
   contacts();
 }
 

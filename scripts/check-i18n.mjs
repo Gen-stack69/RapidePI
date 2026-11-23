@@ -12,7 +12,7 @@ import lo from "../src/i18n/lo.js";
 const SRC = new URL("../src/", import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, "$1");
 const SKIP = /[\\/]i18n[\\/]/;
 // Format names, brand words and symbols that stay the same in every language.
-const OK_TEXT = /^(PDF|Excel|CSV|LAK|THB|USD|CNY|SKU|QR|RAPIDÉ|WMS|ZIP|Supabase)$/i;
+const OK_TEXT = /^(PDF|Excel|CSV|LAK|THB|USD|CNY|SKU|QR|RAPIDÉ|POS|IMS|POS-IMS|ZIP|Supabase)$/i;
 
 const files = [];
 (function walk(dir) {

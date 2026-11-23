@@ -7,7 +7,7 @@ import { VitePWA } from "vite-plugin-pwa";
 export default defineConfig(({ mode }) => ({
   plugins: [
     ...(mode == "lan" ? [basicSsl()] : []),
-    // Installable app: a shop gets RAPIDÉWMS in the Windows Start menu or on an
+    // Installable app: a shop gets RAPIDÉ POS-IMS in the Windows Start menu or on an
     // Android home screen, in its own window, and it opens without internet.
     //
     // The service worker precaches the app itself — including the Lao font and
@@ -22,8 +22,8 @@ export default defineConfig(({ mode }) => ({
       injectRegister: false,
       includeAssets: ["icon.svg", "icon-maskable.svg"],
       manifest: {
-        name: "RAPIDÉWMS",
-        short_name: "RAPIDÉWMS",
+        name: "RAPIDÉ POS-IMS",
+        short_name: "RAPIDÉ POS",
         description: "Inventory and warehouse app for small shops in Laos.",
         theme_color: "#07050f",
         background_color: "#06040d",

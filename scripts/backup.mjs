@@ -146,7 +146,7 @@ async function tableOrder(sql) {
 // ---------- run ----------
 const startedAt = new Date(),
   stamp = startedAt.toISOString().replace(/[:.]/g, "-").replace(/-\d{3}Z$/, "Z"),
-  file = join(dir, `rapidewms-${stamp}.ndjson.gz`);
+  file = join(dir, `rapide-pos-ims-${stamp}.ndjson.gz`);
 
 mkdirSync(dir, { recursive: true });
 
@@ -170,7 +170,7 @@ try {
     const order = await tableOrder(tx);
 
     await write({
-      kind: "rapidewms-backup",
+      kind: "rapide-pos-ims-backup",
       format: 1,
       taken_at: startedAt.toISOString(),
       server: version,
@@ -206,7 +206,7 @@ try {
 
   // The trailer is written last, so a file that was cut short (full disk, laptop
   // closed mid-run) is detectably incomplete instead of quietly short.
-  await write({ kind: "rapidewms-backup-end", finished_at: new Date().toISOString(), counts });
+  await write({ kind: "rapide-pos-ims-backup-end", finished_at: new Date().toISOString(), counts });
 } catch (e) {
   gzip.destroy();
   out.destroy();

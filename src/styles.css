@@ -994,12 +994,12 @@ table.cart td {
 }
 /* The same font as the PDF export: Phetsarath for Lao, DejaVu for Latin. */
 @font-face {
-  font-family: "RAPIDEWMS PDF";
+  font-family: "RAPIDE POS-IMS PDF";
   src: url("./assets/fonts/pdf-regular.ttf") format("truetype");
   font-weight: 400;
 }
 @font-face {
-  font-family: "RAPIDEWMS PDF";
+  font-family: "RAPIDE POS-IMS PDF";
   src: url("./assets/fonts/pdf-bold.ttf") format("truetype");
   font-weight: 700;
 }
@@ -1028,7 +1028,7 @@ table.cart td {
   }
   body.printing .report {
     page: report;
-    font: 9.5px "RAPIDEWMS PDF", "Noto Sans Lao", sans-serif;
+    font: 9.5px "RAPIDE POS-IMS PDF", "Noto Sans Lao", sans-serif;
     color: #000;
   }
   body.printing .report .rh {
