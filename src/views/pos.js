@@ -5,7 +5,7 @@
 import { $, E, fmt, num, dt, toast, dateText } from "../lib/util.js";
 import { t, tn, fTime } from "../i18n/index.js";
 import * as store from "../data/store.js";
-import { state, isOwner, canWrite } from "../data/store.js";
+import { state, isOwner, canWrite, cashierUi } from "../data/store.js";
 import { lookupCode, status } from "../lib/expiry.js";
 import { receiptHtml, printReceipt } from "../lib/receipt.js";
 import { isQr } from "../lib/camera.js";
@@ -437,7 +437,7 @@ function salesHtml() {
               )}</td><td class="act"><button class="g" data-act="posReceipt" data-id="${E(x.client_id)}" title="${E(
                 t("pos.receipt"),
               )}">🧾</button>${
-                isOwner() && x.status != "void"
+                isOwner() && !cashierUi() && x.status != "void"
                   ? ` <button class="g" data-act="posVoid" data-id="${E(x.client_id)}">${t("pos.void")}</button>`
                   : ""
               }</td></tr>`,

@@ -1012,5 +1012,99 @@ await ok("scanning one batch no. again and again keeps one batch; a resend adds 
   }
 });
 
+console.log("Cashier role (021)");
+// Shop K of its own (shop B is read-only by now): owner O, manager M, cashier F.
+const O = "00000000-0000-0000-0000-0000000000a1",
+  M = "00000000-0000-0000-0000-0000000000a2",
+  F = "00000000-0000-0000-0000-0000000000a3";
+await db.exec(`insert into auth.users values ('${O}', 'owner-k@example.com'), ('${M}', 'manager-k@example.com'), ('${F}', 'till-k@example.com')`);
+const shopK = (await one(O, "select create_shop('Shop K') id")).id;
+const kQty = async (id) => +(await one(O, "select qty from items where id = $1", [id])).qty;
+const kMilk = (await one(O, "insert into items (shop_id, sku, name, kind, price) values ($1, 'K-MILK', 'Milk', 'consumable', 10000) returning id", [shopK])).id;
+const kSoap = (await one(O, "insert into items (shop_id, sku, name, price) values ($1, 'K-SOAP', 'Soap', 5000) returning id", [shopK])).id;
+const kBox = (await one(O, "insert into packs (shop_id, item_id, name, size, barcode) values ($1, $2, 'Box', 6, 'K-BOX') returning id", [shopK, kSoap])).id;
+await as(O, "select adjust_stock($1, 20, 'in', '2099-07-01')", [kMilk]);
+await as(O, "select adjust_stock($1, 10)", [kSoap]);
+const kTill = (await one(O, "select register_till($1, 'K counter') c", [shopK])).c;
+await ok("codes for a manager and a cashier give those roles", async () => {
+  const cm = (await one(O, "select create_invite($1) c", [shopK])).c,
+    cc = (await one(O, "select create_invite($1, 'cashier') c", [shopK])).c;
+  eq((await one(O, "select shop_people($1) p", [shopK])).p.invites.find((i) => i.code == cc).role, "cashier", "invite role");
+  await as(M, "select join_shop($1)", [cm]);
+  await as(F, "select join_shop($1)", [cc]);
+  eq((await one(O, "select string_agg(role, ',' order by role) r from members where shop_id = $1", [shopK])).r, "cashier,owner,staff", "roles");
+});
+await rejects("a code can't be made for the owner role", () => as(O, "select create_invite($1, 'owner')", [shopK]));
+await ok("the cashier sells, and stock goes down", async () => {
+  const m = await kQty(kMilk),
+    s = await kQty(kSoap);
+  await one(F, "select create_sale($1, $2, $3::jsonb, 0, 'cash', 1e9, null, $4) id", [
+    shopK,
+    "till-cashier-0001",
+    JSON.stringify([{ item_id: kMilk, qty: 2 }, { item_id: kSoap, qty: 1 }]),
+    kTill,
+  ]);
+  eq(await kQty(kMilk), m - 2, "milk");
+  eq(await kQty(kSoap), s - 1, "soap");
+});
+await ok("the cashier adds a customer", () =>
+  as(F, "insert into customers (shop_id, name, phone) values ($1, 'Walk-in Noy', '020 1111 2222')", [shopK]));
+await ok("the cashier sees products and stock", async () =>
+  eq((await one(F, "select count(*)::int n from items where shop_id = $1", [shopK])).n, 2, "items"));
+const kLot = async () => (await one(O, "select id from lots where item_id = $1 and expiry is not null order by expiry limit 1", [kMilk])).id;
+for (const [name, fn] of [
+  ["add stock", () => as(F, "select adjust_stock($1, 5)", [kSoap])],
+  ["take stock out", () => as(F, "select adjust_stock($1, -1)", [kSoap])],
+  ["count stock", () => as(F, "select set_stock($1, 99)", [kSoap])],
+  ["write a batch off", async () => as(F, "select write_off_lot($1)", [await kLot()])],
+  ["change a batch's date", async () => as(F, "select change_lot_expiry($1, $2)", [await kLot(), "2099-12-31"])],
+  ["set a batch no.", () => as(F, "select set_lot_batch($1, $2, $3)", [kMilk, "2099-07-01", "X1"])],
+  ["receive boxes", () => as(F, "select receive_pack($1, 1, '2099-09-01', 'rcv-cashier-01')", [kBox])],
+  ["add a product", () => as(F, "insert into items (shop_id, sku, name) values ($1, 'NEW', 'New')", [shopK])],
+  ["rename a product", async () => {
+    const r = await as(F, "update items set name = 'Renamed' where id = $1", [kSoap]);
+    if (!r.affectedRows) throw new Error("nothing changed");
+  }],
+  ["delete a product", async () => {
+    const r = await as(F, "delete from items where id = $1", [kSoap]);
+    if (!r.affectedRows) throw new Error("nothing deleted");
+  }],
+  ["make an order", () => as(F, "insert into orders (shop_id, item_id, type, qty) values ($1, $2, 'out', 1)", [shopK, kSoap])],
+  ["ship an order", async () => {
+    const o = (await one(O, "insert into orders (shop_id, item_id, type, qty) values ($1, $2, 'out', 1) returning id", [shopK, kSoap])).id;
+    try {
+      await as(F, "select complete_order($1)", [o]);
+    } finally {
+      await as(O, "delete from orders where id = $1", [o]);
+    }
+  }],
+  ["add a pack", () => as(F, "insert into packs (shop_id, item_id, name, barcode) values ($1, $2, 'Six', 'K-SIX')", [shopK, kSoap])],
+])
+  await rejects("the cashier cannot " + name, fn);
+await ok("the manager still adds stock and receives boxes", async () => {
+  const s = await kQty(kSoap);
+  await as(M, "select adjust_stock($1, 2)", [kSoap]);
+  await as(M, "select receive_pack($1, 1, null, 'rcv-manager-01')", [kBox]);
+  eq(await kQty(kSoap), s + 8, "qty");
+});
+await rejects("a manager cannot change roles", () => as(M, "select set_member_role($1, $2, 'staff')", [shopK, F]));
+await rejects("the owner's role can't be changed", () => as(O, "select set_member_role($1, $2, 'cashier')", [shopK, O]));
+await ok("the owner makes the cashier a manager and back", async () => {
+  await as(O, "select set_member_role($1, $2, 'staff')", [shopK, F]);
+  await as(F, "select adjust_stock($1, 1)", [kSoap]);
+  await as(O, "select set_member_role($1, $2, 'cashier')", [shopK, F]);
+  let threw = false;
+  await as(F, "select adjust_stock($1, 1)", [kSoap]).catch(() => (threw = true));
+  eq(threw, true, "cashier again");
+});
+await ok("the owner can remove a cashier", async () => {
+  await as(O, "select remove_member($1, $2)", [shopK, F]);
+  eq((await one(F, "select count(*)::int n from items where shop_id = $1", [shopK])).n, 0, "sees nothing now");
+});
+await ok("Shop K's stock still equals its movements", async () => {
+  const bad = await as(O, `select i.sku from items i where i.shop_id = $1 and i.qty <> coalesce((select sum(case when m.type = 'in' then m.qty else -m.qty end) from movements m where m.item_id = i.id), 0)`, [shopK]);
+  eq(bad.rows.map((r) => r.sku).join(), "", "out of step");
+});
+
 console.log(failures ? `\n${failures} FAILED` : "\nAll database checks passed");
 process.exit(failures ? 1 : 0);

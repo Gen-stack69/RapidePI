@@ -1,7 +1,7 @@
 import { $, E, toast, form, dateText, expiryNote, checkExpiry, batchField } from "./lib/util.js";
 import { t, errText } from "./i18n/index.js";
 import * as store from "./data/store.js";
-import { state } from "./data/store.js";
+import { state, cashierUi } from "./data/store.js";
 import * as camera from "./lib/camera.js";
 import { lookupCode, parseTyped, status } from "./lib/expiry.js";
 
@@ -177,7 +177,8 @@ export function again(code) {
 
 async function handle(c, format) {
   const { item: it, pack: scannedPack, code, expiry: printed } = lookupCode(state.items, c, state.packs),
-    m = $("#mode").value,
+    // A cashier only looks up, whatever the page says.
+    m = cashierUi() ? "look" : $("#mode").value,
     n = Math.max(1, +$("#sq").value || 1);
   // A QR that is no product is usually a link or a payment slip: show it, don't offer to add it.
   if (!it && camera.isQr(format))
@@ -186,7 +187,7 @@ async function handle(c, format) {
   // it as that product's box rather than make a second product of it.
   if (!it)
     return log(
-      `${kindTag(format)}<span class="warn">${t("scan.unknown", { code: `<b>${E(code)}</b>` })}</span> <button class="g" data-act="linkBox" data-code="${E(code)}" data-scan="${E(c)}">${t("scan.linkBox")}</button> <button class="g" data-act="addItem" data-code="${E(code)}" data-exp="${E(printed || "")}">${t("scan.addNew")}</button>`,
+      `${kindTag(format)}<span class="warn">${t("scan.unknown", { code: `<b>${E(code)}</b>` })}</span>${cashierUi() ? "" : ` <button class="g" data-act="linkBox" data-code="${E(code)}" data-scan="${E(c)}">${t("scan.linkBox")}</button> <button class="g" data-act="addItem" data-code="${E(code)}" data-exp="${E(printed || "")}">${t("scan.addNew")}</button>`}`,
     );
   if (m == "look")
     return log(

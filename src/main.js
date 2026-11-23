@@ -10,14 +10,14 @@ import { t, tn, errText, setLang, other, applyStatic, fDateTime, fTime } from ".
 import { readTable, guessKind, guessColumns, build, KINDS } from "./lib/importer.js";
 import { exportSet, exportZip } from "./lib/export.js";
 import * as store from "./data/store.js";
-import { state, canWrite, isOwner } from "./data/store.js";
+import { state, canWrite, isOwner, isCashier, cashierUi, CASHIER_SITE, CASHIER_URL } from "./data/store.js";
 import { PRICE_KEYS, waitingBoxes, packRow } from "./data/fields.js";
 import { err } from "./i18n/index.js";
 
 const fail = (code, params) => {
   throw err(code, params);
 };
-import { showAuth, showCreateShop, showNewPassword } from "./auth.js";
+import { showAuth, showCreateShop, showNewPassword, showCashierSite } from "./auth.js";
 import * as scanner from "./scanner.js";
 import dash, { ui as dashUi } from "./views/dash.js";
 import inv, { ui as invUi, rows as invRows } from "./views/inv.js";
@@ -81,6 +81,23 @@ const N = [
   ["sys", "☰"],
   ["admin", "✓"], // Rapide admins only
 ];
+
+// ---------- cashier mode (021) ----------
+// On the cashier site, or for a cashier account: the till, products and stock
+// to look at, the scanner to look up, and an Account screen. The database
+// refuses a cashier's stock changes anyway; this keeps the screens to what
+// works. Every button and field outside these lists is refused.
+const CASHIER_VIEWS = ["pos", "inv", "scan", "sys"];
+const CASHIER_ACTS = new Set([
+  ...["posAdd", "posInc", "posDec", "posDel", "posCut", "posClear", "posMethod", "posQrBig", "posQuick"],
+  ...["posCharge", "posReceipt", "posPrint", "posCam", "posNewCust", "posNoCust", "closeDlg"],
+  ...["invBatches", "quickScan", "scanView", "camOn", "camOff", "syncNow", "retryFailed"],
+  ...["switchShop", "registerTill", "signOut", "lang", "theme", "install", "top"],
+]);
+const CASHIER_INPUTS = new Set(["search", "pos", "lang", "invFilter", "invSort", "scanMode", "manualScan"]);
+const allowed = (set, k) => !cashierUi() || set.has(k);
+// The settings screen is the cashier's "Account".
+const navKey = (k) => (k == "sys" && cashierUi() ? "acct" : k);
 let view = VIEWS[location.hash.slice(1)] ? location.hash.slice(1) : "dash";
 
 // ---------- expiry notification ----------
@@ -138,6 +155,9 @@ function showPay(p) {
 let drawn = null;
 function render(force) {
   if (!state.shop) return;
+  // A cashier on the manager site is sent to the cashier site.
+  if (isCashier() && !CASHIER_SITE) return showCashierSite(CASHIER_URL);
+  if (cashierUi() && !CASHIER_VIEWS.includes(view)) view = "pos";
   setSoonDays(state.settings.expiry_days);
   expiryNote();
   $("#auth").hidden = true;
@@ -148,10 +168,12 @@ function render(force) {
     po = state.orders.filter((o) => o.status == "pending").length,
     days = Math.ceil((new Date(state.shop.plan_until) - Date.now()) / 864e5);
 
-  $("#shopname").textContent = state.shop.name;
-  $("#nav").innerHTML = `<h6>${t("nav.title")}</h6><div>${N.filter(([k]) => k != "admin" || state.billing?.admin).map(
+  // The whole-shop export is not for cashier mode.
+  $("#hdrzip").hidden = cashierUi();
+  $("#shopname").textContent = state.shop.name + (cashierUi() ? " · " + t("cs.badge") : "");
+  $("#nav").innerHTML = `<h6>${t("nav.title")}</h6><div>${N.filter(([k]) => (k != "admin" || state.billing?.admin) && (!cashierUi() || CASHIER_VIEWS.includes(k))).map(
     ([k, i]) =>
-      `<a class="${k == view ? "on" : ""}" href="#${k}"><i>${i}</i>${t("nav." + k)}${
+      `<a class="${k == view ? "on" : ""}" href="#${k}"><i>${i}</i>${t("nav." + navKey(k))}${
         k == "inv"
           ? `<em>${state.items.length}</em>`
           : k == "ord"
@@ -199,11 +221,9 @@ function render(force) {
   if ($("#dlg").open && !force) return;
   drawn = view;
 
-  $("#main").innerHTML = `<div class="card top"><div><h2>${t("nav." + view)}</h2><p>${t(
-    "nav." + view + ".sub",
-  )}</p></div><div class="r"><button class="b" data-act="addItem">${t(
-    "btn.addItem",
-  )}</button><button class="g" data-act="quickScan">${t("btn.quickScan")}</button></div></div>${
+  $("#main").innerHTML = `<div class="card top"><div><h2>${t("nav." + navKey(view))}</h2><p>${t(
+    cashierUi() && ["inv", "scan"].includes(view) ? "cs." + view + ".sub" : "nav." + navKey(view) + ".sub",
+  )}</p></div><div class="r">${cashierUi() ? "" : `<button class="b" data-act="addItem">${t("btn.addItem")}</button>`}<button class="g" data-act="quickScan">${t("btn.quickScan")}</button></div></div>${
     !canWrite()
       ? `<div class="card warn">${t("plan.expiredCard")}${
           store.configured && isOwner() && view != "sys" ? ` <a href="#sys">${t("bill.renew")}</a>` : ""
@@ -230,6 +250,7 @@ store.onChange(render);
 
 async function go(v, camOn) {
   await scanner.cam(false);
+  if (cashierUi() && !CASHIER_VIEWS.includes(v)) v = "pos";
   view = v;
   if (location.hash.slice(1) != v) history.replaceState(null, "", "#" + v);
   render();
@@ -1029,12 +1050,17 @@ const A = {
     toast(t("msg.tillRetired", { code }));
   },
   // ---- staff ----
-  async addStaff() {
-    const code = await store.createInvite();
+  // el.dataset.role: staff (a manager) or cashier.
+  async addStaff(el) {
+    const code = await store.createInvite(el.dataset.role == "cashier" ? "cashier" : "staff");
     toast(t("msg.codeMade", { code: code.slice(0, 4) + "-" + code.slice(4) }));
   },
   async cancelInvite(el) {
     await store.cancelInvite(el.dataset.code);
+  },
+  async setRole(el) {
+    await store.setMemberRole(el.dataset.id, el.dataset.role);
+    toast(t("msg.saved"));
   },
   async removeStaff(el) {
     if (!confirm(t("ask.removeStaff", { email: el.dataset.email }))) return;
@@ -1170,15 +1196,19 @@ const run = async (fn, el) => {
 };
 document.addEventListener("click", (ev) => {
   const el = ev.target.closest("[data-act]");
-  if (el && A[el.dataset.act]) run(A[el.dataset.act], el);
+  if (!el || !A[el.dataset.act]) return;
+  if (!allowed(CASHIER_ACTS, el.dataset.act)) return toast(t("err.noPerm"), true);
+  run(A[el.dataset.act], el);
 });
 document.addEventListener("input", (ev) => {
   const k = ev.target.dataset?.input;
+  if (!allowed(CASHIER_INPUTS, k)) return;
   if (k == "scanExpiry") slashDate(ev.target, ev);
   if (["search", "expSearch", "conv", "pos", "scanExpiry", "scanBatch", "custQ"].includes(k)) INPUT[k](ev.target);
 });
 document.addEventListener("change", (ev) => {
   const k = ev.target.dataset?.input;
+  if (k && !allowed(CASHIER_INPUTS, k)) return;
   if (
     ["setting", "importFile", "lang", "invFilter", "invSort", "expView", "scanMode", "scanUnit", "dashCur"].includes(k) ||
     (k == "conv" && ev.target.tagName == "SELECT")

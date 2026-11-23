@@ -1,6 +1,6 @@
 import { E, fmt, num, dateText, expiryNote } from "../lib/util.js";
 import { t } from "../i18n/index.js";
-import { isOwner, photoSrc } from "../data/store.js";
+import { isOwner, cashierUi, photoSrc } from "../data/store.js";
 import { waitingBoxes } from "../data/fields.js";
 import { status, undatedBatches } from "../lib/expiry.js";
 import { SIGN } from "../lib/rates.js";
@@ -62,7 +62,9 @@ export function rows(s) {
   sortBy(L, next);
   if (!L.length)
     return `<tr><td colspan="9" class="mut">${t(s.items.length ? "inv.noMatch" : "inv.none")}</td></tr>`;
-  const l = COLS.map((k) => E(t(k)));
+  const l = COLS.map((k) => E(t(k))),
+    // Cashier mode: look only (stock, batches, dates), no buttons that change anything.
+    ro = cashierUi();
   return L.map((i) => {
     const low = +i.qty < +i.min_qty,
       id = E(i.id),
@@ -73,7 +75,7 @@ export function rows(s) {
     const packs = s.packs
       .filter((p) => p.item_id == i.id)
       .map((p) => {
-        const edit = isOwner() || !+p.price,
+        const edit = !ro && (isOwner() || !+p.price),
           wait = waitingBoxes(s.packReceipts, p.id);
         return `<${edit ? `button class="tag pk${p.size == null ? " warn" : ""}" data-act="editPack" data-item="${id}" data-id="${E(p.id)}"` : 'span class="tag"'}>${E(
           p.name,
@@ -105,12 +107,12 @@ export function rows(s) {
               (l) =>
                 `<div class="br ${cls(l)}"><span>${when(l)}</span><span>${batchNo(l)}</span><span class="q">${num(
                   l.qty,
-                )}${i.unit ? " " + E(i.unit) : ""}</span><span><button class="g" data-act="lotBatch" ${
+                )}${i.unit ? " " + E(i.unit) : ""}</span><span>${ro ? "" : `<button class="g" data-act="lotBatch" ${
                   `data-id="${E(l.id)}"`
                 }>${t(
                   l.batch ? "exp.editBatch" : "exp.addBatch",
-                )}</button></span></div>`,
-            ).join("")}<p class="mt"><a href="#exp" data-act="expFor" data-sku="${E(i.sku)}">${t("inv.openExpiry")}</a></p></div></div></td></tr>`
+                )}</button>`}</span></div>`,
+            ).join("")}${ro ? "" : `<p class="mt"><a href="#exp" data-act="expFor" data-sku="${E(i.sku)}">${t("inv.openExpiry")}</a></p>`}</div></div></td></tr>`
           : "";
     const pic = photoSrc(i),
       name = `${E(i.name)} <span class="tag ${kind}">${t("kind." + kind)}</span>${packs ? "<br>" + packs : ""}${lines}`;
@@ -129,7 +131,7 @@ export function rows(s) {
     )}${td(4, num(i.min_qty))}${td(5, cost)}${td(6, fmt(i.price))}${td(
       7,
       fmt(i.qty * i.cost),
-    )}<td class="act"><button class="g" data-act="adj" data-id="${id}" data-dir="1" title="${E(
+    )}<td class="act">${ro ? "" : `<button class="g" data-act="adj" data-id="${id}" data-dir="1" title="${E(
       t("tip.addStock"),
     )}">＋</button> <button class="g" data-act="adj" data-id="${id}" data-dir="-1" title="${E(
       t("tip.removeStock"),
@@ -137,7 +139,7 @@ export function rows(s) {
       isOwner()
         ? ` <button class="g" data-act="delItem" data-id="${id}" title="${E(t("tip.delete"))}">🗑</button>`
         : ""
-    } <button class="g" data-act="addPack" data-id="${id}" title="${E(t("tip.addPack"))}">📦</button></td></tr>${detail}`;
+    } <button class="g" data-act="addPack" data-id="${id}" title="${E(t("tip.addPack"))}">📦</button>`}</td></tr>${detail}`;
   }).join("");
 }
 

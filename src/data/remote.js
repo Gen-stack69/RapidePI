@@ -240,15 +240,22 @@ async function loadPeople() {
   state.people = state.role == "owner" ? await rpc("shop_people", { p_shop: state.shop.id }).catch(() => state.people) : null;
 }
 
-/** Owner: a one-time code a cashier types to join this shop. */
-export async function createInvite() {
-  const code = await rpc("create_invite", { p_shop: state.shop.id });
+/** Owner: a one-time code someone types to join this shop, as a manager
+ * ('staff') or a cashier. */
+export async function createInvite(role = "staff") {
+  const code = await rpc("create_invite", { p_shop: state.shop.id, p_role: role });
   await loadPeople();
   emit();
   return code;
 }
 export async function cancelInvite(code) {
   await rpc("cancel_invite", { p_shop: state.shop.id, p_code: code });
+  await loadPeople();
+  emit();
+}
+/** Owner: switch a member between manager ('staff') and cashier. */
+export async function setMemberRole(userId, role) {
+  await rpc("set_member_role", { p_shop: state.shop.id, p_user: userId, p_role: role });
   await loadPeople();
   emit();
 }

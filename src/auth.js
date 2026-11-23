@@ -97,6 +97,14 @@ export function showReset() {
 }
 
 // Step 2: the link came back with a recovery session, so set the new password.
+/** A cashier account on the manager site: the till is on the cashier site. */
+export function showCashierSite(url) {
+  shell(`<div class="card"><h2>${t("cs.title")}</h2><p class="mut">${t("cs.note")}</p><a class="b" href="${url}" style="width:100%;justify-content:center">${t(
+    "cs.open",
+  )}</a><p class="mut"><button type="button" class="switch" id="sout">${t("sys.signOut")}</button></p></div>`);
+  $("#sout").onclick = () => signOut();
+}
+
 export function showNewPassword(onDone) {
   shell(`<form class="card" id="newpf"><h2>${t("auth.newTitle")}</h2><p class="mut">${t(
     "auth.newNote",

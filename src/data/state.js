@@ -2,7 +2,7 @@
 export const state = {
   user: null, // { id, email }
   shop: null, // { id, name, plan, plan_until }
-  role: null, // 'owner' | 'staff'
+  role: null, // 'owner' | 'staff' (shown as Manager) | 'cashier'
   settings: { low_alert: true, auto_reorder: false, vat_rate: 10, expiry_days: 30, rates: {} },
   items: [],
   packs: [], // bigger units of a product: { id, item_id, name, size (null: not counted yet), barcode, price, sized_at }
@@ -34,3 +34,14 @@ export const emit = () => listeners.forEach((fn) => fn());
 
 export const canWrite = () => !!state.shop && new Date(state.shop.plan_until) > new Date();
 export const isOwner = () => state.role == "owner";
+// A cashier (021): sells, looks up products and stock, changes nothing else.
+// The database enforces it; the app only shows what the cashier may use.
+export const isCashier = () => state.role == "cashier";
+// The cashier site (cashier.rapidewms.workers.dev, or a build with
+// VITE_APP_MODE=cashier) shows cashier mode to everyone who signs in there.
+export const CASHIER_SITE =
+  import.meta.env?.VITE_APP_MODE == "cashier" ||
+  (typeof location != "undefined" && location.hostname.startsWith("cashier."));
+export const cashierUi = () => CASHIER_SITE || isCashier();
+/** Where cashiers sign in. */
+export const CASHIER_URL = "https://cashier.rapidewms.workers.dev/";

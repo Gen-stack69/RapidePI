@@ -4,6 +4,10 @@ import { VitePWA } from "vite-plugin-pwa";
 
 // `npm run dev:lan` serves over HTTPS on the local network so phones can use
 // the camera (browsers only allow it on https or localhost).
+// VITE_APP_MODE=cashier: the cashier site's build (wrangler.cashier.jsonc),
+// installed under its own name. The app itself also knows it from the address.
+const CASHIER = process.env.VITE_APP_MODE == "cashier";
+
 export default defineConfig(({ mode }) => ({
   plugins: [
     ...(mode == "lan" ? [basicSsl()] : []),
@@ -22,8 +26,8 @@ export default defineConfig(({ mode }) => ({
       injectRegister: false,
       includeAssets: ["icon.svg", "icon-maskable.svg"],
       manifest: {
-        name: "RAPIDÉ POS-IMS",
-        short_name: "RAPIDÉ POS",
+        name: CASHIER ? "RAPIDÉ POS-IMS Cashier" : "RAPIDÉ POS-IMS",
+        short_name: CASHIER ? "RAPIDÉ Till" : "RAPIDÉ POS",
         description: "Inventory and warehouse app for small shops in Laos.",
         theme_color: "#07050f",
         background_color: "#06040d",
