@@ -42,6 +42,12 @@ export default defineConfig(({ mode }) => ({
         ],
       },
       workbox: {
+        // A new version takes over as soon as it is downloaded (and the page
+        // reloads, keeping a sale in progress): vite-plugin-pwa 2 no longer does
+        // this by itself, so phones stayed on an old version until every tab
+        // and the installed app were closed.
+        skipWaiting: true,
+        clientsClaim: true,
         // The barcode decoder's WebAssembly is precached: scanning is daily
         // work and has to keep going when the connection drops.
         globPatterns: ["**/*.{js,css,html,svg,woff2}", "**/assets/zxing_reader-*.wasm", "**/assets/pdf-*.ttf"],
