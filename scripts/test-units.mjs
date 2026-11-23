@@ -362,6 +362,41 @@ await ok("refused while the person waits: the error goes back to them", async ()
 console.log("\nOffline copy (apply.js, the same rules as the database)");
 const AP = await import("../src/data/apply.js");
 
+await ok("only-what-changed: merged rows replace, join and leave", async () => {
+  const { mergeChanges } = await import("../src/data/delta.js");
+  const NOW = Date.parse("2026-11-23T12:00:00Z"),
+    at = (d) => new Date(NOW - d * 864e5).toISOString();
+  const server = {
+    shop: { id: "s", name: "Old name" },
+    items: [{ id: "a", sku: "B", qty: 5 }, { id: "b", sku: "A", qty: 1 }],
+    lots: [{ id: "l1", expiry: "2027-01-01", qty: 5 }],
+    ulots: [{ id: "u1", expiry: null, batch: "X", qty: 2, created_at: at(1) }],
+    movements: [{ id: "m-old", created_at: at(40) }, { id: "m1", created_at: at(1) }],
+    sales: [{ id: "s1", created_at: at(1), status: "paid" }],
+    saleLines: [],
+    orders: [], tills: [], packs: [{ id: "p1", created_at: at(2) }], packReceipts: [], customers: [],
+    settings: { vat_rate: 10 },
+  };
+  const out = mergeChanges(server, {
+    items: [{ id: "a", sku: "B", qty: 4 }, { id: "c", sku: "C", qty: 9 }],
+    lots: [{ id: "l1", expiry: "2027-01-01", qty: 4 }, { id: "u2", expiry: null, batch: "Y", qty: 1, created_at: at(0) }],
+    movements: [{ id: "m2", created_at: at(0) }],
+    sales: [{ id: "s1", created_at: at(1), status: "void" }],
+    settings: { vat_rate: 7 },
+    shop: { id: "s", name: "New name" },
+    deleted: [{ t: "packs", id: "p1" }, { t: "lots", id: "u1" }],
+  }, NOW);
+  eq(out.items.map((i) => i.sku + i.qty).join(), "A1,B4,C9", "items replaced, added, sorted by SKU");
+  eq(out.lots.map((l) => l.qty).join(), "4", "dated batch updated");
+  eq(out.ulots.map((l) => l.batch).join(), "Y", "no-date batch deleted and added");
+  eq(out.movements.map((m) => m.id).join(), "m2,m1", "newest first, older than 30 days gone");
+  eq(out.sales[0].status, "void", "a voided sale");
+  eq(out.packs.length, 0, "deleted pack");
+  eq(out.settings.vat_rate, 7, "settings");
+  eq(out.shop.name, "New name", "shop");
+  eq(server.items[0].qty, 5, "the old copy is untouched");
+});
+
 await ok("invite links go to the right site", async () => {
   const { inviteLink } = await import("../src/lib/invite.js");
   eq(inviteLink("ABCD2345", "cashier"), "https://cashier.rapidewms.workers.dev/#join=ABCD2345", "cashier");

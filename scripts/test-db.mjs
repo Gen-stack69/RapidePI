@@ -1123,5 +1123,55 @@ await ok("Shop K's stock still equals its movements", async () => {
   eq(bad.rows.map((r) => r.sku).join(), "", "out of step");
 });
 
+console.log("Only what changed (022)");
+const changes = async (user, since) => (await one(user, "select sync_changes($1, $2) c", [shopK, since])).c;
+await rejects("another shop's owner can't read the changes", () => as(B, "select sync_changes($1, now())", [shopK]));
+await ok("with no 'since' only the server clock comes back", async () => {
+  const c = await changes(O, null);
+  eq(Object.keys(c).join(), "now", "keys");
+});
+let cur;
+await ok("a sale since the cursor brings its rows and the changed stock", async () => {
+  cur = (await changes(O, null)).now;
+  await db.exec("select pg_sleep(0)");
+  await one(O, "select create_sale($1, $2, $3::jsonb, 0, 'cash', 1e9, null, $4) id", [
+    shopK, "till-delta-0001", JSON.stringify([{ item_id: kSoap, qty: 1 }]), kTill,
+  ]);
+  const c = await changes(O, cur);
+  eq(c.sales.some((s) => s.client_id == "till-delta-0001"), true, "the sale");
+  eq(c.sale_lines.length >= 1, true, "its line");
+  eq(c.movements.some((m) => m.item_id == kSoap && m.type == "out"), true, "its movement");
+  eq(c.items.find((i) => i.id == kSoap)?.qty, await kQty(kSoap), "the product's new stock");
+});
+await ok("a deleted row is reported, so devices drop it", async () => {
+  const p = (await one(O, "insert into packs (shop_id, item_id, name, size, barcode) values ($1, $2, 'Tmp', 3, 'K-TMP') returning id", [shopK, kSoap])).id;
+  await as(O, "delete from packs where id = $1", [p]);
+  const c = await changes(O, cur);
+  eq(c.deleted.some((d) => d.t == "packs" && d.id == p), true, "tombstone");
+});
+await ok("a manager gets the changes too", async () => {
+  const c = await changes(M, cur);
+  eq(Array.isArray(c.items), true, "items");
+});
+await ok("an old cursor still gets only rows changed after it", async () => {
+  const c = await changes(O, new Date(Date.now() + 3600e3).toISOString());
+  eq(c.items.length + c.sales.length + c.movements.length, 0, "nothing newer than an hour ahead");
+});
+await ok("too much at once tells the device to download the whole shop", async () => {
+  await as(O, "insert into items (shop_id, sku, name) select $1, 'BULK-' || g, 'Bulk' from generate_series(1, 5001) g", [shopK]);
+  try {
+    eq((await changes(O, cur)).too_many, true, "too_many");
+  } finally {
+    await as(O, "delete from items where shop_id = $1 and sku like 'BULK-%'", [shopK]);
+  }
+});
+await ok("every synced table stamps updated_at on change", async () => {
+  const before = (await one(O, "select updated_at from customers where shop_id = $1 limit 1", [shopK])).updated_at;
+  await db.exec("select pg_sleep(0.01)");
+  await as(O, "update customers set note = 'x' where shop_id = $1", [shopK]);
+  const after = (await one(O, "select updated_at from customers where shop_id = $1 limit 1", [shopK])).updated_at;
+  eq(new Date(after) > new Date(before), true, "newer");
+});
+
 console.log(failures ? `\n${failures} FAILED` : "\nAll database checks passed");
 process.exit(failures ? 1 : 0);
