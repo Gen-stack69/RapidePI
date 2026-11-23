@@ -45,6 +45,7 @@ export const {
   createInvite,
   cancelInvite,
   removeMember,
+  setMemberRole,
   retryFailed,
   discardFailed,
   requestPayment,

@@ -1,6 +1,9 @@
 import { E, fmt } from "../lib/util.js";
 import { t, tn, lang, LANGS, fDate, fDateTime } from "../i18n/index.js";
-import { isOwner, configured, myTill, canWrite } from "../data/store.js";
+import { isOwner, configured, myTill, canWrite, cashierUi, CASHIER_URL } from "../data/store.js";
+
+// owner, staff (shown as Manager) or cashier (021).
+const roleName = (r) => t(r == "owner" ? "role.owner" : r == "cashier" ? "role.cashier" : "role.staff");
 import { describe, tillQr, qrSvg } from "../lib/payqr.js";
 
 // Owner only: the shop's bank QR, which the till shows for transfer payments.
@@ -32,12 +35,13 @@ function payQr(s) {
 // start another one.
 function otherShops(s) {
   const others = (s.shopList || []).filter((m) => m.shops.id != s.shop.id),
-    add = `<div class="row mt"><button class="g" data-act="newShop">${t("sys.newShop")}</button></div>`;
+    // Not in cashier mode: a cashier's own new shop would open on the till.
+    add = cashierUi() ? "" : `<div class="row mt"><button class="g" data-act="newShop">${t("sys.newShop")}</button></div>`;
   if (!others.length) return add;
   return `<p class="mut mt">${t("sys.otherShops")}</p>${others
     .map(
       (m) =>
-        `<div class="row mt"><b>${E(m.shops.name)}</b><span class="tag">${t(m.role == "owner" ? "role.owner" : "role.staff")}</span><button class="g" data-act="switchShop" data-id="${E(
+        `<div class="row mt"><b>${E(m.shops.name)}</b><span class="tag">${roleName(m.role)}</span><button class="g" data-act="switchShop" data-id="${E(
           m.shops.id,
         )}">${t("sys.open")}</button></div>`,
     )
@@ -119,22 +123,30 @@ function staff(s) {
   const people = s.people.members
     .map(
       (m) =>
-        `<div class="row mt"><b>${E(m.email || "")}</b><span class="tag">${t(m.role == "owner" ? "role.owner" : "role.staff")}</span>${
+        `<div class="row mt"><b>${E(m.email || "")}</b><span class="tag">${roleName(m.role)}</span>${
           m.user_id == s.user.id ? `<span class="mut">${t("sys.you")}</span>` : ""
-        }${m.role == "staff" ? `<button class="g" data-act="removeStaff" data-id="${E(m.user_id)}" data-email="${E(m.email || "")}">${t("sys.remove")}</button>` : ""}</div>`,
+        }${
+          m.role != "owner"
+            ? `<button class="g" data-act="setRole" data-id="${E(m.user_id)}" data-role="${m.role == "cashier" ? "staff" : "cashier"}">${t(
+                m.role == "cashier" ? "sys.makeManager" : "sys.makeCashier",
+              )}</button>`
+            : ""
+        }${m.role != "owner" ? `<button class="g" data-act="removeStaff" data-id="${E(m.user_id)}" data-email="${E(m.email || "")}">${t("sys.remove")}</button>` : ""}</div>`,
     )
     .join("");
   const codes = s.people.invites
     .map(
       (i) =>
-        `<div class="row mt"><b class="code">${E(showCode(i.code))}</b><span class="mut">${t("sys.codeUntil", {
+        `<div class="row mt"><b class="code">${E(showCode(i.code))}</b><span class="tag">${roleName(i.role)}</span><span class="mut">${t("sys.codeUntil", {
           d: fDateTime(new Date(i.expires_at)),
         })}</span><button class="g" data-act="cancelInvite" data-code="${E(i.code)}">${t("sys.cancel")}</button></div>`,
     )
     .join("");
-  return `<div class="card"><h3>${t("sys.staff")}</h3><p class="mut">${t("sys.staffNote")}</p>${people}${
+  return `<div class="card"><h3>${t("sys.staff")}</h3><p class="mut">${t("sys.staffNote")}</p><p class="mut">${t("sys.cashierSite", { url: `<a href="${CASHIER_URL}" target="_blank" rel="noopener">${CASHIER_URL.slice("https://".length, -1)}</a>` })}</p>${people}${
     codes ? `<p class="mut mt">${t("sys.codesOpen")}</p>${codes}` : ""
-  }<div class="row mt"><button class="g" data-act="addStaff">${t("sys.addStaff")}</button></div></div>`;
+  }<div class="row mt"><button class="g" data-act="addStaff" data-role="staff">${t("sys.addManager")}</button><button class="g" data-act="addStaff" data-role="cashier">${t(
+    "sys.addCashier",
+  )}</button></div></div>`;
 }
 
 // VAT inside the shelf price. Exchange rates are not set here: costs in
@@ -152,7 +164,7 @@ export default function sys(s) {
     plan = t(s.shop.plan == "paid" ? "plan.paid" : "plan.trial");
   return `<div class="card"><h3>${t("sys.shop")}</h3><p class="mt"><b>${E(s.shop.name)}</b></p><p class="mut">${t(
     "sys.signedIn",
-    { email: E(s.user.email), role: t(s.role == "owner" ? "role.owner" : "role.staff") },
+    { email: E(s.user.email), role: roleName(s.role) },
   )}</p><p class="plan mt ${days <= 0 ? "expired" : ""}">${
     days > 0
       ? tn("sys.planLeft", days, { plan, date: fDate(until) })
@@ -161,15 +173,20 @@ export default function sys(s) {
     configured
       ? `<div class="row mt"><button class="g" data-act="signOut">${t("sys.signOut")}</button></div>`
       : `<p class="mut mt">${t("sys.localNote")}</p>`
-  }${otherShops(s)}</div>${billing(s)}${prices(s)}${payQr(s)}${staff(s)}${tills(s)}
-<div class="card"><h3>${t("sys.lang")}</h3><div class="row mt"><select data-input="lang">${LANGS.map(
-    ([c, n]) => `<option value="${c}" ${c == lang() ? "selected" : ""}>${n}</option>`,
-  ).join("")}</select></div></div>
+  }${otherShops(s)}</div>${
+    // Cashier mode: the shop, this device's till and the language; nothing else.
+    cashierUi() ? `${tills(s)}${langCard()}` : `${billing(s)}${prices(s)}${payQr(s)}${staff(s)}${tills(s)}${langCard()}
 <div class="card"><h3>${t("sys.backup")}</h3><div class="row mt"><button class="g" data-act="zip">${t(
     "sys.zip",
   )}</button><label class="g">${t(
     "sys.import",
   )}<input type="file" accept=".csv,.xlsx,.xls,.ods,text/csv" hidden data-input="importFile"></label>${
     isOwner() ? `<button class="g" data-act="erase">${t("sys.erase")}</button>` : ""
-  }</div><p class="mut mt">${t("sys.csvNote")}</p></div>`;
+  }</div><p class="mut mt">${t("sys.csvNote")}</p></div>`
+  }`;
 }
+
+const langCard = () =>
+  `<div class="card"><h3>${t("sys.lang")}</h3><div class="row mt"><select data-input="lang">${LANGS.map(
+    ([c, n]) => `<option value="${c}" ${c == lang() ? "selected" : ""}>${n}</option>`,
+  ).join("")}</select></div></div>`;

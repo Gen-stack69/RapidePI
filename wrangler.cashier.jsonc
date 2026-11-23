@@ -1,0 +1,18 @@
+// Cloudflare Workers: the cashier site, cashier.rapidewms.workers.dev. The same
+// app as wrangler.jsonc (rapidepi), built with VITE_APP_MODE=cashier: the till,
+// products and stock to look at, and the scanner to look up. What a cashier
+// may do is enforced by the database (021_cashier_role.sql), not by this site.
+//
+// Cloudflare builds it from GitHub on every push to master:
+//   build command:  npm run build
+//   deploy command: npx wrangler deploy --config wrangler.cashier.jsonc
+// with VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY (as for rapidepi) and
+// VITE_APP_MODE=cashier set as build variables in the Cloudflare dashboard.
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "cashier",
+  "compatibility_date": "2025-09-01",
+  "assets": {
+    "directory": "./dist"
+  }
+}

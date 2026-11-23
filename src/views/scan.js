@@ -1,15 +1,18 @@
 import { E } from "../lib/util.js";
 import { t } from "../i18n/index.js";
 import { scanUi } from "../scanner.js";
+import { cashierUi } from "../data/store.js";
 
 export default function scan() {
-  return `<div class="card"><div class="row"><select id="mode" data-input="scanMode"><option value="in">${t(
+  // Cashier mode: look up only; receiving and shipping need a manager.
+  const ro = cashierUi();
+  return `<div class="card"><div class="row"><select id="mode" data-input="scanMode">${ro ? "" : `<option value="in">${t(
     "scan.in",
-  )}</option><option value="out">${t("scan.out")}</option><option value="look">${t(
+  )}</option><option value="out">${t("scan.out")}</option>`}<option value="look">${t(
     "scan.look",
-  )}</option></select><input id="sq" type="number" min="1" value="1" placeholder="${E(
+  )}</option></select><input id="sq"${ro ? " hidden" : ""} type="number" min="1" value="1" placeholder="${E(
     t("scan.qtyPer"),
-  )}"><select id="su" data-input="scanUnit" aria-label="${E(t("scan.countAs"))}">${["auto", "unit", "box"]
+  )}"><select id="su"${ro ? " hidden" : ""} data-input="scanUnit" aria-label="${E(t("scan.countAs"))}">${["auto", "unit", "box"]
     .map((k) => `<option value="${k}"${k == scanUi.unit ? " selected" : ""}>${t("scan.u." + k)}</option>`)
     .join("")}</select></div><label class="mt" id="sexpl">${t("scan.expBox")}<span class="tools"><input id="sexp" data-input="scanExpiry" autocomplete="off" inputmode="numeric" placeholder="${E(
     t("f.expiryPh"),
