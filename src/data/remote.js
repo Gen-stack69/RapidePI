@@ -165,7 +165,9 @@ export function refresh() {
     state.savedAt = new Date().toISOString();
     await C.put("snap", id, { ...server, role: state.role, savedAt: state.savedAt, v: SNAP_V }).catch(() => {});
     await rebuild();
-    await ensureTill();
+    // Only when the tills changed: a device that can't have one (the plan's
+    // tills are in use) would otherwise ask again on every refresh.
+    if (ch.tills?.length) await ensureTill();
     if (ch.items?.some((i) => i.photo)) signPhotos();
   })().finally(() => {
     refreshing = null;
