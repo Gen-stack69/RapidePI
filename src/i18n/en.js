@@ -426,6 +426,8 @@ export default {
   "err.manyInvites": "Too many unused codes. Cancel one first.",
   "sys.otherShops": "Your other shops",
   "sys.open": "Open",
+  "sys.newShop": "＋ Create another shop",
+  "sys.newShopName": "Name of the new shop. It has its own products, staff and tills, and starts with its own 14-day free trial.",
   "msg.opening": "Opening {name}…",
   "ask.switchPending": "Some work on this device hasn't reached the server yet. It will be sent when you come back to this shop. Switch anyway?",
   "err.payDecided": "This payment was already approved, rejected or cancelled.",
