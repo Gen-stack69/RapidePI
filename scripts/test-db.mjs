@@ -1226,5 +1226,12 @@ await ok("devices get the limits with the shop's changes", async () => {
   eq(c.shop.max_items, 2000, "max_items");
 });
 
+console.log("\nAdvisor lints (024)");
+await rejects("signed-out visitors cannot call is_member", () => as(null, "select is_member($1)", [shopK]));
+await ok("every policy is for signed-in users", async () =>
+  eq((await db.query("select count(*)::int n from pg_policies where schemaname = 'public' and roles = '{public}'")).rows[0].n, 0, "policies"));
+await ok("device_time and proof_shop have a fixed search_path", async () =>
+  eq((await db.query("select count(*)::int n from pg_proc where proname in ('device_time','proof_shop') and proconfig is not null")).rows[0].n, 2, "functions"));
+
 console.log(failures ? `\n${failures} FAILED` : "\nAll database checks passed");
 process.exit(failures ? 1 : 0);
