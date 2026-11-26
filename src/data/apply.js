@@ -500,4 +500,8 @@ export function moveFlow(movements, sales) {
 
 /** The number printed on a receipt: the till's own (A-0042) when it has one. */
 export const saleNo = (s) =>
-  s.till ? `${s.till}-${String(s.till_no).padStart(4, "0")}` : s.receipt_no != null ? String(s.receipt_no) : "…";
+  s.till && s.till_no != null
+    ? `${s.till}-${String(s.till_no).padStart(4, "0")}`
+    : s.receipt_no != null
+      ? String(s.receipt_no)
+      : "…";

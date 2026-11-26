@@ -182,6 +182,15 @@ function render(force) {
               : ""
       }</a>`,
   ).join("")}</div>`;
+  // Phone: a bar along the bottom with the everyday screens; "More" opens the full list.
+  const tabs = cashierUi()
+    ? [["pos", "₭", "nav.tab.sell"], ["inv", "▦", "nav.tab.products"], ["scan", "▥", "nav.tab.scan"], ["sys", "☰", "nav.acct"]]
+    : [["dash", "◔", "nav.tab.home"], ["pos", "₭", "nav.tab.sell"], ["inv", "▦", "nav.tab.products"]];
+  $("#tabs").innerHTML =
+    tabs.map(([k, i, l]) => `<a class="${k == view ? "on" : ""}" href="#${k}"><i>${i}</i>${t(l)}</a>`).join("") +
+    (cashierUi()
+      ? ""
+      : `<button type="button" class="${tabs.some(([k]) => k == view) ? "" : "on"}" data-act="more"><i>☰</i>${t("nav.tab.more")}</button>`);
   $("#eng").innerHTML = `<div>${t("eng.status")}<b>${t(
     state.online ? "eng.online" : "eng.offline",
   )}</b></div><p class="plan ${days <= 0 ? "expired" : ""}">${
@@ -273,6 +282,10 @@ async function go(v, camOn) {
   if (camOn) scanner.cam(true);
 }
 addEventListener("hashchange", () => VIEWS[location.hash.slice(1)] && go(location.hash.slice(1)));
+// Picking a screen (even the one on show) closes the phone's "More" list.
+addEventListener("click", (e) => {
+  if (e.target.closest("#nav a, #tabs a")) document.body.classList.remove("more");
+});
 
 // ---------- actions ----------
 
@@ -1066,6 +1079,7 @@ const A = {
   theme: () => switchTheme(),
   install: () => installApp(),
   top: () => scrollTo({ top: 0, behavior: "smooth" }),
+  more: () => document.body.classList.toggle("more"),
 };
 
 // ---------- install as an app ----------
