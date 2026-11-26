@@ -1,6 +1,6 @@
 // Import from another POS (Loyverse, SabaiPOS, 4B…) or a spreadsheet:
 // read a CSV or Excel file, guess which column is which, let the owner fix the
-// guesses, then turn the rows into products, customers or past sales.
+// guesses, then turn the rows into products or past sales.
 import { parseCsv } from "./csv.js";
 import { parseTyped } from "./expiry.js";
 
@@ -32,11 +32,6 @@ export const KINDS = {
     { k: "kind", names: ["kind"] },
     { k: "expiry", names: ["next expiry", "expiry", "expiry date", "expires", "exp", "best before", "ໝົດອາຍຸຕໍ່ໄປ", "ວັນໝົດອາຍຸ", "ໝົດອາຍຸ"] },
   ],
-  customers: [
-    { k: "name", req: true, names: ["name", "customer name", "customer", "full name", "ຊື່", "ຊື່ລູກຄ້າ"] },
-    { k: "phone", names: ["phone", "phone number", "mobile", "tel", "telephone", "customer contacts", "contact", "ເບີໂທ"] },
-    { k: "note", names: ["note", "notes", "comment", "address", "ໝາຍເຫດ", "ທີ່ຢູ່"] },
-  ],
   sales: [
     {
       k: "ref",
@@ -52,8 +47,6 @@ export const KINDS = {
     { k: "total", names: ["gross sales", "line total", "amount", "total", "net sales", "ລວມ"] },
     { k: "discount", names: ["discounts", "discount", "ສ່ວນຫຼຸດ"] },
     { k: "method", names: ["payment type", "payment method", "payment", "method", "ການຊຳລະ"] },
-    { k: "customer", names: ["customer name", "customer", "ລູກຄ້າ"] },
-    { k: "phone", names: ["customer contacts", "customer phone", "phone", "ເບີໂທ"] },
     // Refunds and cancelled receipts are left out.
     { k: "type", names: ["receipt type", "status", "type"] },
   ],
@@ -85,7 +78,6 @@ export async function readTable(file) {
 export function guessKind(head) {
   const h = head.map(norm);
   if (h.some((x) => /receipt|invoice|bill/.test(x))) return "sales";
-  if (h.some((x) => /customer|phone|mobile/.test(x)) && !h.some((x) => /sku|price|cost|stock/.test(x))) return "customers";
   return "products";
 }
 
@@ -152,7 +144,7 @@ const TRANSFER = /transfer|bank|qr|bcel|onepay|ldb|jdb|card|wallet|ໂອນ/i;
 const SKIP = /refund|cancel|void|return|ຍົກເລີກ|ຄືນ/i;
 
 /** Rows -> records for the store, with how many rows were left out.
- * products -> importItems(), customers -> importCustomers(), sales -> importSales(). */
+ * products -> importItems(), sales -> importSales(). */
 export function build(kind, rows, map) {
   const get = (r, k) => (map[k] >= 0 ? r[map[k]] : ""),
     text = (r, k) => String(get(r, k) ?? "").trim(),
@@ -181,10 +173,6 @@ export function build(kind, rows, map) {
       // Something with an expiry date is consumable, whatever the kind column said.
       .map((x) => (x.expiry ? { ...x, kind: "consumable" } : x))
       .filter((x) => x.sku && x.name);
-  else if (kind == "customers")
-    out = rows
-      .map((r) => ({ name: text(r, "name"), phone: text(r, "phone"), note: text(r, "note") }))
-      .filter((x) => x.name);
   else {
     const order = dateOrder(rows.map((r) => get(r, "date"))),
       byRef = new Map();
@@ -197,12 +185,9 @@ export function build(kind, rows, map) {
       const total = num(r, "total", NaN),
         price = map.price >= 0 ? num(r, "price") : isNaN(total) ? 0 : total / qty;
       let s = byRef.get(ref);
-      if (!s) byRef.set(ref, (s = { ref, at: at.toISOString(), method: "cash", discount: 0, customer: null, lines: [] }));
+      if (!s) byRef.set(ref, (s = { ref, at: at.toISOString(), method: "cash", discount: 0, lines: [] }));
       if (TRANSFER.test(text(r, "method"))) s.method = "transfer";
       s.discount += Math.max(0, num(r, "discount"));
-      const cname = text(r, "customer"),
-        phone = text(r, "phone");
-      if (!s.customer && (cname || phone)) s.customer = { name: cname, phone };
       s.lines.push({ sku: text(r, "sku"), name: text(r, "name"), qty, price: Math.max(0, Math.round(price * 100) / 100) });
     }
     out = [...byRef.values()];

@@ -31,14 +31,13 @@ export const dmyhm = (x) => {
 };
 
 // Document number prefix: STK-20261120.
-const PREFIX = { Inventory: "STK", Sales: "SAL", Customers: "CUS", Expiry: "EXP", Orders: "ORD", Movements: "MOV" };
+const PREFIX = { Inventory: "STK", Sales: "SAL", Expiry: "EXP", Orders: "ORD", Movements: "MOV" };
 const SIGN = {
   Inventory: ["counted", "whHead", "stockAcct"],
   Expiry: ["counted", "whHead", "stockAcct"],
   Orders: ["prepared", "whHead", "stockAcct"],
   Movements: ["prepared", "whHead", "stockAcct"],
   Sales: ["cashier", "acct", "manager"],
-  Customers: ["prepared", "manager"],
 };
 
 const col = (k, type = "s") => ({ h: t("rp.c." + k), type });
@@ -194,7 +193,6 @@ const BUILD = {
 
   Sales(s) {
     const sale = new Map((s.sales || []).map((x) => [x.id, x])),
-      who = new Map((s.customers || []).map((c) => [c.id, c.name])),
       lines = (s.saleLines || [])
         .filter((l) => sale.has(l.sale_id))
         .sort(
@@ -213,7 +211,6 @@ const BUILD = {
       col("lineTotal", "m"),
       col("vat", "m"),
       col("payment"),
-      col("customer"),
     ];
     const n = cols.length,
       pay = (m) => t(m == "transfer" ? "xw.transfer" : "xw.cash");
@@ -232,7 +229,6 @@ const BUILD = {
             // The sale's VAT shared out over its lines, so the lines add up to it.
             +x.subtotal ? Math.round(((+x.vat || 0) * l.line_total * 100) / x.subtotal) / 100 : 0,
             pay(x.method),
-            who.get(x.customer_id) || "",
           ];
         }),
       );
@@ -259,19 +255,6 @@ const BUILD = {
         [t("rp.s.transfer"), add(ok.filter((x) => x.method == "transfer"), "total"), "m"],
         [t("rp.s.voided", { n: bad.length }), add(bad, "total"), "m"],
       ],
-    };
-  },
-
-  Customers(s) {
-    const cols = [col("no", "c"), col("customer"), col("phone"), col("visits", "n"), col("spent", "m"), col("lastVisit", "c"), col("note")];
-    const tot = (c) => s.custTotals?.[c.id] || {},
-      list = [...(s.customers || [])].sort((a, b) => (+tot(b).total || 0) - (+tot(a).total || 0) || byName(a, b)),
-      rows = number(
-        list.map((c) => [c.name, c.phone || "", +(tot(c).visits || 0), +(tot(c).total || 0), dmy(tot(c).last_at), c.note || ""]),
-      );
-    return {
-      tables: [{ cols, groups: [{ title: "", rows, total: totalRow(cols.length, t("rp.total"), { 3: sum(rows, 3), 4: sum(rows, 4) }) }], grand: null }],
-      summary: [[t("rp.s.customers"), list.length, "n"]],
     };
   },
 

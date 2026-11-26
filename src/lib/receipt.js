@@ -5,11 +5,11 @@ import { t } from "../i18n/index.js";
 import { saleNo } from "../data/apply.js";
 
 // batches: item id → batch number(s) the stock left from (saleBatches).
-export function receiptHtml(shop, sale, lines, customer = null, batches = new Map()) {
+export function receiptHtml(shop, sale, lines, batches = new Map()) {
   const row = (a, b, cls = "") => `<tr class="${cls}"><td>${a}</td><td>${b}</td></tr>`;
   return `<div class="receipt"><h4>${E(shop.name)}</h4><p class="c">${t("rc.no", { n: saleNo(sale) })}<br>${dt(
     sale.created_at,
-  )}${customer ? `<br>${t("rc.customer", { name: E(customer.name) })}` : ""}</p>${
+  )}</p>${
     sale.status == "void" ? `<p class="c void">${t("rc.void")}</p>` : ""
   }<table>${lines
     .map(

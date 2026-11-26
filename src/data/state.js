@@ -8,7 +8,6 @@ export const state = {
   packs: [], // bigger units of a product: { id, item_id, name, size (null: not counted yet), barcode, price, sized_at }
   packReceipts: [], // boxes received: { pack_id, item_id, boxes, size (null: waiting to be counted), expiry, created_at }
   customers: [], // { id, name, phone, note, created_at }
-  custTotals: {}, // customer id -> { visits, total, last_at }, over all time
   orders: [],
   movements: [], // last 30 days
   lots: [], // units per expiry date, all of them

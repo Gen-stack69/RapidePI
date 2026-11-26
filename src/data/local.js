@@ -6,7 +6,7 @@
 import { state, emit, canWrite } from "./state.js";
 import { err } from "../i18n/index.js";
 import * as apply from "./apply.js";
-import { costFields, packRow, custRow, newCustomers, amount, keepOwnerPrices } from "./fields.js";
+import { costFields, packRow, amount, keepOwnerPrices } from "./fields.js";
 import { toJpeg, dataUrl } from "../lib/photo.js";
 
 const KEY = "rapidewms.local";
@@ -119,14 +119,6 @@ export async function reload() {
   // Boxes still waiting to be counted, and the last 30 days' deliveries.
   state.packReceipts = mine(db.pack_receipts).filter((r) => r.size == null || new Date(r.created_at) >= since);
   state.customers = mine(db.customers).sort((a, b) => a.name.localeCompare(b.name));
-  state.custTotals = {};
-  for (const s of mine(db.sales)) {
-    if (!s.customer_id || s.status != "paid") continue;
-    const t = (state.custTotals[s.customer_id] ||= { customer_id: s.customer_id, visits: 0, total: 0, last_at: null });
-    t.visits++;
-    t.total += +s.total;
-    if (!t.last_at || s.created_at > t.last_at) t.last_at = s.created_at;
-  }
   state.settings = db.settings[shopId()];
   state.shop = db.shops.find((s) => s.id == shopId());
   emit();
@@ -467,32 +459,8 @@ export async function setUndatedBatch(lotId, batch) {
   await commit();
 }
 
-// ---------- customers and past sales (mirror 007_customers_import.sql) ----------
+// ---------- past sales (mirror 007_customers_import.sql) ----------
 
-export async function saveCustomer(id, f) {
-  writable();
-  const row = custRow(f);
-  if (row.phone && mine(db.customers).some((c) => c.id != id && c.phone == row.phone)) fail("err.custPhone");
-  let c = id && db.customers.find((x) => x.id == id && x.shop_id == shopId());
-  if (c) Object.assign(c, row);
-  else db.customers.push((c = { id: uid(), shop_id: shopId(), created_at: nowIso(), ...row }));
-  await commit();
-  return c.id;
-}
-export async function deleteCustomer(id) {
-  writable();
-  ownerOnly();
-  db.customers = db.customers.filter((c) => !(c.id == id && c.shop_id == shopId()));
-  db.sales.forEach((s) => s.customer_id == id && (s.customer_id = null));
-  await commit();
-}
-export async function importCustomers(list) {
-  writable();
-  const fresh = newCustomers(list, mine(db.customers));
-  for (const c of fresh) db.customers.push({ id: uid(), shop_id: shopId(), created_at: nowIso(), ...c });
-  await commit();
-  return fresh.length;
-}
 export async function importSales(rows, progress = () => {}) {
   writable();
   ownerOnly();

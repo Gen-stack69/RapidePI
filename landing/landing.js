@@ -72,7 +72,7 @@ const EN = {
   "svc.rep.p": "Today's sales and stock value. Export to PDF, Excel or CSV, and print receipts on 58 mm or A4.",
   "help.title": "We help you get started",
   "help.import.h": "We import your data",
-  "help.import.p": "Send us your Excel file or Loyverse export and we help import your products, customers and past sales.",
+  "help.import.p": "Send us your Excel file or Loyverse export and we help import your products and past sales.",
   "help.train.h": "Training",
   "help.train.p": "We train you and your staff until the till and receiving goods feel easy.",
   "help.support.h": "Support in Lao",
@@ -125,7 +125,7 @@ const EN = {
   "faq.safe.a": "Each shop sees only its own data. You can export and back up all of it as a ZIP file at any time.",
   "faq.move.q": "Can I move over from Loyverse or Excel?",
   "faq.move.a":
-    "Yes. Import products, customers and past sales from a CSV or Excel file, or send us the file and we'll help.",
+    "Yes. Import products and past sales from a CSV or Excel file, or send us the file and we'll help.",
   "contact.title": "Want a demo, or have a question?",
   "contact.lead": "Get in touch, we're happy to help in Lao or English.",
   "contact.demo": "Try the demo (no sign-up)",

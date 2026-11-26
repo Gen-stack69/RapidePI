@@ -9,7 +9,7 @@ import * as apply from "./apply.js";
 import * as Q from "./queue.js";
 import * as C from "./cache.js";
 import { mergeChanges } from "./delta.js";
-import { costFields, packRow, custRow, newCustomers, amount, keepOwnerPrices } from "./fields.js";
+import { costFields, packRow, amount, keepOwnerPrices } from "./fields.js";
 import { toJpeg, productJpeg } from "../lib/photo.js";
 
 // Before 010_receive_packs.sql is run there is no pack_receipts table: the
@@ -33,7 +33,6 @@ function friendly(e) {
   if (/packs_shop_barcode_uidx/i.test(m)) return err("err.packBarcode");
   if (/packs_count_before_price/i.test(m)) return err("err.packCountFirst");
   if (/a pack holds more than 1/i.test(m)) return err("err.packSize");
-  if (/customers_shop_phone_uidx/i.test(m)) return err("err.custPhone");
   const imp = /import: (.+)$/im.exec(m);
   if (imp) return err("err.importSales", { why: imp[1] });
   if (/items_shop_sku_uidx|duplicate key/i.test(m)) return err("err.dupSku");
@@ -158,9 +157,7 @@ export function refresh() {
     }
     if (state.shop?.id != id) return;
     if (!ch || ch.too_many) return reload();
-    const totals = ch.sales?.length ? await rpc("customer_totals", { p_shop: id }).catch(() => null) : null;
     server = { ...mergeChanges(server, ch), cursor: ch.now };
-    if (totals) server.custTotals = Object.fromEntries(totals.map((r) => [r.customer_id, r]));
     // What this device sent before asking is in the answer now.
     sentSince = sentSince.slice(had);
     state.savedAt = new Date().toISOString();
@@ -197,7 +194,7 @@ export async function reload() {
   // The server's clock before reading: later changes are fetched from here
   // (refresh). Missing (022 not run yet): every refresh is a full download.
   const clock = await rpc("sync_changes", { p_shop: id, p_since: null }).catch(() => null);
-  const [items, orders, movements, settings, shop, lots, sales, saleLines, tills, packs, customers, totals, packReceipts] =
+  const [items, orders, movements, settings, shop, lots, sales, saleLines, tills, packs, customers, packReceipts] =
     await Promise.all([
     all(() => sel("items").order("sku")),
     // created_at alone is not unique, so id breaks ties and keeps paging stable.
@@ -215,7 +212,6 @@ export async function reload() {
     all(() => sel("tills").order("created_at").order("id")),
     all(() => sel("packs").order("created_at").order("id")),
     all(() => sel("customers").order("name").order("id")),
-    must(sb.rpc("customer_totals", { p_shop: id })),
     // Every box still waiting to be counted, and the last 30 days' deliveries.
     all(() => sel("pack_receipts").or(`size.is.null,created_at.gte."${since}"`).order("created_at").order("id")).catch(
       () => none,
@@ -235,7 +231,6 @@ export async function reload() {
     packs: packs.rows,
     packReceipts: packReceipts.rows,
     customers: customers.rows,
-    custTotals: Object.fromEntries((totals || []).map((r) => [r.customer_id, r])),
     settings: settings || state.settings,
     truncated: [items, orders, movements, sales, saleLines].some((r) => r.rows.length < r.total),
     cursor: clock?.now || null,
@@ -601,7 +596,6 @@ async function rebuild() {
     packs: s.packs || [],
     packReceipts: s.packReceipts || [],
     customers: s.customers || [],
-    custTotals: s.custTotals || {},
     shop: s.shop,
     truncated: s.truncated,
   });
@@ -821,31 +815,6 @@ export function setUndatedBatch(lotId, batch) {
 export function changeLotExpiry(lotId, expiry) {
   if (!navigator.onLine) fail("err.offline");
   return write(sb.rpc("change_lot_expiry", { p_lot: lotId, p_expiry: expiry }));
-}
-
-// ---------- customers (online) ----------
-
-/** Add or change a customer; returns the id. */
-export async function saveCustomer(id, f) {
-  const row = custRow(f);
-  if (id) {
-    await write(sb.from("customers").update(row).eq("id", id));
-    return id;
-  }
-  const r = await must(sb.from("customers").insert({ ...row, shop_id: state.shop.id }).select("id").single());
-  await refresh();
-  return r.id;
-}
-export const deleteCustomer = (id) => write(sb.from("customers").delete().eq("id", id));
-
-/** A customer list from another system. Ones already here (same phone, or
- * same name without a phone) are skipped. Returns how many were added. */
-export async function importCustomers(list) {
-  const fresh = newCustomers(list, state.customers);
-  for (let i = 0; i < fresh.length; i += 500)
-    await must(sb.from("customers").insert(fresh.slice(i, i + 500).map((c) => ({ ...c, shop_id: state.shop.id }))));
-  await refresh();
-  return fresh.length;
 }
 
 /** Past sales from another POS (import_sales in 007), 500 per call.

@@ -679,8 +679,7 @@ await ok("an imported product keeps its expiry date and becomes consumable", asy
   const { records } = IM.build("products", rows, m);
   eq(records.map((r) => `${r.sku}:${r.kind}:${r.expiry}`).join(" "), "MILK:consumable:2026-12-05 EGG:consumable:2027-01-31 BOLT:durable:null X:durable:null", "rows");
 });
-await ok("customer and receipt files are told apart", async () => {
-  eq(IM.guessKind(["Customer name", "Email", "Phone", "Note"]), "customers", "customers");
+await ok("receipt files are recognised", async () => {
   eq(IM.guessKind(["Date", "Receipt number", "Receipt type", "SKU", "Item", "Quantity", "Gross sales"]), "sales", "sales");
 });
 await ok("money and dates as other systems write them", async () => {
@@ -705,12 +704,7 @@ await ok("receipt rows become sales; refunds are left out", async () => {
     ],
     { records } = IM.build("sales", rows, IM.guessColumns(head, "sales"));
   eq(records.map((s) => `${s.ref}:${s.lines.length}:${s.discount}:${s.method}`).join(" "), "1-1001:2:1000:cash 1-1003:1:0:transfer", "sales");
-  eq(`${records[0].lines[0].price} ${records[0].customer.name}`, "9000 Mr Somchai", "price from the line total");
-});
-await ok("a customer list drops what is already here and repeats in the file", async () => {
-  const have = [{ name: "Noy", phone: "020 1" }],
-    list = [{ name: "Noy again", phone: "020 1" }, { name: "Bee" }, { name: "bee" }, { name: "" }, { name: "Kham", phone: "020 2" }];
-  eq(F.newCustomers(list, have).map((c) => c.name).join(","), "Bee,Kham", "fresh");
+  eq(`${records[0].lines[0].price} ${records[0].customer}`, "9000 undefined", "price from the line total; customers are not imported");
 });
 await ok("an imported sale is history: no stock moves, a repeat adds nothing (as test-db)", async () => {
   const d = { ...shopDb(), customers: [], settings: { s: { vat_rate: 10 } } },
