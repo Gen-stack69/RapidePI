@@ -30,7 +30,6 @@ import auto from "./views/auto.js";
 import sys from "./views/sys.js";
 import pos, * as till from "./views/pos.js";
 import exp from "./views/exp.js";
-import cust, { ui as custUi, rows as custRows } from "./views/cust.js";
 import admin, { load as loadAdmin } from "./views/admin.js";
 import { planName } from "./views/sys.js";
 import { tillQr, qrSvg } from "./lib/payqr.js";
@@ -67,12 +66,11 @@ function reloadForUpdate() {
 }
 addEventListener("vite:preloadError", (ev) => reloadForUpdate() && ev.preventDefault());
 
-const VIEWS = { dash, pos, cust, inv, exp, ord, scan, rep, auto, sys, admin };
+const VIEWS = { dash, pos, inv, exp, ord, scan, rep, auto, sys, admin };
 // [view key, icon]; the label and subtitle come from nav.<key> / nav.<key>.sub
 const N = [
   ["dash", "◔"],
   ["pos", "₭"],
-  ["cust", "☺"],
   ["inv", "▦"],
   ["exp", "⏳"],
   ["ord", "⛟"],
@@ -91,7 +89,7 @@ const N = [
 const CASHIER_VIEWS = ["pos", "inv", "scan", "sys"];
 const CASHIER_ACTS = new Set([
   ...["posAdd", "posInc", "posDec", "posDel", "posCut", "posClear", "posMethod", "posQrBig", "posQuick"],
-  ...["posCharge", "posReceipt", "posPrint", "posCam", "posNewCust", "posNoCust", "closeDlg"],
+  ...["posCharge", "posReceipt", "posPrint", "posCam", "closeDlg"],
   ...["invBatches", "quickScan", "scanView", "camOn", "camOff", "syncNow", "retryFailed"],
   ...["switchShop", "registerTill", "signOut", "lang", "theme", "install", "top"],
 ]);
@@ -569,21 +567,6 @@ async function countPack(packId) {
   toast(t("msg.boxCounted", { n: num(n * +f.size), unit }));
 }
 
-// Add or change a customer; returns the id (or null when cancelled).
-async function custForm(id) {
-  if (!needWrite()) return null;
-  const c = state.customers.find((x) => x.id == id) || { name: "", phone: "", note: "" },
-    f = await form(t(id ? "title.editCust" : "title.addCust"), [
-      { k: "name", label: t("cust.name"), value: c.name, required: true },
-      { k: "phone", label: t("cust.phone"), value: c.phone || "", type: "tel" },
-      { k: "note", label: t("cust.note"), value: c.note || "" },
-    ]);
-  if (!f) return null;
-  const saved = await store.saveCustomer(id || null, f);
-  toast(t("msg.saved"));
-  return saved;
-}
-
 // Import wizard: the file -> what it holds -> which column is which -> check -> import.
 async function importFile(file) {
   let tb;
@@ -593,7 +576,7 @@ async function importFile(file) {
     return toast(t("imp.unreadable"), true);
   }
   if (!tb.rows.length) return toast(t("msg.importEmpty"), true);
-  const kinds = ["products", "customers", ...(isOwner() ? ["sales"] : [])],
+  const kinds = ["products", ...(isOwner() ? ["sales"] : [])],
     guessed = guessKind(tb.head),
     one = await form(
       t("imp.title", { file: file.name }),
@@ -640,15 +623,12 @@ async function importFile(file) {
   if (!records.length) return toast(t("msg.importEmpty"), true);
   const head = {
       products: ["imp.h.sku", "imp.h.name", "imp.h.qty", "imp.h.price"],
-      customers: ["imp.h.name", "imp.h.phone", "imp.h.note"],
       sales: ["imp.h.receipt", "imp.h.date", "imp.h.lines", "imp.h.total"],
     }[kind],
     cells = (x) =>
       kind == "products"
         ? [x.sku, x.name, num(x.qty), fmt(x.price)]
-        : kind == "customers"
-          ? [x.name, x.phone, x.note]
-          : [x.ref, dt(x.at), num(x.lines.length), fmt(x.lines.reduce((a, l) => a + l.qty * l.price, 0) - x.discount)],
+        : [x.ref, dt(x.at), num(x.lines.length), fmt(x.lines.reduce((a, l) => a + l.qty * l.price, 0) - x.discount)],
     preview = `<table class="rt mt"><thead><tr>${head.map((k) => `<th>${t(k)}</th>`).join("")}</tr></thead><tbody>${records
       .slice(0, 10)
       .map((x) => `<tr>${cells(x).map((v) => `<td>${E(v ?? "")}</td>`).join("")}</tr>`)
@@ -661,25 +641,11 @@ async function importFile(file) {
   toast(t("imp.working"));
   let added, skipped;
   if (kind == "products") (added = await store.importItems(records)), (skipped = records.length - added);
-  else if (kind == "customers") (added = await store.importCustomers(records)), (skipped = records.length - added);
   else ({ added, skipped } = await store.importSales(records));
   toast(t("imp.done", { added: num(added), skipped: num(skipped) }));
 }
 
 const A = {
-  addCust: () => custForm(),
-  editCust: (el) => custForm(el.dataset.id),
-  async delCust(el) {
-    const c = state.customers.find((x) => x.id == el.dataset.id);
-    if (!c || !needWrite() || !confirm(t("ask.delCust", { name: c.name }))) return;
-    await store.deleteCustomer(c.id);
-    toast(t("msg.deleted"));
-  },
-  async posNewCust() {
-    const id = await custForm();
-    if (id) till.setCustomer(id);
-  },
-  posNoCust: () => till.setCustomer(null),
   addPack: (el) => packForm(el.dataset.id),
   editPack: (el) => packForm(el.dataset.item, el.dataset.id),
   countPack: (el) => countPack(el.dataset.id),
@@ -1173,10 +1139,6 @@ const INPUT = {
     el.value = "";
     if (f && needWrite()) await importFile(f);
   },
-  custQ(el) {
-    custUi.q = el.value;
-    $("#ctb").innerHTML = custRows(state);
-  },
   lang: (el) => switchLang(el.value),
   invFilter(el) {
     invUi.f = el.value;
@@ -1226,7 +1188,7 @@ document.addEventListener("input", (ev) => {
   const k = ev.target.dataset?.input;
   if (!allowed(CASHIER_INPUTS, k)) return;
   if (k == "scanExpiry") slashDate(ev.target, ev);
-  if (["search", "expSearch", "conv", "pos", "scanExpiry", "scanBatch", "custQ"].includes(k)) INPUT[k](ev.target);
+  if (["search", "expSearch", "conv", "pos", "scanExpiry", "scanBatch"].includes(k)) INPUT[k](ev.target);
 });
 document.addEventListener("change", (ev) => {
   const k = ev.target.dataset?.input;
