@@ -474,13 +474,141 @@ pre {
     monospace;
   color: var(--soft);
 }
-#menu {
+/* ---------- dashboard tiles, sales chart, recent activity ---------- */
+.tile {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  color: inherit;
+  text-decoration: none;
+  transition: border-color 0.15s;
+}
+.tile:hover {
+  border-color: var(--focus);
+}
+.tile > span {
+  min-width: 0;
+}
+.tile > em {
+  position: absolute;
+  top: 14px;
+  right: 16px;
+  font-style: normal;
+  font-size: 24px;
+  color: var(--faint);
+}
+.tile .ic {
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
+  font-size: 22px;
+  flex: none;
+}
+.tile .n {
+  margin: 4px 0 2px;
+  font-size: clamp(20px, 2.4vw, 30px);
+  overflow-wrap: normal;
+  white-space: nowrap;
+}
+/* Coloured icon squares: green money in, amber attention, red expiry, purple value. */
+.ic.t-in {
+  background: var(--in-bg);
+  border-color: var(--in);
+  color: var(--in);
+}
+.ic.t-warn {
+  background: var(--off-bg);
+  border-color: var(--warn);
+  color: var(--warn);
+}
+.ic.t-bad {
+  background: var(--off-bg);
+  border-color: var(--bad);
+  color: var(--bad);
+}
+.ic.t-val {
+  color: var(--accent);
+}
+svg.line {
+  display: block;
+  width: 100%;
+  max-height: 300px;
+  height: auto;
+  margin-top: 14px;
+}
+svg.line text {
+  fill: var(--muted);
+  font-size: 11px;
+}
+svg.line .gl {
+  stroke: var(--line);
+}
+svg.line .area {
+  fill: var(--focus);
+  opacity: 0.18;
+}
+svg.line .stroke {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 2.5;
+  stroke-linejoin: round;
+}
+svg.line circle {
+  fill: var(--accent);
+  stroke: var(--bg);
+  stroke-width: 2;
+}
+h3 .more {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--accent);
+}
+.feed {
+  list-style: none;
+  margin: 10px 0 0;
+  padding: 0;
+}
+.feed li {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--line);
+}
+.feed li:last-child {
+  border-bottom: 0;
+}
+.feed .ic {
+  width: 36px;
+  height: 36px;
+  flex: none;
+}
+.feed span {
+  flex: 1;
+  min-width: 0;
+}
+.feed b {
+  display: block;
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+.feed small,
+.feed em {
+  color: var(--muted);
+  font-size: 13px;
+  font-style: normal;
+}
+/* Lao script needs more size than Latin to read well. */
+:lang(lo) .stats small,
+:lang(lo) .feed small,
+:lang(lo) .feed em {
+  font-size: 14px;
+}
+
+/* ---------- phone: tab bar along the bottom ---------- */
+#tabs {
   display: none;
-  position: fixed;
-  right: 14px;
-  bottom: calc(14px + env(safe-area-inset-bottom, 0px));
-  z-index: 5;
-  border-radius: 99px;
 }
 @media (max-width: 900px) {
   .wrap {
@@ -501,8 +629,75 @@ pre {
   .top h2 {
     font-size: 22px;
   }
-  #menu {
-    display: inline-flex;
+  #tabs {
+    display: flex;
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 7;
+    gap: 4px;
+    padding: 6px 8px calc(6px + env(safe-area-inset-bottom, 0px));
+    background: var(--panel);
+    border-top: 1px solid var(--edge);
+  }
+  #tabs a,
+  #tabs button {
+    flex: 1;
+    min-width: 0;
+    min-height: 54px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    padding: 6px 2px;
+    border: 0;
+    border-radius: 14px;
+    background: none;
+    color: var(--soft);
+    font: inherit;
+    font-size: 13px;
+    text-decoration: none;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  #tabs i {
+    font-style: normal;
+    font-size: 21px;
+    line-height: 1;
+    color: var(--accent);
+  }
+  #tabs .on,
+  .more #tabs [data-act="more"] {
+    background: var(--cta);
+    color: #fff;
+  }
+  #tabs .on i,
+  .more #tabs [data-act="more"] i {
+    color: #fff;
+  }
+  .wrap {
+    padding-bottom: calc(96px + env(safe-area-inset-bottom, 0px));
+  }
+  /* The full list of screens only shows when "More" is tapped. */
+  .wrap > div:first-child {
+    display: none;
+  }
+  .more .wrap > div:first-child {
+    display: block;
+    position: fixed;
+    left: 8px;
+    right: 8px;
+    bottom: calc(74px + env(safe-area-inset-bottom, 0px));
+    max-height: calc(100dvh - 130px);
+    overflow: auto;
+    z-index: 6;
+    padding: 8px;
+    border-radius: 20px;
+    background: var(--bg);
+    border: 1px solid var(--edge);
+    box-shadow: 0 -12px 40px #0009;
   }
 }
 @media (max-width: 700px) {
@@ -1376,5 +1571,12 @@ button.bt.on .chev {
   .bdw,
   button.bt .chev {
     transition: none;
+  }
+}
+
+/* Above the phone tab bar (after the base #toast rule). */
+@media (max-width: 900px) {
+  #toast {
+    bottom: calc(84px + env(safe-area-inset-bottom, 0px));
   }
 }
