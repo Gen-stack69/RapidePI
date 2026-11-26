@@ -1,3 +1,5 @@
+// First, so every module after it can make IDs (see uuid.js).
+import "./lib/uuid.js";
 import "./styles.css";
 // Lao glyphs, bundled with the app rather than fetched from a CDN, so Lao still
 // renders with no internet. Only the Lao subset is pulled in: ~9 KB a weight.
