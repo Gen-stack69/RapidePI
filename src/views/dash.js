@@ -179,7 +179,10 @@ function activity(s) {
               `<li><i class="ic ${r.tone}">${r.ic}</i><span><b>${r.what}</b><small>${dt(r.at)}</small></span><em>${r.amt}</em></li>`,
           )
           .join("")}</ul>`
-      : `<p class="mut">${t("dash.noActivity")}</p>`
+      : s.items.length
+        ? `<p class="mut">${t("dash.noActivity")}</p>`
+        : // A brand-new shop: point to where the first product is added.
+          `<p class="mut">${t("dash.firstProduct")}</p><div class="row mt"><button class="b" data-act="addItem">${t("btn.addItem")}</button></div>`
   }</div>`;
 }
 

@@ -32,7 +32,7 @@ import auto from "./views/auto.js";
 import sys from "./views/sys.js";
 import pos, * as till from "./views/pos.js";
 import exp from "./views/exp.js";
-import admin, { load as loadAdmin } from "./views/admin.js";
+import admin, { load as loadAdmin, toggleHistory } from "./views/admin.js";
 import { planName } from "./views/sys.js";
 import { tillQr, qrSvg } from "./lib/payqr.js";
 import { status, SOON_DAYS, setSoonDays, daysLeft } from "./lib/expiry.js";
@@ -232,13 +232,16 @@ function render(force) {
   drawn = view;
 
   // Only Inventory gets the title card with "Add product" and "Quick scan":
-  // on every other screen they were noise (the sidebar or tab bar shows where you are).
+  // on every other screen they were noise. A screen opened from the phone's
+  // "More" list gets just its name (.ptitle, phone only), since no tab is lit for it.
   $("#main").innerHTML = `${
     view == "inv"
-      ? `<div class="card top"><div><h2>${t("nav." + navKey(view))}</h2><p>${t(
-          cashierUi() ? "cs.inv.sub" : "nav." + navKey(view) + ".sub",
+      ? `<div class="card top"><div><h2>${t("nav.inv")}</h2><p>${t(
+          cashierUi() ? "cs.inv.sub" : "nav.inv.sub",
         )}</p></div><div class="r">${cashierUi() ? "" : `<button class="b" data-act="addItem">${t("btn.addItem")}</button>`}<button class="g" data-act="quickScan">${t("btn.quickScan")}</button></div></div>`
-      : ""
+      : tabs.some(([k]) => k == view)
+        ? ""
+        : `<h2 class="ptitle">${t("nav." + navKey(view))}</h2>`
   }${
     !canWrite()
       ? `<div class="card warn">${t("plan.expiredCard")}${
@@ -956,6 +959,7 @@ const A = {
     if (m) await openOther(m);
   },
   adminLoad: () => loadAdmin(),
+  adminHistory: () => toggleHistory(),
   async adminProof(el) {
     const url = await store.proofUrl(el.dataset.path),
       dlg = $("#dlg");
