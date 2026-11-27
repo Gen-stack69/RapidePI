@@ -1,12 +1,12 @@
 # RAPIDÉ POS-IMS: project summary
 
-_Last updated: 2026-10-31_
+_Last updated: 2026-11-25_
 
 RAPIDÉ POS-IMS (point of sale and inventory management system), made by Rapide, is a till and stock app for **small shops in Laos**. Shops use it to track products and stock, scan barcodes to receive and ship goods, manage orders, get low-stock alerts and auto-reorders, and export reports (PDF, Excel, CSV, ZIP backup).
 
 - **Goal:** a paid product within 7 weeks. Target 5+ pilot shops by week 3 and 10 paying shops by week 7.
 - **Team:** owner + 1–2 helpers.
-- **Status:** working app in **local demo mode** (no server). The Supabase backend is written and tested, but not connected yet.
+- **Status:** still **in testing, close to a demo**. The app, the cashier site and the landing page are online (section 2), built against a real Supabase project (Singapore), and the till, offline selling, staff, billing and plan limits are built and tested. No shop pays yet, and the app has not been used day to day in a real shop. The local demo mode (no server, data in the browser) still works and is what the GitHub Pages demo runs.
 
 ---
 
@@ -38,10 +38,23 @@ Needs Node.js. First time: `npm install`.
 | `npm run preview` | Serve the production build locally | — |
 | `npm run test:db` | Tests the database schema in an in-memory Postgres | — |
 | `npm run check-i18n` | Checks the Lao and English text are complete and in step | — |
-| `npm run test:unit` | Tests front-end logic with no browser needed (table paging) | — |
-| `npm test` | Runs all three checks, the same as the build does | — |
+| `npm run test:unit` | Tests front-end logic with no browser needed (paging, backup retention, expiry reading, the offline queue) | — |
+| `npm test` | Runs all three checks, the same as CI | — |
+| `npm run dev:landing` / `build:landing` | The landing page, on its own | — |
+| `npm run dev:lan` | Dev server reachable from a phone on the same Wi-Fi (HTTPS, for the camera) | https://&lt;PC address&gt;:5443 |
+| `npm run backup` / `backup:verify` | Back up the live database, then prove the backup restores | — |
 
-**Online demo:** https://dan16ssd.github.io/rapidewms/. It rebuilds automatically on every push to `master` (`.github/workflows/pages.yml`). It runs in demo mode, so each person's data stays in their own browser and teammates **don't see each other's stock**.
+**Online sites.** Cloudflare builds and deploys all three from GitHub on every push to `master` (see the `wrangler*.jsonc` files). They are Workers, not Pages, because Lao Telecom blocks every `*.pages.dev` address.
+
+| Site | Address | Built from |
+|---|---|---|
+| The app (owners and managers) | https://rapidepi.rapidewms.workers.dev/ | `wrangler.jsonc`, `npm run build` |
+| Cashier site | https://cashier.rapidewms.workers.dev/ | `wrangler.cashier.jsonc`, same build with `VITE_APP_MODE=cashier` |
+| Landing page (Lao + English, sign-up links) | https://rapidewms.rapidewms.workers.dev/ | `wrangler.landing.jsonc`, `npm run build:landing` |
+
+The Supabase keys for these are build variables in the Cloudflare dashboard, never in this repository (it is public).
+
+**Demo with no server:** `.github/workflows/pages.yml` runs the tests and publishes a demo-mode build to GitHub Pages on every push to `master`. Each person's data stays in their own browser, so teammates **don't see each other's stock**.
 
 ---
 
@@ -49,7 +62,7 @@ Needs Node.js. First time: `npm install`.
 
 The app picks its backend automatically in `src/data/store.js`:
 
-| | Local demo mode (current) | Supabase mode |
+| | Local demo mode (GitHub Pages demo, `.env` without keys) | Supabase mode (the workers.dev sites) |
 |---|---|---|
 | Turned on when | `.env` has no Supabase keys | `.env` has `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` |
 | Accounts | None, straight into the app | Email + password sign up / sign in, with password reset by email |
@@ -60,7 +73,7 @@ The app picks its backend automatically in `src/data/store.js`:
 ### Switching to Supabase
 
 1. Create a free project at https://supabase.com (Singapore region is closest to Laos).
-2. Open **SQL Editor**, paste all of `supabase/migrations/001_schema.sql` and run it, then `002_pos.sql`. An existing project only needs `002_pos.sql`; until it is run, the till, expiry and product-kind features fail with "column does not exist".
+2. Open **SQL Editor** and run every file in `supabase/migrations/` in number order (`001_schema.sql` to `024_advisor_lints.sql` today). An existing project runs only the files it doesn't have yet; until it does, newer features fail with errors like "column does not exist" or "function does not exist". Never change a file that has already been run: add a new numbered file instead.
 3. In **Project Settings → API**, copy the Project URL and the `anon` key.
 4. Copy `.env.example` to `.env` and paste both values in.
 5. Restart `npm run dev`.
@@ -82,6 +95,18 @@ The app picks its backend automatically in `src/data/store.js`:
 | **Automation** | Low-stock alerts; auto-reorder creates an inbound order for (minimum × 2 − stock) when stock drops below minimum and no inbound order is pending |
 | **Shop & backup** | Plan and trial status, language, VAT rate (included in prices, default 10%, 0 = none), shop bank QR for payments, full ZIP backup, **import from a file** (CSV or Excel: products with stock, customers, or past sales; the columns are guessed from Loyverse's and our own headers and can be corrected on a matching screen, with a preview before anything is saved), erase all data (owner only, must type ERASE) |
 
+**Added since the end of October:**
+- **Product photos** (`014`), shown in the stock list and the till search. Stored in a private Supabase Storage bucket.
+- **Batch / production numbers** on every delivery, with or without an expiry date (`016`–`020`). Inventory rolls down a product's batches; receipts show the batch sold, so a recall can be traced to sales. "Change date" corrects a batch's expiry (`015`), and receiving an inbound order can carry its expiry date (`013`).
+- **Cashier site and Cashier role** (`021`). Members are Owner, Manager (the old "staff") and Cashier. The cashier site has the till, products and stock to look at, and the scanner to look up; the database enforces what a cashier may do. Owners invite a cashier with a link to the cashier site.
+- **Plan limits** (`023`): products, staff and product photos per plan, besides tills (table in section 7).
+- **Several shops per account**: create another shop and switch between them in Shop & backup.
+- **Smaller downloads** (`022`): a device keeps its copy of the shop and downloads only what changed, instead of the whole shop on every change.
+- **Payment proof** (`012`): "I've paid" comes with a screenshot of the transfer.
+- **Light and dark mode**, in the app and the landing page.
+- Excel, PDF and print exports laid out as signed warehouse forms; the sale in progress survives a reload; a new app version takes over right away.
+- Removed: the on-device AI "identify product" (it crashed iPhone Safari), and exchange rates in Shop & backup (VAT stays).
+
 **Language:** the whole interface is in **Lao and English**. A Lao-language browser gets Lao automatically; the header button and the setting in Shop & backup switch it instantly, and the choice is remembered. Prices show as whole kip (₭12,000, not ₭12,000.00). CSV and Excel column headers stay English so a shop can re-import its own file; PDF and print follow the app language.
 
 **Business rules:**
@@ -89,7 +114,7 @@ The app picks its backend automatically in `src/data/store.js`:
 - SKUs are unique per shop, ignoring case.
 - Every stock change is logged as a movement.
 - 14-day free trial; after it expires the shop is **read-only** (view and export still work, data is never deleted).
-- Owner vs staff: only owners can delete products/orders, change settings or erase data.
+- Owner vs Manager vs Cashier: only owners can delete products/orders, change prices or settings, or erase data; cashiers can sell and look, but not change prices or set quantities.
 
 ---
 
@@ -103,7 +128,7 @@ The camera uses the browser's own barcode reader where there is one (Android Chr
 | EAN-13 on a cardboard background, every 15° from 0° to 345°, clean and with sensor noise | **48/48 read**; the box lands within 1 px of the barcode |
 | Blur 1.5 px at 200°; 2 px bars at 20° | Read |
 | Live camera (Chrome fake webcam) on the till and scanner screens | Starts at 1280×720 with the overlay, stops on the button, released when leaving the screen |
-| Live camera on a real phone | **Not tested yet.** Open the online demo on a phone and try it |
+| Live camera on a real phone | **Not recorded here yet.** Test on a cheap Android and an iPhone and add the result |
 
 Formats: EAN-13/8, UPC-A/E, Code 128, Code 39, ITF, QR, DataMatrix. Laptop webcams often can't focus on thin 1D barcodes; phones work better.
 
@@ -117,8 +142,11 @@ Then whole-package phone photos (3000×4000, 2026-11-07): a small date, real **i
 
 ```
 index.html                 App shell (header, nav, main, dialog, toast)
-vite.config.js             Vite settings
-.github/workflows/pages.yml  Builds and publishes the online demo
+vite.config.js             Vite + PWA settings
+vite.landing.config.js     Landing page build (landing/ → dist-landing/)
+landing/                   Landing page (HTML, CSS, JS)
+wrangler*.jsonc            Cloudflare Workers: app, cashier site, landing page
+.github/workflows/pages.yml  Tests, then publishes the demo-mode build to GitHub Pages
 src/main.js                Startup, routing (#dash, #inv…), render, all button actions
 src/auth.js                Sign in / sign up / name-your-shop screens
 src/scanner.js             Camera (html5-qrcode) + scan handling
@@ -127,10 +155,12 @@ src/data/state.js          In-memory app state + change events
 src/data/store.js          Chooses remote or local backend (same functions)
 src/data/remote.js         Supabase: queries, RPC calls, realtime refresh
 src/data/local.js          Local demo backend (localStorage), same rules as the SQL
+src/data/queue.js, cache.js, apply.js  Offline: write queue, IndexedDB copy, applying changes locally
+src/data/delta.js          Downloads only the rows changed since last time (022)
 src/lib/util.js            Escaping, formatting, toast, form dialog, download
 src/lib/csv.js             CSV parse/write, product import
 src/lib/export.js          PDF / Excel / CSV / ZIP export (libraries load on demand)
-src/views/*.js             One file per screen: dash, pos (till), exp (expiry), inv, ord, scan, rep, auto, sys
+src/views/*.js             One file per screen: dash, pos (till), cust, exp (expiry), inv, ord, scan, rep, auto, sys, admin (Rapide only)
 src/lib/camera.js          Camera barcode reader + green AR box (native or zxing WebAssembly)
 src/lib/expiry.js          Expiry-date reading: typed shortcuts, package text, GS1 codes
 src/lib/ocr.js             Read an expiry date from a photo (Tesseract, loaded on demand)
@@ -138,8 +168,11 @@ src/lib/receipt.js         Receipt HTML and printing
 src/i18n/{en,lo,index}.js  All interface text + the t() lookup
 supabase/migrations/001_schema.sql   Tables, row-level security, stock functions
 supabase/migrations/002_pos.sql      Product kind, expiry lots, sales, receipts, void, write-off
+supabase/migrations/003…024          Later changes, one numbered file each (section 7)
 scripts/test-db.mjs        Database tests (PGlite)
+scripts/test-units.mjs     Front-end unit tests
 scripts/check-i18n.mjs     Translation completeness + hardcoded-text check
+scripts/backup.mjs, restore-check.mjs, schedule-backup.ps1  Backups and their daily Windows task
 ```
 
 **Conventions:**
@@ -173,7 +206,7 @@ scripts/check-i18n.mjs     Translation completeness + hardcoded-text check
 - `complete_order`: completes only once.
 - `erase_shop_data`: owner only.
 
-**Tests:** `npm run test:db` runs 20 checks covering shop isolation, stock rules, orders, automation and billing. All pass.
+**Tests:** `npm run test:db` builds the database from every migration in an in-memory Postgres (PGlite) and checks shop isolation, stock rules, orders, automation, expiry batches, the till, offline sync, staff and cashier rights, billing and plan limits. CI runs it on every push.
 
 **Backups:** the free plan includes none ("Free Plan does not include project backups"), so `npm run backup` takes its own: a gzipped NDJSON dump of every `public` table plus `auth.users` and `auth.identities`, read in one repeatable-read snapshot so stock and history can't disagree. Tables are discovered from the catalogue and written parents-first, so the POS tables will be included without editing the script. It needs no `pg_dump`, Docker or Supabase CLI, and connects through the session pooler because direct connections are IPv6-only on the free plan.
 
@@ -196,6 +229,20 @@ update shops set plan = 'paid', plan_until = now() + interval '1 month', max_til
 
 **Receiving boxes (`010_receive_packs.sql`).** Stock stays counted in single units; a box is always a pack of its product. `packs.size` may be null ("not counted yet"), and the `packs_count_before_price` check means such a pack has no price, so it can't be sold by the box. Staff may now add packs and change unpriced ones; the `packs_price_guard` trigger keeps prices, and any priced pack, the owner's. `packs.size` is no longer writable directly: `set_pack_size(pack, size, fix_boxes)` sets it, moves every waiting box into stock (boxes × size, at its expiry date, note `box counted`), and can correct `fix_boxes` already received at the old count in one movement (`box count fixed`). `receive_pack(pack, boxes, expiry, client_id, at, offline)` receives boxes, queued and resent safely like `adjust_stock`: counted boxes go into stock (note `box`), uncounted ones wait. Each delivery is a row in `pack_receipts` (size null = waiting), which the app reads to show waiting boxes and to suggest how many boxes a count correction covers. `apply.js` mirrors both functions for offline and demo. Covered by 20 database checks and 5 unit checks.
 
+**Later migrations (012–024):**
+
+| File | What it does |
+|---|---|
+| `012_payment_proof.sql` | "I've paid" carries a screenshot of the transfer, stored in the paying shop's own folder |
+| `013_order_expiry.sql` | Completing an inbound order can record the expiry date of what arrived |
+| `014_item_photos.sql` | An optional photo per product, in the private `product-photos` bucket |
+| `015_change_lot_expiry.sql` | `change_lot_expiry`: move a batch to a corrected date (merges with a batch already on that date) |
+| `016`–`020` | Batch / production numbers: on dated batches, on stock that leaves (receipts), on undated deliveries as their own batches, and merging a repeat of the same batch no. |
+| `021_cashier_role.sql` | Owner / Manager / Cashier, for the cashier site |
+| `022_sync_changes.sql` | Devices fetch only rows changed since their last sync |
+| `023_plan_limits.sql` | Products, staff and photos per plan: small 2,000 / 3 / 500; Minimart 10,000 / 10 / 3,000; trial as small |
+| `024_advisor_lints.sql` | Fixes Supabase Security Advisor warnings (fixed `search_path`; helper functions for signed-in users only) |
+
 **Staff (`005_staff.sql`).** Each cashier has their own login. The owner taps “Add a cashier” in Shop & backup and gets a one-time code (8 characters, 24 hours, at most 10 open per shop). The cashier creates an account and, on the screen that would otherwise create a shop, types the code under “Join a shop”; they join as staff. The owner's Staff card lists everyone with their email and can cancel codes or remove a cashier (whose till is then retired separately). The `invites` table is reachable only through the functions. Covered by 15 database checks.
 
 ---
@@ -206,16 +253,17 @@ update shops set plan = 'paid', plan_until = now() + interval '1 month', max_til
 |---|---|---|
 | Backend | Supabase (Postgres, Auth, RLS, Realtime) | Real per-shop isolation; free tier to start |
 | Frontend | Vanilla JS + Vite | Reuses the original code; no framework rewrite |
-| Hosting | Cloudflare Pages (planned) | Free, HTTPS (needed for the camera) |
-| Billing | BCEL One / LAPNet QR transfer, activated manually | Stripe/PayPal don't pay out to Lao merchants |
-| Price (to validate) | 14-day trial, then ~150,000–250,000 ₭/month per shop | Test in customer interviews |
-| Language | Lao + English (planned) | Main advantage over foreign apps |
+| Hosting | Cloudflare Workers (workers.dev) | Free, HTTPS (needed for the camera); Pages was dropped because Lao Telecom blocks `*.pages.dev` |
+| Billing | Bank QR transfer + screenshot, approved by a Rapide admin in the app | Stripe/PayPal don't pay out to Lao merchants |
+| Plans (price to validate) | 14-day trial, then Small shop (1 till) or Minimart (4 tills), ~150,000–250,000 ₭/month | Test in customer interviews |
+| Language | Lao + English (done) | Main advantage over foreign apps |
+| Apps | One installable PWA, plus a cashier build of the same code | No app-store or `.exe` signing; one codebase |
 
 ---
 
 ## 9. The 7-week plan
 
-The full written plan is kept outside the repo; this table is the summary.
+The full written plan is kept outside the repo; this table is the summary. **Where we are (2026-11-25):** the build side is ahead of the plan (most of weeks 1–5 is built), the selling side is behind: no pilot shops are set up yet, so the next weeks are about getting the app into real shops.
 
 | Week | Build | Sell |
 |---|---|---|
@@ -248,26 +296,34 @@ The full written plan is kept outside the repo; this table is the summary.
 - **Installs as an app on Windows and Android.** One PWA build, no separate desktop project and no `.exe` to sign. The service worker precaches the shell, the fonts and the scanner (674 KB); the export libraries (~1.4 MB) are cached on first use instead, so installing over a phone connection stays small. Supabase responses are never cached, on purpose.
 - **Selling with no internet (`003_offline.sql`, `src/data/queue.js`, `cache.js`, `apply.js`).** Each device keeps a copy of its shop in IndexedDB and opens from it offline. Sales, voids, stock in/out and expiry write-offs are queued on the device, shown at once, and sent when the network returns, oldest first. The server files each at the device's time, so several tills' history lines up; a clock more than 5 minutes ahead is replaced by server time and flagged. Every queued piece carries a device id, so a resend changes nothing. Each device is a till (A, B, C…) with its own receipt numbers, so receipts printed offline never clash. An offline sale is never refused for stock (the goods are gone): stock may go below zero and the dashboard's Check list asks for a recount, along with sales at an old price and anything the server refused (Retry / Discard). Online sales are still refused below zero. Tested: 20 database checks, 8 unit checks, and an end-to-end run of the built app in headless Chrome against a Supabase stand-in (PGlite behind a small PostgREST imitation): online sale, offline reload, two offline sales while a second till sells online, an offline void, reconnect, and a server outage with Wi-Fi still up. **17/17 passed.** Not yet tried on two real phones.
 - **Backups that are checked, not assumed.** `npm run backup` dumps the live database to a file outside this repo; `npm run backup:verify` restores it into a throwaway database and fails if it is truncated, inconsistent or missing its users. A daily Windows task takes them, which also stops the free project pausing after a week idle.
+- **The till:** sell screen, cash and bank-QR payments, receipts (58 mm and A4), voids, customers, packs/cartons, expiring-batch prices, VAT.
+- **Staff:** cashier invites (code or link), Manager and Cashier roles, and a separate cashier site.
+- **Billing:** plans, 14-day trial then read-only, pay by bank QR with a screenshot, approval on the Rapide Admin screen, limits on tills, products, staff and photos.
+- **Hosting:** app, cashier site and landing page on Cloudflare Workers, deployed on every push to `master`.
+- **Landing page** (Lao + English, animated, light/dark) and **admin page**.
+- Product photos, batch numbers, several shops per account, light/dark mode, smaller syncs (see section 4).
 
-**Not done yet** (the POS plan covers these; see section 9's blocks):
-- The till itself: sell screen, payments, receipts, customers and credit, shifts.
-- Applying migrations with the Supabase CLI against a separate staging project, rather than pasting SQL into the dashboard. This has to exist before the POS tables touch a database with real shop data.
+**Not done yet:**
+- **Real shops.** No pilot shop uses the app yet, and no shop has paid.
+- **Real-device tests:** the camera, and offline selling on two real phones, have only been tested on a PC.
+- Customer credit sales, shifts with a cash count, partial refunds, Bluetooth thermal printing.
+- Applying migrations with the Supabase CLI against a separate staging project, rather than pasting SQL into the dashboard. This has to exist before real shop data is in the database.
 - An **off-machine** copy of the backups. Today they only live on one laptop, so a stolen or dead machine loses them; the folder needs to be inside OneDrive, a USB stick or similar.
 - Error tracking (Sentry), so a bug in a shop reaches us without a phone call.
 - Showing **who** made each stock change: `movements.created_by` is recorded but never displayed.
 - Sample export files from SabaiPOS and 4B, to add their column names to the importer (today they are matched by hand).
 - Reports and exports cover the last 30 days of sales only; older (and imported) sales are kept on the server but not shown.
-- Landing page, admin page and Sentry.
 - Barcode labels, stock-count mode and daily summary.
+- Terms of service and privacy page.
 - The benchmark and proof pages.
-- Test the camera on real Android and iPhone devices.
 
 ---
 
 ## 10. Next steps
 
-1. **Run `003_offline.sql` to `010_receive_packs.sql` on the Supabase project** (002 is already applied), then set each shop's `max_tills` to its plan and test with two phones: airplane mode on both, sell, reconnect, and compare with the cash count.
-2. **Phone test in a real shop:** scan real products at odd angles and read real expiry labels on a cheap Android. The numbers in section 5 are from a PC.
-3. **Still to build for the till:** customers and credit sales, shifts with cash count, refunds of part of a sale, Bluetooth thermal printing.
-4. **Shared team testing:** create the Supabase project (section 3) so the team works on the same stock.
-5. **Start customer interviews** (week 1 of the sales plan) while the build continues, and confirm the 10% VAT rules with the Department of Taxation before claiming tax compliance.
+1. **Check the live database is up to date:** every migration up to `024_advisor_lints.sql` must be applied on the Supabase project, or the workers.dev sites will fail on newer features.
+2. **Phone test:** on a cheap Android and an iPhone, scan real products at odd angles, read real expiry labels, and sell offline on two phones at once (airplane mode, sell, reconnect, compare with the cash count). The numbers in section 5 are from a PC.
+3. **Get the first pilot shops** (the plan's week 1–3 sales work): interview shop owners in Vientiane and set up 3–5 shops for free, in person.
+4. **Before real shop data:** off-machine backups, a staging Supabase project for migrations, and Sentry error tracking.
+5. **Still to build for the till:** customer credit sales, shifts with a cash count, partial refunds, Bluetooth thermal printing.
+6. Confirm the 10% VAT rules with the Department of Taxation before claiming tax compliance.
