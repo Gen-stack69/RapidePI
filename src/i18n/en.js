@@ -3,21 +3,14 @@
 export default {
   // ---------- navigation ----------
   "nav.dash": "Dashboard",
-  "nav.dash.sub": "Stock value, units and recent movement.",
   "nav.inv": "Inventory",
   "nav.inv.sub": "Add, edit and count every product.",
   "nav.ord": "Orders",
-  "nav.ord.sub": "Create inbound and outbound orders, then complete them to update stock.",
   "nav.scan": "Scanner",
-  "nav.scan.sub": "Scan barcodes or QR codes to receive, ship or look up stock.",
   "nav.rep": "Reports & export",
-  "nav.rep.sub": "Export PDF, Excel or CSV and convert currencies.",
   "nav.auto": "Automation",
-  "nav.auto.sub": "Rules that watch your stock for you.",
   "nav.sys": "Shop & backup",
-  "nav.sys.sub": "Your plan, backups and imports.",
   "nav.acct": "Account",
-  "nav.acct.sub": "Your shop, this till and the language.",
   "nav.title": "NAVIGATION",
 
   // ---------- header / shell ----------
@@ -111,7 +104,6 @@ export default {
 
   // ---------- dashboard ----------
   "dash.low": "LOW STOCK",
-  "dash.low.sub": "Below minimum",
   "dash.value": "STOCK VALUE",
   "dash.move": "Stock movement",
   "dash.last30": "last 30 days",
@@ -179,7 +171,6 @@ export default {
   "cs.note": "This is a cashier account. Cashiers sell and look up stock on the cashier site: sign in there with the same email and password.",
   "cs.open": "Open the cashier site",
   "cs.inv.sub": "Check products and how many are in stock.",
-  "cs.scan.sub": "Scan a barcode to see the product and its stock.",
   "sys.planLeft": "{plan}: {n} days left (until {date})",
   "sys.planLeft1": "{plan}: 1 day left (until {date})",
   "sys.planExpired": "Your plan has expired. Your data is safe but read-only until you renew.",
@@ -238,9 +229,7 @@ export default {
 
   // ---------- cashier, expiry, product photos ----------
   "nav.pos": "Cashier",
-  "nav.pos.sub": "Scan or search products, take cash or a transfer, print the receipt.",
   "nav.exp": "Expiry dates",
-  "nav.exp.sub": "What expires soon, so staff only check those shelves.",
   "f.kind": "Product type",
   "kind.consumable": "Consumable",
   "kind.durable": "Non-consumable",
@@ -446,7 +435,6 @@ export default {
 
   // ---------- subscription ----------
   "nav.admin": "Admin",
-  "nav.admin.sub": "Check and approve shops' subscription payments.",
   "bill.title": "Subscription",
   "bill.note":
     "Pick a plan and how many months. You pay by bank transfer to Rapide, and your shop is extended as soon as we confirm the money.",
@@ -498,6 +486,9 @@ export default {
   "adm.refresh": "↻ Refresh",
   "adm.loading": "Loading…",
   "adm.none": "Nothing waiting.",
+  "adm.history": "📋 Show past decisions ({n})",
+  "adm.historyHide": "Hide past decisions",
+  "adm.noneDone": "No payments decided yet.",
   "adm.shop": "Shop",
   "adm.what": "Plan",
   "adm.amount": "Amount",
@@ -556,6 +547,7 @@ export default {
   "dash.recent": "Recent activity",
   "dash.viewAll": "View all",
   "dash.noActivity": "No sales or stock changes yet.",
+  "dash.firstProduct": "No products yet.",
   "act.sale": "Sale #{n}",
   "act.void": "Sale #{n} voided",
   "act.in": "Received {n} × {name}",

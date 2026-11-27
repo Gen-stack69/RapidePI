@@ -9,6 +9,7 @@ import { planName } from "./sys.js";
 
 let list = null, // the last list from the server
   loading = false,
+  history = false, // "Recent decisions" open: hidden until asked for, but kept as a record
   failed = "";
 
 export async function load() {
@@ -23,6 +24,11 @@ export async function load() {
     loading = false;
     store.emit();
   }
+}
+
+export function toggleHistory() {
+  history = !history;
+  store.emit();
 }
 
 const when = (d) => (d ? fDateTime(new Date(d)) : "");
@@ -57,7 +63,8 @@ function row(p) {
 export default function admin(s) {
   if (!s.billing?.admin) return `<div class="card warn">${t("adm.only")}</div>`;
   if (list == null && !failed) setTimeout(load);
-  const pending = (list || []).filter((p) => p.status == "pending");
+  const pending = (list || []).filter((p) => p.status == "pending"),
+    done = (list || []).filter((p) => p.status != "pending").slice(0, 50);
   const qr = s.billing.qr,
     d = qr && describe(qr);
   return `<div class="card"><h3>${t("adm.pending", { n: pending.length })}</h3><p class="mut">${t(
@@ -70,6 +77,15 @@ export default function admin(s) {
       : pending.length
         ? `<table class="mt"><tbody>${pending.map(row).join("")}</tbody></table>`
         : `<p class="mut mt">${t("adm.none")}</p>`
+  }</div><div class="card"><div class="row"><button class="g" data-act="adminHistory">${t(
+    history ? "adm.historyHide" : "adm.history",
+    { n: done.length },
+  )}</button></div>${
+    !history
+      ? ""
+      : done.length
+        ? `<table class="mt"><tbody>${done.map(row).join("")}</tbody></table>`
+        : `<p class="mut mt">${t("adm.noneDone")}</p>`
   }</div><div class="card"><h3>${t("adm.qr")}</h3><p class="mut">${t("adm.qrNote")}</p>${
     qr
       ? `<div class="payqr-set mt"><div class="payqr sm">${qrSvg(qr)}</div><div><p>${
