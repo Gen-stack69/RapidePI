@@ -499,8 +499,6 @@ export default {
   "adm.refresh": "↻ ໂຫຼດໃໝ່",
   "adm.loading": "ກຳລັງໂຫຼດ…",
   "adm.none": "ບໍ່ມີລາຍການລໍຖ້າ.",
-  "adm.done": "ລາຍການທີ່ຕັດສິນແລ້ວ",
-  "adm.noneDone": "ຍັງບໍ່ມີການຈ່າຍເງິນທີ່ຕັດສິນແລ້ວ.",
   "adm.shop": "ຮ້ານ",
   "adm.what": "ແພັກເກັດ",
   "adm.amount": "ຈຳນວນເງິນ",

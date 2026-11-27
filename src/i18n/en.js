@@ -498,8 +498,6 @@ export default {
   "adm.refresh": "↻ Refresh",
   "adm.loading": "Loading…",
   "adm.none": "Nothing waiting.",
-  "adm.done": "Recent decisions",
-  "adm.noneDone": "No payments decided yet.",
   "adm.shop": "Shop",
   "adm.what": "Plan",
   "adm.amount": "Amount",
