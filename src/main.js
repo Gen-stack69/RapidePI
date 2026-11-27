@@ -231,9 +231,15 @@ function render(force) {
   if ($("#dlg").open && !force) return;
   drawn = view;
 
-  $("#main").innerHTML = `<div class="card top"><div><h2>${t("nav." + navKey(view))}</h2><p>${t(
-    cashierUi() && ["inv", "scan"].includes(view) ? "cs." + view + ".sub" : "nav." + navKey(view) + ".sub",
-  )}</p></div><div class="r">${cashierUi() ? "" : `<button class="b" data-act="addItem">${t("btn.addItem")}</button>`}<button class="g" data-act="quickScan">${t("btn.quickScan")}</button></div></div>${
+  // Only Inventory gets the title card with "Add product" and "Quick scan":
+  // on every other screen they were noise (the sidebar or tab bar shows where you are).
+  $("#main").innerHTML = `${
+    view == "inv"
+      ? `<div class="card top"><div><h2>${t("nav." + navKey(view))}</h2><p>${t(
+          cashierUi() ? "cs.inv.sub" : "nav." + navKey(view) + ".sub",
+        )}</p></div><div class="r">${cashierUi() ? "" : `<button class="b" data-act="addItem">${t("btn.addItem")}</button>`}<button class="g" data-act="quickScan">${t("btn.quickScan")}</button></div></div>`
+      : ""
+  }${
     !canWrite()
       ? `<div class="card warn">${t("plan.expiredCard")}${
           store.configured && isOwner() && view != "sys" ? ` <a href="#sys">${t("bill.renew")}</a>` : ""

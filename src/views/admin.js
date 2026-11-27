@@ -57,8 +57,7 @@ function row(p) {
 export default function admin(s) {
   if (!s.billing?.admin) return `<div class="card warn">${t("adm.only")}</div>`;
   if (list == null && !failed) setTimeout(load);
-  const pending = (list || []).filter((p) => p.status == "pending"),
-    done = (list || []).filter((p) => p.status != "pending").slice(0, 50);
+  const pending = (list || []).filter((p) => p.status == "pending");
   const qr = s.billing.qr,
     d = qr && describe(qr);
   return `<div class="card"><h3>${t("adm.pending", { n: pending.length })}</h3><p class="mut">${t(
@@ -71,8 +70,6 @@ export default function admin(s) {
       : pending.length
         ? `<table class="mt"><tbody>${pending.map(row).join("")}</tbody></table>`
         : `<p class="mut mt">${t("adm.none")}</p>`
-  }</div><div class="card"><h3>${t("adm.done")}</h3>${
-    done.length ? `<table class="mt"><tbody>${done.map(row).join("")}</tbody></table>` : `<p class="mut mt">${t("adm.noneDone")}</p>`
   }</div><div class="card"><h3>${t("adm.qr")}</h3><p class="mut">${t("adm.qrNote")}</p>${
     qr
       ? `<div class="payqr-set mt"><div class="payqr sm">${qrSvg(qr)}</div><div><p>${
