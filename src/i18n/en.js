@@ -729,6 +729,7 @@ export default {
   "rp.outbound": "Outbound (sent to customers)",
   "rp.paid": "Paid sales",
   "rp.voided": "Voided (not counted in the summary)",
+  "rp.voidList": "Voided receipts: why and by whom",
   "rp.byProduct": "Summary by product",
   "rp.detail": "Detail",
   "rp.low": "Low stock",

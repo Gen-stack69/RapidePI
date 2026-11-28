@@ -249,9 +249,34 @@ const BUILD = {
       bad = (s.sales || []).filter((x) => x.status == "void"),
       add = (list, f) => list.reduce((a, x) => a + (+x[f] || 0), 0),
       dates = (s.sales || []).map((x) => x.created_at).sort();
+    // One line per voided receipt: when, how much, why and who (025).
+    const voidCols = [col("no", "c"), col("date", "c"), col("receipt", "c"), col("lineTotal", "m"), col("reason"), col("user")],
+      voidRows = number(
+        [...bad]
+          .sort((a, b) => String(a.voided_at || a.created_at).localeCompare(String(b.voided_at || b.created_at)))
+          .map((x) => [
+            dmyhm(x.voided_at || x.created_at),
+            saleNo(x),
+            +x.total,
+            reasonLabel(x.void_reason, x.void_reason_text),
+            whoOf(s, x.voided_by),
+          ]),
+      );
     return {
       period: dates.length ? `${dmy(dates[0])} – ${dmy(dates[dates.length - 1])}` : "",
-      tables: [{ cols, groups, grand: null }],
+      tables: [
+        { cols, groups, grand: null },
+        ...(bad.length
+          ? [
+              {
+                title: t("rp.voidList"),
+                cols: voidCols,
+                groups: [{ title: "", rows: voidRows, total: totalRow(voidCols.length, t("rp.total"), { 3: sum(voidRows, 3) }) }],
+                grand: null,
+              },
+            ]
+          : []),
+      ],
       summary: [
         [t("rp.s.receipts"), ok.length, "n"],
         [t("rp.s.subtotal"), add(ok, "subtotal"), "m"],
