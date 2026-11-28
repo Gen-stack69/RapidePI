@@ -5,7 +5,7 @@ import { waitingBoxes } from "../data/fields.js";
 import { status, undatedBatches } from "../lib/expiry.js";
 import { SIGN } from "../lib/rates.js";
 
-// q: search text. f: all | consumable | durable | soon | expired. s: sort order (SORTS)
+// q: search text. f: all | consumable | durable | soon | expired | loss. s: sort order (SORTS)
 // open: products whose batch list is rolled down (kept while the list redraws).
 export const ui = { q: "", f: "all", s: "name", open: new Set() };
 
@@ -31,6 +31,11 @@ const batchesOf = (s) => {
   return m;
 };
 // "EXP 31/12/2026 · in 40 days", or "No date" for undated stock.
+// Sold under what it cost (cost is kept in kip, whatever it was typed in):
+// a warning only, a loss leader can be meant.
+export const belowCost = (i) => +i.cost > 0 && +i.price > 0 && +i.price < +i.cost;
+export const wBelowCost = (i) => +i.cost > 0 && +i.price_wholesale > 0 && +i.price_wholesale < +i.cost;
+
 const when = (l) => (l.expiry ? `${t("exp.short")} ${dateText(l.expiry)}${expiryNote(l.expiry)}` : t("inv.noDate"));
 
 export function rows(s) {
@@ -48,6 +53,8 @@ export function rows(s) {
         case "soon":
         case "expired":
           return e && s.lots.some((l) => l.item_id == i.id && status(l.expiry) == ui.f);
+        case "loss":
+          return belowCost(i) || wBelowCost(i);
       }
       return true;
     },
@@ -128,7 +135,12 @@ export function rows(s) {
       3,
       num(i.qty) + (i.unit ? " " + E(i.unit) : "") + (low ? " ⚠" : ""),
       low ? "warn" : "",
-    )}${td(4, num(i.min_qty))}${td(5, cost)}${td(6, fmt(i.price))}${td(
+    )}${td(4, num(i.min_qty))}${td(5, cost)}${td(
+      6,
+      fmt(i.price) +
+        (belowCost(i) ? `<br><small class="warn">⚠ ${t("inv.belowCost")}</small>` : "") +
+        (wBelowCost(i) ? `<br><small class="warn">⚠ ${t("inv.wBelowCost")}</small>` : ""),
+    )}${td(
       7,
       fmt(i.qty * i.cost),
     )}<td class="act">${ro ? "" : `<button class="g" data-act="adj" data-id="${id}" data-dir="1" title="${E(
@@ -143,7 +155,7 @@ export function rows(s) {
   }).join("");
 }
 
-const FILTERS = ["all", "consumable", "durable", "soon", "expired"];
+const FILTERS = ["all", "consumable", "durable", "soon", "expired", "loss"];
 // The batch numbers of a product's batches, soonest date first, each once:
 // "L001, L002" (the first 3, then "+N"), so they show without opening the list.
 function nums(B) {
@@ -175,7 +187,7 @@ function sortBy(L, next) {
 export default function inv(s) {
   return `<div class="card"><div class="row"><input id="q" placeholder="${E(t("inv.search"))}" value="${E(
     ui.q,
-  )}" data-input="search"><select data-input="invFilter">${FILTERS.map(
+  )}" data-input="search"><select data-input="invFilter">${FILTERS.filter((f) => f != "loss" || !cashierUi()).map(
     (f) => `<option value="${f}"${f == ui.f ? " selected" : ""}>${t("inv.f." + f)}</option>`,
   ).join("")}</select><select data-input="invSort" aria-label="${E(t("inv.sortBy"))}">${SORTS.map(
     (k) => `<option value="${k}"${k == ui.s ? " selected" : ""}>${t("inv.s." + k)}</option>`,

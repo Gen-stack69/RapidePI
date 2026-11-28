@@ -1589,3 +1589,9 @@ button.bt.on .chev {
     bottom: calc(84px + env(safe-area-inset-bottom, 0px));
   }
 }
+
+/* A form's warning (while typing) and why it could not save. */
+#dlg [data-live],
+#dlg [data-err] {
+  margin: 12px 0 4px;
+}

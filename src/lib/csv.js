@@ -18,13 +18,31 @@ export function parseCsv(s) {
     } else f += c;
   }
   if (f || row.length) row.push(f), rows.push(row);
-  return rows.filter((r) => r.some((x) => x.trim()));
+  return rows.filter((r) => r.some((x) => x.trim())).map((r) => r.map(unCell));
 }
 
-export const toCsv = (rows) =>
-  rows
-    .map((r) => r.map((v) => `"${String(v ?? "").replace(/"/g, '""')}"`).join(","))
-    .join("\n");
+// Text that Excel or LibreOffice would run as a formula when the CSV is
+// opened: = + - @ at the start, or a tab / carriage return before one. A
+// product named =HYPERLINK(...) by anyone with access must stay just text.
+const FORMULA = /^[=+\-@\t\r]/;
+// A plain number, also negative ("-3"): data, not a formula.
+const NUMBER = /^-?\d+(\.\d+)?$/;
+
+/** One CSV cell: quoted, "" escaped, and text that would start a formula
+ * prefixed with ' so spreadsheets show it as text. Numbers stay as they are. */
+export function csvCell(v) {
+  let s = String(v ?? "");
+  if (typeof v == "string" && FORMULA.test(s) && !NUMBER.test(s)) s = "'" + s;
+  return `"${s.replace(/"/g, '""')}"`;
+}
+
+// Reading our own export back: drop the ' that csvCell added.
+function unCell(s) {
+  const rest = s.slice(1);
+  return s[0] == "'" && FORMULA.test(rest) && !NUMBER.test(rest) ? rest : s;
+}
+
+export const toCsv = (rows) => rows.map((r) => r.map(csvCell).join(",")).join("\n");
 
 // Turns CSV text into item records. Accepts our own Inventory export and the
 // documented sku,name,category,qty,min,cost layout.
