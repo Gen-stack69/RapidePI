@@ -1,4 +1,4 @@
-import { t, locale, fDateTime, fDateLong } from "../i18n/index.js";
+import { t, locale, fDateTime, fDateLong, errText } from "../i18n/index.js";
 import { parseTyped, slashDigits, daysLeft, status, SOON_DAYS } from "./expiry.js";
 import { SIGN, kipPer } from "./rates.js";
 
@@ -43,7 +43,11 @@ export function toast(msg, bad) {
 //            page's data-act handlers with data-for naming the field
 //   showIf   [otherField, value]: only shown while that field has that value
 //   hint     small text under the field
-export function form(title, fields, okLabel = t("btn.save"), note = "") {
+// check(values): runs on Save with the dialog still open, and may save too. A
+// message back (or an error thrown) is shown in the dialog, which stays open
+// with everything typed kept; "" closes it. Without check, Save just closes.
+// live(fm, note): called on every change, to show a warning while typing.
+export function form(title, fields, okLabel = t("btn.save"), note = "", check = null, live = null) {
   const dlg = $("#dlg");
   const input = (f) => {
     // An optional picture: take one with the camera or pick one from the
@@ -82,7 +86,7 @@ export function form(title, fields, okLabel = t("btn.save"), note = "") {
             : input(f)
         }${f.type == "expiry" ? `<small class="said"></small>` : ""}${f.hint ? `<small class="mut">${E(f.hint)}</small>` : ""}</${f.type == "photo" ? "div" : "label"}>`,
     )
-    .join("")}</div><div class="row"><button class="b" value="ok">${E(okLabel)}</button><button class="g" value="cancel" formnovalidate>${E(t("btn.cancel"))}</button></div></form>`;
+    .join("")}</div><p class="warn" data-live hidden></p><p class="bad" data-err role="alert" hidden></p><div class="row"><button class="b" value="ok">${E(okLabel)}</button><button class="g" value="cancel" formnovalidate>${E(t("btn.cancel"))}</button></div></form>`;
   const fm = dlg.querySelector("form");
   // Fields that only apply to some products (an expiry date to consumables).
   const sync = () =>
@@ -127,23 +131,54 @@ export function form(title, fields, okLabel = t("btn.save"), note = "") {
       }),
     );
   });
+  const values = () => {
+    const out = Object.fromEntries([...new FormData(fm)].filter(([, v]) => !(v instanceof File)));
+    Object.assign(out, photos);
+    // Expiry boxes hand back the date they understood, not what was typed.
+    fm.querySelectorAll("[data-expiry]").forEach((el) => {
+      out[el.name] = el.closest("label").hidden ? "" : parseTyped(el.value) || "";
+    });
+    return out;
+  };
+  const errBox = fm.querySelector("[data-err]"),
+    liveBox = fm.querySelector("[data-live]");
+  if (live) {
+    const show = () => {
+      const msg = live(fm) || "";
+      liveBox.textContent = msg;
+      liveBox.hidden = !msg;
+    };
+    fm.addEventListener("input", show);
+    fm.addEventListener("change", show);
+    show();
+  }
+  let busy = false;
+  if (check)
+    fm.addEventListener("submit", async (ev) => {
+      if (ev.submitter?.value != "ok") return;
+      ev.preventDefault();
+      if (busy) return; // a double tap saves once
+      busy = true;
+      const btns = fm.querySelectorAll("button");
+      btns.forEach((b) => (b.disabled = true));
+      errBox.hidden = true;
+      let msg;
+      try {
+        msg = await check(values());
+      } catch (e) {
+        msg = errText(e);
+      }
+      busy = false;
+      btns.forEach((b) => (b.disabled = false));
+      if (!msg) return dlg.close("ok");
+      errBox.textContent = msg;
+      errBox.hidden = false;
+      errBox.scrollIntoView({ block: "nearest" });
+    });
   dlg.showModal();
   dlg.querySelector("input:not([type=file]),select")?.focus();
   return new Promise((res) =>
-    dlg.addEventListener(
-      "close",
-      () => {
-        if (dlg.returnValue != "ok") return res(null);
-        const out = Object.fromEntries([...new FormData(fm)].filter(([, v]) => !(v instanceof File)));
-        Object.assign(out, photos);
-        // Expiry boxes hand back the date they understood, not what was typed.
-        fm.querySelectorAll("[data-expiry]").forEach((el) => {
-          out[el.name] = el.closest("label").hidden ? "" : parseTyped(el.value) || "";
-        });
-        res(out);
-      },
-      { once: true },
-    ),
+    dlg.addEventListener("close", () => res(dlg.returnValue == "ok" ? values() : null), { once: true }),
   );
 }
 

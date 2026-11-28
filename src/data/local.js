@@ -161,6 +161,20 @@ export async function writeOffLot(lotId, note = "expired") {
 
 // ---------- items ----------
 
+// One barcode, one product (as the forms check): not another product's code
+// or barcode, nor a box of another product (a product's own box may share it),
+// nor any other box. Returns the product it belongs to.
+function barcodeOwner(code, itemId, packId) {
+  const c = String(code || "").trim().toLowerCase(),
+    same = (v) => String(v || "").trim().toLowerCase() == c;
+  if (!c) return null;
+  return (
+    mine(db.items).find((i) => i.id != itemId && (same(i.barcode) || same(i.sku))) ||
+    mine(db.items).find((i) => mine(db.packs).some((p) => p.id != packId && p.item_id == i.id && (packId || i.id != itemId) && same(p.barcode))) ||
+    null
+  );
+}
+
 const skuTaken = (sku, exceptId) =>
   mine(db.items).some((i) => i.id != exceptId && i.sku.toLowerCase() == sku.toLowerCase());
 
@@ -182,6 +196,8 @@ export async function saveItem(id, f) {
   keepOwnerPrices(row, id, state.role == "owner");
   if (!row.sku || !row.name) fail("err.needSkuName");
   if (skuTaken(row.sku, id)) fail("err.dupSku");
+  const owner = barcodeOwner(row.barcode, id, null);
+  if (owner) fail("err.dupBarcode", { name: owner.name });
   let it = id && db.items.find((i) => i.id == id && i.shop_id == shopId());
   if (it) Object.assign(it, row);
   else db.items.push((it = { id: uid(), shop_id: shopId(), qty: 0, created_at: nowIso(), ...row }));
@@ -366,6 +382,8 @@ export async function savePack(id, itemId, f) {
   writable();
   const owner = state.role == "owner",
     row = packRow(f);
+  const taken = barcodeOwner(row.barcode, itemId, id || "new");
+  if (taken) fail("err.dupBarcode", { name: taken.name });
   if (row.barcode && mine(db.packs).some((p) => p.id != id && p.barcode == row.barcode)) fail("err.packBarcode");
   const p = id && db.packs.find((x) => x.id == id && x.shop_id == shopId());
   if (!owner && (p ? +p.price : row.price)) fail("err.noPerm");

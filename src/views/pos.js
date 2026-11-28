@@ -507,6 +507,8 @@ export function refresh() {
     (st.method == "cash" && tt.paid < tt.total);
   $("#pcount").textContent = st.cart.length ? t("pos.lines", { n: [...tt.need.values()].reduce((a, n) => a + n, 0) }) : "";
   $("#psales").innerHTML = salesHtml();
+  // The search results show stock left: after a sale it has changed.
+  suggest();
 }
 
 export default function pos() {

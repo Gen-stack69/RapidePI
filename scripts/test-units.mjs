@@ -962,5 +962,28 @@ await ok("scanning one batch no. again and again keeps one batch (= 020)", async
   eq(nd(), "TH123=3,TH999=2", "another number is its own batch");
 });
 
+// QA 2026-11-28 #2: a CSV cell must never be run as a formula by Excel.
+await ok("CSV export: text that starts a formula gets a leading '", async () => {
+  const { toCsv, csvCell, parseCsv } = await import("../src/lib/csv.js");
+  for (const name of ["=1+1", "+1", "-x", "@SUM(A1)", "\t=1", "\r=1", '=HYPERLINK("http://example.com","click")'])
+    eq(csvCell(name).startsWith(`"'`), true, JSON.stringify(name) + " prefixed");
+  eq(csvCell(-3), '"-3"', "a negative number stays a number");
+  eq(csvCell("-3"), '"-3"', "a negative number as text stays a number");
+  eq(csvCell(12.5), '"12.5"', "a number");
+  eq(csvCell("Coke 330ml"), '"Coke 330ml"', "plain text");
+  eq(csvCell('say "hi"'), '"say ""hi"""', "quotes doubled");
+  // Our own export reads back as it was typed.
+  const back = parseCsv(toCsv([["SKU", "Name", "Qty"], ["A1", "=1+1", -2], ["A2", "@home", 5]]));
+  eq(back[1][1], "=1+1", "re-import keeps the name");
+  eq(back[2][1], "@home", "re-import keeps the name");
+  eq(back[1][2], "-2", "re-import keeps the number");
+});
+
+await ok("CSV export: the CSV buttons and the ZIP both write through toCsv", async () => {
+  // export.js loads fonts, which Node cannot import: check its source instead.
+  const src = (await import("node:fs")).readFileSync(new URL("../src/lib/export.js", import.meta.url), "utf8");
+  eq(src.includes("toCsv(sets(s)[k])"), true, "the CSV button uses toCsv");
+  eq(src.includes('z.file(k + ".csv", "\uFEFF" + toCsv(all[k]))'), true, "the ZIP uses toCsv");});
+
 console.log(fails ? `\n${fails} FAILED` : "\nAll unit checks passed");
 process.exit(fails ? 1 : 0);

@@ -36,7 +36,7 @@ import admin, { load as loadAdmin, toggleHistory } from "./views/admin.js";
 import { planName } from "./views/sys.js";
 import { tillQr, qrSvg } from "./lib/payqr.js";
 import { status, SOON_DAYS, setSoonDays, daysLeft } from "./lib/expiry.js";
-import { CUR, SIGN } from "./lib/rates.js";
+import { CUR, SIGN, kipPer } from "./lib/rates.js";
 import { registerSW } from "virtual:pwa-register";
 import { showTheme, switchTheme } from "./lib/theme.js";
 
@@ -221,12 +221,15 @@ function render(force) {
   // screen (or a language switch, force) the field belongs to the old screen
   // and must go, or the old screen stays up and the new one's parts are missing.
   const same = drawn == view && !force;
-  if (same && view == "scan" && scanner.active()) return;
+  // The warnings on top (low stock, expired…). When the screen itself is kept
+  // (camera on, a box being typed in), they are still brought up to date.
+  const bans = banners(expired, lo);
+  if (same && view == "scan" && scanner.active()) return setBanners(bans);
   const focused = document.activeElement;
   if (same && focused && $("#main").contains(focused) && focused.matches("input,select")) {
     if (view == "inv" && $("#tb")) $("#tb").innerHTML = invRows(state);
     if (view == "exp" && $("#expl")) $("#expl").innerHTML = expLists(state);
-    return;
+    return setBanners(bans);
   }
   if ($("#dlg").open && !force) return;
   drawn = view;
@@ -242,30 +245,37 @@ function render(force) {
       : tabs.some(([k]) => k == view)
         ? ""
         : `<h2 class="ptitle">${t("nav." + navKey(view))}</h2>`
-  }${
-    !canWrite()
-      ? `<div class="card warn">${t("plan.expiredCard")}${
-          store.configured && isOwner() && view != "sys" ? ` <a href="#sys">${t("bill.renew")}</a>` : ""
-        }</div>`
-      : ""
-  }${
-    // Only on the screens built from orders/movements; products are never capped.
-    state.truncated && ["dash", "ord", "rep"].includes(view)
-      ? `<div class="card warn">${t("msg.truncated")}</div>`
-      : ""
-  }${
-    expired && !["exp", "pos"].includes(view)
-      ? `<div class="card warn">${t("msg.expired", { n: expired })} <a href="#exp">${t("msg.openExp")}</a></div>`
-      : ""
-  }${
-    state.settings.low_alert && lo && !["auto", "pos"].includes(view)
-      ? `<div class="card warn">${tn("msg.low", lo)}</div>`
-      : ""
-  }${limitNotes()}${VIEWS[view](state)}`;
+  }${bans}${VIEWS[view](state)}`;
   if (view == "rep") conv();
   if (view == "scan") syncScanView();
 }
 store.onChange(render);
+
+// The warning cards at the top of a screen, each marked data-ban.
+function banners(expired, lo) {
+  const card = (html) => `<div class="card warn" data-ban>${html}</div>`;
+  return [
+    !canWrite() &&
+      card(
+        `${t("plan.expiredCard")}${store.configured && isOwner() && view != "sys" ? ` <a href="#sys">${t("bill.renew")}</a>` : ""}`,
+      ),
+    // Only on the screens built from orders/movements; products are never capped.
+    state.truncated && ["dash", "ord", "rep"].includes(view) && card(t("msg.truncated")),
+    expired && !["exp", "pos"].includes(view) && card(`${t("msg.expired", { n: expired })} <a href="#exp">${t("msg.openExp")}</a>`),
+    state.settings.low_alert && lo && !["auto", "pos"].includes(view) && card(tn("msg.low", lo)),
+  ]
+    .filter(Boolean)
+    .join("") + limitNotes();
+}
+
+// Swap the warning cards of the screen on show for new ones, leaving the rest.
+function setBanners(html) {
+  const m = $("#main");
+  m.querySelectorAll(":scope > [data-ban]").forEach((e) => e.remove());
+  const after = m.querySelector(":scope > .card.top, :scope > .ptitle");
+  if (after) after.insertAdjacentHTML("afterend", html);
+  else m.insertAdjacentHTML("afterbegin", html);
+}
 
 // 023: products and photos at 80% of the plan or more, for the owner and
 // managers on the screens where they add them. Adding stops at the limit;
@@ -279,7 +289,7 @@ function limitNotes() {
     [state.items.filter((i) => i.photo).length, s.max_photos, "lim.photos"],
   ]
     .filter(([n, max]) => max && n >= 0.8 * max)
-    .map(([n, max, k]) => `<div class="card warn">${t(k, { n: num(n), max: num(max) })}${up}</div>`)
+    .map(([n, max, k]) => `<div class="card warn" data-ban>${t(k, { n: num(n), max: num(max) })}${up}</div>`)
     .join("");
 }
 
@@ -293,6 +303,8 @@ async function go(v, camOn) {
   if (camOn) scanner.cam(true);
 }
 addEventListener("hashchange", () => VIEWS[location.hash.slice(1)] && go(location.hash.slice(1)));
+// A form that saves while open (its check) can't redraw the screen under it.
+$("#dlg").addEventListener("close", () => render());
 // Picking a screen (even the one on show) closes the phone's "More" list.
 addEventListener("click", (e) => {
   if (e.target.closest("#nav a, #tabs a")) document.body.classList.remove("more");
@@ -320,7 +332,8 @@ function itemProblem(id, before, f) {
   const other =
     code &&
     (state.items.find((x) => x.id != id && [x.barcode, x.sku].some((c) => String(c || "").toLowerCase() == code)) ||
-      state.items.find((x) => state.packs.some((p) => p.item_id == x.id && String(p.barcode || "").toLowerCase() == code)));
+      // (a product's own box may carry its barcode: many cartons do)
+      state.items.find((x) => x.id != id && state.packs.some((p) => p.item_id == x.id && String(p.barcode || "").toLowerCase() == code)));
   if (other) return t("err.dupBarcode", { name: other.name });
   // A date belongs to stock coming in: with none added it would be dropped.
   if (f.expiry && !(+f.qty > +(before.qty || 0))) return t("err.expiryNoQty");
@@ -350,40 +363,55 @@ async function itemForm(id, code, start = null) {
     price_wholesale: 0,
     wholesale_min_qty: 0,
   };
-  // The form comes back with what was typed when it can't be saved, and why.
   const shown = +i.qty; // the stock the form opened with
-  let v = { ...i, expiry: start?.expiry || "", batch: start?.batch || "" },
-    why = "",
-    pic; // the photo: undefined = as it was, a File = new, "" = removed
-  for (;;) {
-    const f = await itemFields(id, v, why, pic);
-    if (!f) return;
-    if (f.photo !== undefined) pic = f.photo;
+  let photoErr = "";
+  // Saved with the form still open: a problem shows in it, with what was typed kept.
+  const ok = await itemFields(id, { ...i, expiry: start?.expiry || "", batch: start?.batch || "" }, async (typed) => {
+    const f = { ...typed },
+      pic = f.photo; // undefined = as it was, a File = new, "" = removed
     delete f.photo;
-    why = itemProblem(id, i, f);
-    if (!why) {
-      if (!f.sku.trim()) f.sku = newSku();
-      // Quantity left as it was shown: keep the stock as it is now. A sale or
-      // delivery on another till while the form was open must not be undone.
-      if (id && +f.qty == shown) f.qty = state.items.find((x) => x.id == id)?.qty ?? f.qty;
-      await store.saveItem(id, f);
-      // The product is saved first, so a photo that can't be sent (no
-      // internet, too big) never loses what was typed.
-      const saved = id || state.items.find((x) => x.sku.toLowerCase() == f.sku.trim().toLowerCase())?.id;
-      if (pic !== undefined && saved)
-        try {
-          await store.setItemPhoto(saved, pic || null);
-        } catch (e) {
-          return toast(t("err.photoSave", { why: errText(e) }), true);
-        }
-      return toast(t(id ? "msg.itemSaved" : "msg.itemAdded"));
-    }
-    v = { ...v, ...f, cost_orig: f.cost };
-  }
+    const why = itemProblem(id, i, f);
+    if (why) return why;
+    if (!f.sku.trim()) f.sku = newSku();
+    // Quantity left as it was shown: keep the stock as it is now. A sale or
+    // delivery on another till while the form was open must not be undone.
+    if (id && +f.qty == shown) f.qty = state.items.find((x) => x.id == id)?.qty ?? f.qty;
+    await store.saveItem(id, f);
+    // The product is saved first, so a photo that can't be sent (no
+    // internet, too big) never loses what was typed.
+    const saved = id || state.items.find((x) => x.sku.toLowerCase() == f.sku.trim().toLowerCase())?.id;
+    if (pic !== undefined && saved)
+      try {
+        await store.setItemPhoto(saved, pic || null);
+      } catch (e) {
+        photoErr = errText(e);
+      }
+    return "";
+  });
+  if (!ok) return;
+  if (photoErr) return toast(t("err.photoSave", { why: photoErr }), true);
+  toast(t(id ? "msg.itemSaved" : "msg.itemAdded"));
 }
 
-function itemFields(id, i, why, pic) {
-  const photo = pic instanceof Blob ? URL.createObjectURL(pic) : pic === "" ? "" : store.photoSrc(state.items.find((x) => x.id == id));
+// A sell price under the cost (in kip, whatever the cost was typed in), as a
+// warning: selling at a loss can be meant (a loss leader), so it never blocks.
+function belowCost(fm) {
+  const el = fm.elements;
+  if (!el.cost || !el.price) return "";
+  const cost = (+el.cost.value || 0) * kipPer(el.cost_currency?.value || "LAK"),
+    out = [];
+  for (const [k, key] of [
+    ["price", "warn.belowCost"],
+    ["price_wholesale", "warn.wBelowCost"],
+  ]) {
+    const p = +el[k]?.value || 0;
+    if (cost > 0 && p > 0 && p < cost) out.push(t(key, { loss: fmt(Math.round((cost - p) * 100) / 100) }));
+  }
+  return out.join(" ");
+}
+
+function itemFields(id, i, check) {
+  const photo = store.photoSrc(state.items.find((x) => x.id == id));
   return form(t(id ? "title.editItem" : "title.addItem"), [
     { k: "sku", label: t("f.sku"), value: i.sku, hint: id ? "" : t("f.skuHint") },
     { k: "name", label: t("f.name"), value: i.name, required: true },
@@ -429,7 +457,9 @@ function itemFields(id, i, why, pic) {
     // Staff add products with prices, but only the owner changes them later.
   ].filter((x) => !id || isOwner() || !PRICE_KEYS.includes(x.k)),
     t("btn.save"),
-    why ? `<span class="bad">${E(why)}</span>` : "",
+    "",
+    check,
+    belowCost,
   );
 }
 
@@ -446,6 +476,25 @@ async function packForm(itemId, packId, code = "") {
   if (packId && +p.price && !owner) return toast(t("err.noPerm"), true), null;
   let it = state.items.find((x) => x.id == (itemId || p.item_id));
   const label = (i) => `${i.name} · ${i.sku}`,
+    // The product typed into the box form (by its label, code or name).
+    typedItem = (f) => {
+      const typed = String(f.item || "").trim().toLowerCase();
+      return (
+        state.items.find((i) => label(i).toLowerCase() == typed) ||
+        state.items.find((i) => i.sku.toLowerCase() == typed || i.barcode?.toLowerCase() == typed) ||
+        state.items.find((i) => i.name.toLowerCase() == typed)
+      );
+    },
+    // Checked with the form still open, so a mistake keeps what was typed.
+    check = (f) => {
+      if (f.remove == "yes") {
+        const n = waitingBoxes(state.packReceipts, packId);
+        return n ? t("err.packWaiting", { n }) : "";
+      }
+      packRow(f); // a bad name or count throws, and shows in the form
+      const clash = packClash((it || typedItem(f))?.id, packId, f.barcode);
+      return clash ? t("err.dupBarcode", { name: clash.name }) : "";
+    },
     unit = it?.unit || t("f.unitWord"),
     f = await form(
       it ? t(packId ? "title.editPack" : "title.addPack", { name: it.name }) : t("title.linkBox"),
@@ -477,14 +526,13 @@ async function packForm(itemId, packId, code = "") {
           ? [{ k: "remove", label: t("f.packRemove"), type: "select", value: "no", options: [["no", t("f.no")], ["yes", t("f.packRemoveYes")]] }]
           : []),
       ],
+      t("btn.save"),
+      "",
+      check,
     );
   if (!f) return null;
   if (!it) {
-    const typed = String(f.item || "").trim().toLowerCase();
-    it =
-      state.items.find((i) => label(i).toLowerCase() == typed) ||
-      state.items.find((i) => i.sku.toLowerCase() == typed || i.barcode?.toLowerCase() == typed) ||
-      state.items.find((i) => i.name.toLowerCase() == typed);
+    it = typedItem(f);
     // Not a product here yet (a carton of something new): add it now, so the
     // box always belongs to a product and no second product is made later.
     if (!it) it = await newItemForBox(f);
@@ -514,17 +562,26 @@ async function packForm(itemId, packId, code = "") {
     if (!fix) return null;
     f.fix = Math.max(0, +fix.fix || 0);
   }
-  // One barcode, one product: not another product's own barcode or box.
-  const bc = String(f.barcode || "").trim().toLowerCase(),
-    clash =
-      bc &&
-      (state.items.find((x) => x.id != it.id && String(x.barcode || "").trim().toLowerCase() == bc) ||
-        state.items.find((x) => state.packs.some((q) => q.id != packId && q.item_id == x.id && String(q.barcode || "").trim().toLowerCase() == bc)));
+  // Checked again: a product just added for the box wasn't known before.
+  const clash = packClash(it.id, packId, f.barcode);
   if (clash) return toast(t("err.dupBarcode", { name: clash.name }), true), null;
   const waiting = packId ? waitingBoxes(state.packReceipts, packId) : 0;
   await store.savePack(packId || null, it.id, f);
   toast(waiting && size != null && p.size == null ? t("msg.boxCounted", { n: num(waiting * size), unit }) : t("msg.saved"));
   return it.id;
+}
+
+// One barcode, one product: a box's barcode may not be another product's own
+// barcode or code, or any other box's. Returns the product it clashes with.
+function packClash(itemId, packId, barcode) {
+  const bc = String(barcode || "").trim().toLowerCase(),
+    same = (c) => String(c || "").trim().toLowerCase() == bc;
+  if (!bc) return null;
+  return (
+    state.items.find((x) => x.id != itemId && (same(x.barcode) || same(x.sku))) ||
+    state.items.find((x) => state.packs.some((q) => q.id != packId && q.item_id == x.id && same(q.barcode))) ||
+    null
+  );
 }
 
 // The product inside a box, added from the box form when it isn't in the shop
@@ -556,19 +613,24 @@ async function newItemForBox(box) {
       ],
       t("btn.next"),
       E(t("f.newItemNote", { name: typed })),
+      async (f) => {
+        const why = itemProblem(null, {}, { ...f, expiry: "", batch: "" });
+        if (why) return why;
+        await store.saveItem(null, {
+          ...f,
+          category: "",
+          qty: 0,
+          expiry: "",
+          min_qty: 0,
+          cost_currency: "LAK",
+          cost: 0,
+          price_wholesale: 0,
+          wholesale_min_qty: 0,
+        });
+        return "";
+      },
     );
   if (!f) return null;
-  await store.saveItem(null, {
-    ...f,
-    category: "",
-    qty: 0,
-    expiry: "",
-    min_qty: 0,
-    cost_currency: "LAK",
-    cost: 0,
-    price_wholesale: 0,
-    wholesale_min_qty: 0,
-  });
   return state.items.find((i) => i.sku.toLowerCase() == f.sku.trim().toLowerCase()) || null;
 }
 
@@ -585,9 +647,10 @@ async function countPack(packId) {
       t("title.countPack", { pack: p.name, name: it.name }),
       [{ k: "size", label: t("f.packSize", { unit }), type: "number", required: true, hint: t("f.countHint", { n: num(n) }) }],
       t("btn.save"),
+      "",
+      async (f) => (await store.setPackSize(packId, +f.size, 0), ""),
     );
   if (!f) return;
-  await store.setPackSize(packId, +f.size, 0);
   toast(t("msg.boxCounted", { n: num(n * +f.size), unit }));
 }
 
@@ -687,9 +750,11 @@ const A = {
       f = await form(
         t("title.lotPrice", { name: it.name, d: dateText(lot.expiry) }),
         [{ k: "price", label: t("f.lotPrice", { p: fmt(it.price) }), type: "number", value: lot.price ?? "", hint: t("f.lotPriceHint") }],
+        t("btn.save"),
+        "",
+        async (f) => (await store.setLotPrice(it.id, lot.expiry, f.price === "" ? null : Math.max(0, +f.price)), ""),
       );
     if (!f) return;
-    await store.setLotPrice(it.id, lot.expiry, f.price === "" ? null : Math.max(0, +f.price));
     toast(t("msg.saved"));
   },
   async allowNotes() {
@@ -711,7 +776,9 @@ const A = {
     const it = state.items.find((x) => x.id == el.dataset.id),
       dir = +el.dataset.dir,
       dated = dir > 0,
-      f = await form(t(dir > 0 ? "title.addStock" : "title.removeStock", { sku: it.sku }), [
+      f = await form(
+        t(dir > 0 ? "title.addStock" : "title.removeStock", { sku: it.sku }),
+        [
         { k: "q", label: t("f.howMany", { qty: +it.qty }), type: "number", value: 1, required: true },
         ...(dated
           ? [
@@ -725,13 +792,23 @@ const A = {
               batchField(),
             ]
           : []),
-      ]);
-    const q = f && +f.q;
-    if (!q || q < 0) return;
-    const batch = (dated && f.batch?.trim()) || "";
-    await store.adjust(it.id, dir * q, "manual", (dated && f.expiry) || null);
-    if (batch) await store.setLotBatch(it.id, f.expiry || null, batch);
-    toast(t("msg.adjusted", { sku: it.sku, sign: dir > 0 ? "+" : "−", q }));
+        ],
+        t("btn.save"),
+        "",
+        // Checked and saved with the form open: "only 22 in stock" shows in it.
+        async (f) => {
+          const q = +f.q;
+          if (!(q > 0)) return t("err.qtyAboveZero");
+          const now = +(state.items.find((x) => x.id == it.id)?.qty ?? 0);
+          if (dir < 0 && q > now) return t("err.removeTooMany", { n: num(now) });
+          await store.adjust(it.id, dir * q, "manual", (dated && f.expiry) || null);
+          const batch = (dated && f.batch?.trim()) || "";
+          if (batch) await store.setLotBatch(it.id, f.expiry || null, batch);
+          return "";
+        },
+      );
+    if (!f) return;
+    toast(t("msg.adjusted", { sku: it.sku, sign: dir > 0 ? "+" : "−", q: +f.q }));
   },
   async addOrder() {
     if (!needWrite()) return;
@@ -747,8 +824,6 @@ const A = {
     // show on the Expiry screen like stock received any other way.
     const o = state.orders.find((x) => x.id == el.dataset.id),
       it = o && state.items.find((i) => i.id == o.item_id);
-    let expiry = null,
-      batch = "";
     if (o?.type == "in" && it) {
       const f = await form(
         t("title.receiveOrder", { qty: num(o.qty), name: it.name }),
@@ -763,12 +838,11 @@ const A = {
           batchField(),
         ],
         t("ord.complete"),
+        "",
+        async (f) => (await store.completeOrder(el.dataset.id, f.expiry || null, f.batch?.trim() || ""), ""),
       );
       if (!f) return;
-      expiry = f.expiry || null;
-      batch = f.batch?.trim() || "";
-    }
-    await store.completeOrder(el.dataset.id, expiry, batch);
+    } else await store.completeOrder(el.dataset.id, null, "");
     toast(t("msg.orderDone"));
   },
   async delOrder(el) {
@@ -800,6 +874,7 @@ const A = {
     const lot = [...state.lots, ...state.ulots].find((l) => l.id == el.dataset.id),
       it = lot && state.items.find((i) => i.id == lot.item_id);
     if (!it) return;
+    let merge = false;
     const f = await form(
       t(lot.expiry ? "title.lotDate" : "title.addDate", { name: it.name, n: num(lot.qty) }),
       [
@@ -813,12 +888,17 @@ const A = {
           hint: lot.expiry ? t("f.newExpiryHint", { d: dateText(lot.expiry) }) : t("f.addExpiryHint"),
         },
       ],
+      t("btn.save"),
+      "",
+      async (f) => {
+        if (!f.expiry) return t("err.needDate");
+        if (f.expiry == lot.expiry) return "";
+        merge = state.lots.some((l) => l.item_id == lot.item_id && l.expiry == f.expiry && l.id != lot.id);
+        await store.changeLotExpiry(lot.id, f.expiry);
+        return "";
+      },
     );
-    if (!f) return;
-    if (!f.expiry) return toast(t("err.needDate"), true);
-    if (f.expiry == lot.expiry) return;
-    const merge = state.lots.some((l) => l.item_id == lot.item_id && l.expiry == f.expiry && l.id != lot.id);
-    await store.changeLotExpiry(lot.id, f.expiry);
+    if (!f || f.expiry == lot.expiry) return;
     toast(t(merge ? "msg.lotMerged" : "msg.lotDateChanged", { d: dateText(f.expiry) }));
   },
   // Type or correct the batch / production number(s) of one batch.
@@ -840,13 +920,20 @@ const A = {
               : null,
       it = lot && state.items.find((i) => i.id == lot.item_id);
     if (!it) return toast(t("err.lotNotFound"), true);
-    const f = await form(t(lot.expiry ? "title.lotBatch" : "title.undatedBatch", { name: it.name, d: dateText(lot.expiry) }), [
-      { k: "batch", label: t("f.batch"), value: lot.batch || "", hint: t(lot.expiry ? "f.batchEditHint" : "f.batchUndatedHint") },
-    ]);
+    const f = await form(
+      t(lot.expiry ? "title.lotBatch" : "title.undatedBatch", { name: it.name, d: dateText(lot.expiry) }),
+      [{ k: "batch", label: t("f.batch"), value: lot.batch || "", hint: t(lot.expiry ? "f.batchEditHint" : "f.batchUndatedHint") }],
+      t("btn.save"),
+      "",
+      async (f) => {
+        if (f.batch.trim() == (lot.batch || "")) return "";
+        if (lot.fresh) await store.setLotBatch(it.id, null, f.batch, true);
+        else if (!lot.expiry) await store.setUndatedBatch(lot.id, f.batch);
+        else await store.setLotBatch(it.id, lot.expiry, f.batch, false);
+        return "";
+      },
+    );
     if (!f || f.batch.trim() == (lot.batch || "")) return;
-    if (lot.fresh) await store.setLotBatch(it.id, null, f.batch, true);
-    else if (!lot.expiry) await store.setUndatedBatch(lot.id, f.batch);
-    else await store.setLotBatch(it.id, lot.expiry, f.batch, false);
     if (!d.id && el.isConnected) {
       el.textContent = scanner.batchLabel(f.batch.trim());
       if (lot.fresh && f.batch.trim()) {
