@@ -1,6 +1,7 @@
 import { t, locale, fDateTime, fDateLong, errText } from "../i18n/index.js";
 import { parseTyped, slashDigits, daysLeft, status, SOON_DAYS } from "./expiry.js";
 import { SIGN, kipPer } from "./rates.js";
+import { REASONS } from "../data/fields.js";
 
 // HTML-escape any value before putting it into markup or an attribute.
 export const E = (s) =>
@@ -201,6 +202,24 @@ export function checkExpiry(el) {
     said.className = "said " + (d ? (status(d) == "ok" ? "in" : "warn") : v ? "err" : "");
   }
 }
+
+// Why stock is leaving (025): pick one; "Other" asks for a few words.
+// kind: "remove" (taken out by hand, written off) or "void".
+export const reasonFields = (kind, value = "") => [
+  {
+    k: "reason",
+    label: t("f.reason"),
+    type: "select",
+    value,
+    options: [...(value ? [] : [["", t("reason.pick")]]), ...REASONS[kind].map((c) => [c, t("reason." + c)])],
+  },
+  { k: "reason_text", label: t("f.reasonText"), showIf: ["reason", "other"] },
+];
+/** The reason picked in a form, or the message saying one is needed. */
+export const reasonOf = (f) =>
+  !f.reason || (f.reason == "other" && !String(f.reason_text || "").trim())
+    ? { why: t("err.needReason") }
+    : { code: f.reason, text: f.reason == "other" ? f.reason_text : "" };
 
 // The batch / production number printed on the goods, kept with their expiry date.
 export const batchField = (label = "f.batch") => ({ k: "batch", label: t(label), hint: t("f.batchHint") });

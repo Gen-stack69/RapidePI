@@ -2,14 +2,15 @@
 // receipt. The cart lives here, not in the shop data, and this screen updates
 // its own pieces: a till always has a field in focus, which would otherwise
 // stop the page redrawing.
-import { $, E, fmt, num, dt, toast, dateText } from "../lib/util.js";
+import { $, E, fmt, num, dt, toast, dateText, form, reasonFields, reasonOf } from "../lib/util.js";
 import { t, tn, fTime } from "../i18n/index.js";
 import * as store from "../data/store.js";
 import { state, isOwner, canWrite, cashierUi } from "../data/store.js";
 import { lookupCode, status } from "../lib/expiry.js";
 import { receiptHtml, printReceipt } from "../lib/receipt.js";
 import { isQr } from "../lib/camera.js";
-import { linePrice, priceOf, vatOf, saleNo, saleBatches } from "../data/apply.js";
+import { linePrice, priceOf, vatOf, saleNo, saleBatches, expiredQty } from "../data/apply.js";
+import { today } from "../lib/expiry.js";
 import { describe, tillQr, qrSvg, saleRef } from "../lib/payqr.js";
 
 // The shop's bank QR for this total, or null when there is nothing to show.
@@ -84,6 +85,15 @@ const cutShort = (l) => {
   return lot && l.qty > +lot.qty ? +lot.qty : 0;
 };
 
+// Expired stock (025): how many units of a product are still in date, and
+// whether this sale would need some of the expired ones. Off by default:
+// the shop can allow it in Shop & backup (settings.sell_expired).
+const inDate = (it) => Math.max(+it.qty - expiredQty(state, it.id), 0);
+const needsExpired = (it, n, lines) =>
+  (expiredQty(state, it.id) > 0 && n > inDate(it)) ||
+  lines.some((l) => l.id == it.id && !l.pack && l.exp && l.exp < today());
+const sellExpired = () => !!state.settings.sell_expired;
+
 // linePrice: the same rule as create_sale() in the database; shown here, decided there.
 export { linePrice };
 
@@ -104,6 +114,9 @@ function totals() {
   // stock): the goods are in the customer's hand, so the sale goes ahead and
   // the server flags it if the stock really wasn't there.
   if (state.online) for (const [id, n] of need) if (n > +item(id).qty) problems++;
+  // Expired units stay off the counter unless the shop allows them. Dates
+  // don't depend on the server, so this holds offline too.
+  if (!sellExpired()) for (const [id, n] of need) if (needsExpired(item(id), n, st.cart)) problems++;
   // A discount is whole kip from 0 up to the subtotal. Anything else blocks
   // Charge with a note under the box, never quietly capped: a typo of 999999
   // must not hand the goods over for ₭0 (create_sale() refuses it as well).
@@ -329,9 +342,21 @@ export function printSale(cid) {
 
 export async function voidIt(cid) {
   const sale = find(cid);
-  if (!sale || !confirm(t("pos.askVoid", { n: saleNo(sale), total: fmt(sale.total) }))) return;
-  await store.voidSale(sale.id);
-  toast(t("pos.voided", { n: saleNo(sale) }));
+  if (!sale) return;
+  // The app's own window, with why (025), instead of the browser's confirm().
+  const f = await form(
+    t("pos.void") + " #" + saleNo(sale),
+    reasonFields("void"),
+    t("pos.void"),
+    E(t("pos.askVoid", { n: saleNo(sale), total: fmt(sale.total) })),
+    async (v) => {
+      const why = reasonOf(v);
+      if (why.why) return why.why;
+      await store.voidSale(sale.id, why);
+      return "";
+    },
+  );
+  if (f) toast(t("pos.voided", { n: saleNo(sale) }));
 }
 
 // ---------- drawing ----------
@@ -360,7 +385,15 @@ function cartHtml(need) {
             : "",
           (need.get(it.id) || 0) > +it.qty ? `<span class="bad">${t("pos.onlyN", { n: num(it.qty) })}</span>` : "",
           price > 0 ? "" : `<span class="bad">${t("pos.noPrice")}</span>`,
-          expired ? `<span class="warn">${t("pos.expiredStock", { d: dateText(expired.expiry) })}</span>` : "",
+          // 025: only expired units left for this line: blocked (or, when the
+          // shop allows it, said plainly); else a reminder to write them off.
+          needsExpired(it, need.get(it.id) || 0, st.cart)
+            ? sellExpired()
+              ? `<span class="warn">${t("pos.expiredSelling")}</span>`
+              : `<span class="bad">${t("pos.expiredBlock", { n: num(inDate(it)) })}</span>`
+            : expired
+              ? `<span class="warn">${t("pos.expiredStock", { d: dateText(expired.expiry) })}</span>`
+              : "",
         ].join(" ");
       return `<tr><td class="nm"><b>${E(it.name)}</b><br><small class="mut">${E(it.sku)} · ${fmt(
         price,

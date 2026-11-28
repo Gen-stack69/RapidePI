@@ -6,14 +6,14 @@
 import { state, emit, canWrite } from "./state.js";
 import { err } from "../i18n/index.js";
 import * as apply from "./apply.js";
-import { costFields, packRow, amount, keepOwnerPrices } from "./fields.js";
+import { costFields, packRow, amount, keepOwnerPrices, checkReason, importable } from "./fields.js";
 import { toJpeg, dataUrl } from "../lib/photo.js";
 
 const KEY = "rapidewms.local";
 const uid = () => crypto.randomUUID();
 const nowIso = () => new Date().toISOString();
 
-const SETTINGS = { low_alert: true, auto_reorder: false, vat_rate: 10, expiry_days: 30, rates: {}, pay_qr: null, pay_qr_amount: true };
+const SETTINGS = { sell_expired: false, low_alert: true, auto_reorder: false, vat_rate: 10, expiry_days: 30, rates: {}, pay_qr: null, pay_qr_amount: true };
 let db = load();
 function load() {
   let d = null;
@@ -146,16 +146,20 @@ const setStockRaw = (itemId, qty, note, expiry) => {
   if (it && +qty != +it.qty) adjustRaw(itemId, qty - it.qty, note, qty > it.qty ? expiry : null);
 };
 
-export async function adjust(id, delta, note = "manual", expiry = null) {
-  adjustRaw(id, delta, note, expiry);
+// reason { code, text }: needed to take stock out by hand (025).
+export async function adjust(id, delta, note = "manual", expiry = null, reason = null) {
+  writable();
+  const r = (delta < 0 && note == "manual") || reason ? checkReason("remove", reason) : null;
+  apply.stockMove(db, { ...ctx(), reason: r?.code, reasonText: r?.text }, id, delta, note, expiry);
   await commit();
 }
 
-// Mirrors write_off_lot(): the whole lot leaves stock, logged as expired.
-export async function writeOffLot(lotId, note = "expired") {
+// Mirrors write_off_expiry(): the whole lot leaves stock, with a reason (025).
+export async function writeOffLot(lotId, note = "expired", reason = { code: "expired" }) {
   writable();
-  const lot = db.lots.find((l) => l.id == lotId && l.shop_id == shopId()) || fail("err.lotNotFound");
-  apply.writeOff(db, ctx(), lot.item_id, lot.expiry, +lot.qty, note);
+  const r = checkReason("remove", reason),
+    lot = db.lots.find((l) => l.id == lotId && l.shop_id == shopId()) || fail("err.lotNotFound");
+  apply.writeOff(db, { ...ctx(), reason: r.code, reasonText: r.text }, lot.item_id, lot.expiry, +lot.qty, note);
   await commit();
 }
 
@@ -245,8 +249,7 @@ export async function deleteItem(id) {
 export async function importItems(list) {
   writable();
   let n = 0;
-  for (const x of list) {
-    if (skuTaken(x.sku)) continue;
+  for (const x of importable(list, mine(db.items), mine(db.packs))) {
     const it = {
       id: uid(),
       shop_id: shopId(),
@@ -339,12 +342,13 @@ export async function createSale({ client_id, lines, discount = 0, method = "cas
   }
 }
 
-export async function voidSale(id) {
+export async function voidSale(id, reason) {
   writable();
   ownerOnly();
-  const sale = db.sales.find((x) => x.id == id && x.shop_id == shopId()) || fail("err.saleNotFound");
+  const r = checkReason("void", reason),
+    sale = db.sales.find((x) => x.id == id && x.shop_id == shopId()) || fail("err.saleNotFound");
   if (sale.status == "void") fail("err.saleVoided");
-  apply.voidSale(db, ctx(), sale);
+  apply.voidSale(db, { ...ctx(), reason: r.code, reasonText: r.text }, sale);
   await commit();
 }
 

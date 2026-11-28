@@ -7,7 +7,7 @@ import "@fontsource/noto-sans-lao/lao-400.css";
 import "@fontsource/noto-sans-lao/lao-500.css";
 import "@fontsource/noto-sans-lao/lao-600.css";
 import "@fontsource/noto-sans-lao/lao-700.css";
-import { $, E, toast, form, pickPhoto, checkExpiry, slashDate, dateText, fmt, num, dt, batchField } from "./lib/util.js";
+import { $, E, toast, form, pickPhoto, checkExpiry, slashDate, dateText, fmt, num, dt, batchField, reasonFields, reasonOf } from "./lib/util.js";
 import { t, tn, errText, setLang, other, applyStatic, fDateTime, fTime } from "./i18n/index.js";
 import { readTable, guessKind, guessColumns, build, KINDS } from "./lib/importer.js";
 import { exportSet, exportZip } from "./lib/export.js";
@@ -791,7 +791,8 @@ const A = {
               },
               batchField(),
             ]
-          : []),
+          : // Taking stock out by hand says why (025): the owner's check on shrinkage.
+            reasonFields("remove")),
         ],
         t("btn.save"),
         "",
@@ -801,7 +802,9 @@ const A = {
           if (!(q > 0)) return t("err.qtyAboveZero");
           const now = +(state.items.find((x) => x.id == it.id)?.qty ?? 0);
           if (dir < 0 && q > now) return t("err.removeTooMany", { n: num(now) });
-          await store.adjust(it.id, dir * q, "manual", (dated && f.expiry) || null);
+          const why = dir < 0 ? reasonOf(f) : null;
+          if (why?.why) return why.why;
+          await store.adjust(it.id, dir * q, "manual", (dated && f.expiry) || null, why);
           const batch = (dated && f.batch?.trim()) || "";
           if (batch) await store.setLotBatch(it.id, f.expiry || null, batch);
           return "";
@@ -947,10 +950,22 @@ const A = {
     if (!needWrite()) return;
     const lot = state.lots.find((l) => l.id == el.dataset.id),
       it = lot && state.items.find((i) => i.id == lot.item_id);
-    if (!it || !confirm(t("ask.writeOff", { n: +lot.qty, name: it.name, d: dateText(lot.expiry) }))) return;
+    if (!it) return;
     const n = +lot.qty; // read first: the lot is emptied by the write-off
-    await store.writeOffLot(lot.id);
-    toast(t("msg.writtenOff", { n, sku: it.sku }));
+    // Asked in the app's own window, with why (025): "Expired" unless changed.
+    const f = await form(
+      t("exp.writeOff") + " – " + it.name,
+      reasonFields("remove", "expired"),
+      t("exp.writeOff"),
+      E(t("ask.writeOff", { n, name: it.name, d: dateText(lot.expiry) })),
+      async (v) => {
+        const why = reasonOf(v);
+        if (why.why) return why.why;
+        await store.writeOffLot(lot.id, "expired", why);
+        return "";
+      },
+    );
+    if (f) toast(t("msg.writtenOff", { n, sku: it.sku }));
   },
   // ---- offline work ----
   async syncNow() {

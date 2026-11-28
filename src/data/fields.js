@@ -6,6 +6,37 @@ const fail = (code, params) => {
   throw err(code, params);
 };
 
+/** Rows of a product import that can be added: not a SKU the shop has, and
+ * not a barcode (or code) already on a product or a box, here or earlier in
+ * the file (025: one barcode, one product). The rest count as skipped. */
+export function importable(list, items, packs) {
+  const key = (v) => String(v ?? "").trim().toLowerCase(),
+    skus = new Set(items.map((i) => key(i.sku))),
+    codes = new Set([...items.flatMap((i) => [i.barcode, i.sku]), ...packs.map((p) => p.barcode)].filter(Boolean).map(key));
+  return list.filter((x) => {
+    const sku = key(x.sku),
+      code = key(x.barcode || x.sku);
+    if (!sku || skus.has(sku) || codes.has(code)) return false;
+    skus.add(sku);
+    codes.add(code).add(sku);
+    return true;
+  });
+}
+
+// Why stock left (025): the codes the database takes for each. A write-off
+// uses the "remove" ones. "other" needs words.
+export const REASONS = {
+  remove: ["damaged", "expired", "theft", "own_use", "count", "returned", "other"],
+  void: ["wrong_item", "changed_mind", "duplicate", "other"],
+};
+/** A reason { code, text } checked as use_reason() does, or it throws. */
+export function checkReason(kind, r) {
+  const code = String(r?.code || "").trim(),
+    text = String(r?.text || "").trim().slice(0, 200);
+  if (!REASONS[kind].includes(code) || (code == "other" && !text)) fail("err.needReason");
+  return { code, text: text || null };
+}
+
 /** A typed amount as a number of 0 or more. "1e999" is Infinity in JavaScript,
  * which the database refuses (008_hardening.sql), so it counts as 0 like any
  * other unreadable entry. */

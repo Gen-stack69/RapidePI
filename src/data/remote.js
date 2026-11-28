@@ -9,7 +9,7 @@ import * as apply from "./apply.js";
 import * as Q from "./queue.js";
 import * as C from "./cache.js";
 import { mergeChanges } from "./delta.js";
-import { costFields, packRow, amount, keepOwnerPrices } from "./fields.js";
+import { costFields, packRow, amount, keepOwnerPrices, checkReason, importable } from "./fields.js";
 import { toJpeg, productJpeg } from "../lib/photo.js";
 
 // Before 010_receive_packs.sql is run there is no pack_receipts table: the
@@ -31,6 +31,12 @@ function friendly(e) {
   if (stock) return err("err.stock", { sku: stock[1], qty: stock[2] });
   if (/not enough stock/i.test(m)) return err("err.stock", { sku: "", qty: "" });
   if (/packs_shop_barcode_uidx/i.test(m)) return err("err.packBarcode");
+  // 025
+  const taken = /barcode taken: (.+)$/im.exec(m);
+  if (taken) return err("err.dupBarcode", { name: taken[1] });
+  const old = /expired stock: (.+?) has (\S+) in date/i.exec(m);
+  if (old) return err("err.expiredSale", { name: state.items.find((i) => i.sku == old[1])?.name || old[1], n: old[2] });
+  if (/a reason is needed|unknown reason/i.test(m)) return err("err.needReason");
   if (/packs_count_before_price/i.test(m)) return err("err.packCountFirst");
   if (/a pack holds more than 1/i.test(m)) return err("err.packSize");
   const imp = /import: (.+)$/im.exec(m);
@@ -444,8 +450,11 @@ export async function setItemPhoto(itemId, file) {
 // stored on this device first, then sent. Offline they stay queued and show
 // at once, worked out by apply.js on top of the last copy from the server.
 
-export const adjust = (id, delta, note = "manual", expiry = null) =>
-  queued("adjust", { item_id: id, delta, note, expiry: expiry || null });
+// reason { code, text }: needed to take stock out by hand (025).
+export function adjust(id, delta, note = "manual", expiry = null, reason = null) {
+  const r = (delta < 0 && note == "manual") || reason ? checkReason("remove", reason) : null;
+  return queued("adjust", { item_id: id, delta, note, expiry: expiry || null, ...(r ? { reason: r.code, reason_text: r.text } : {}) });
+}
 
 /** Boxes of a pack arrive: counted ones go into stock, others wait (receive_pack). */
 export function receivePack(packId, boxes, expiry = null) {
@@ -460,9 +469,10 @@ export const setLotBatch = (itemId, expiry, batch, add = true) =>
 
 // Keyed by product and date, not lot id: a lot received offline has no
 // server id yet.
-export async function writeOffLot(id, note = "expired") {
-  const lot = state.lots.find((l) => l.id == id) || fail("err.lotNotFound");
-  await queued("writeoff", { item_id: lot.item_id, expiry: lot.expiry, qty: +lot.qty, note });
+export async function writeOffLot(id, note = "expired", reason = { code: "expired" }) {
+  const r = checkReason("remove", reason),
+    lot = state.lots.find((l) => l.id == id) || fail("err.lotNotFound");
+  await queued("writeoff", { item_id: lot.item_id, expiry: lot.expiry, qty: +lot.qty, note, reason: r.code, reason_text: r.text });
 }
 
 // lines: [{ item_id, qty }]. The till's price goes along: the server uses it
@@ -492,11 +502,12 @@ export async function createSale({ client_id, lines, discount = 0, method = "cas
   return state.sales.find((x) => x.client_id == client_id);
 }
 
-export async function voidSale(id) {
-  const s = state.sales.find((x) => x.id == id) || fail("err.saleNotFound");
+export async function voidSale(id, reason) {
+  const r = checkReason("void", reason),
+    s = state.sales.find((x) => x.id == id) || fail("err.saleNotFound");
   if (s.status == "void") fail("err.saleVoided");
   if (state.role != "owner") fail("err.noPerm");
-  await queued("void", { sale_client_id: s.client_id });
+  await queued("void", { sale_client_id: s.client_id, reason: r.code, reason_text: r.text });
 }
 
 // The server call for one queued record.
@@ -516,7 +527,15 @@ const SEND = {
       // Only when there is one: a sale without a customer still goes through on a server before 007.
       ...(a.customer_id ? { p_customer: a.customer_id } : {}),
     }),
-  void: (r, a) => rpc("void_sale_by_client", { p_shop: r.shop, p_sale_client_id: a.sale_client_id, p_at: r.at }),
+  // With a reason: the versions of 025. Without (stock coming in, or work
+  // queued by an older version of the app): the ones before.
+  void: (r, a) =>
+    rpc("void_sale_by_client", {
+      p_shop: r.shop,
+      p_sale_client_id: a.sale_client_id,
+      p_at: r.at,
+      ...(a.reason ? { p_reason: a.reason, p_reason_text: a.reason_text } : {}),
+    }),
   adjust: (r, a) =>
     rpc("adjust_stock", {
       p_item: a.item_id,
@@ -526,6 +545,7 @@ const SEND = {
       p_client_id: r.id,
       p_at: r.at,
       p_offline: r.offline,
+      ...(a.reason ? { p_reason: a.reason, p_reason_text: a.reason_text } : {}),
     }),
   box: (r, a) =>
     rpc("receive_pack", {
@@ -545,6 +565,7 @@ const SEND = {
       p_note: a.note,
       p_client_id: r.id,
       p_at: r.at,
+      ...(a.reason ? { p_reason: a.reason, p_reason_text: a.reason_text } : {}),
     }),
 };
 const rpc = (fn, args) => must(sb.rpc(fn, args));
@@ -556,7 +577,14 @@ const isNet = (e) =>
 
 // What this device did, shown on top of the server's copy: what is still
 // queued, plus what was sent since the copy was taken.
-const ctxFor = (r) => ({ shopId: r.shop, userId: state.user?.id ?? null, at: r.at, short: true });
+const ctxFor = (r) => ({
+  shopId: r.shop,
+  userId: state.user?.id ?? null,
+  at: r.at,
+  short: true,
+  reason: r.args?.reason || null,
+  reasonText: r.args?.reason_text || null,
+});
 function applyRecord(db, r) {
   const a = r.args,
     ctx = ctxFor(r);
@@ -732,8 +760,7 @@ export async function retireTill(code) {
 
 // Bulk import: new SKUs only, existing ones are skipped. Returns count added.
 export async function importItems(list) {
-  const have = new Set(state.items.map((i) => i.sku.toLowerCase())),
-    fresh = list.filter((x) => !have.has(x.sku.toLowerCase()) && have.add(x.sku.toLowerCase()));
+  const fresh = importable(list, state.items, state.packs);
   if (!fresh.length) return 0;
   const rows = await must(
     sb

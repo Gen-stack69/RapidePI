@@ -4,7 +4,7 @@ import { $, E, dt, download } from "./util.js";
 import { t, lang } from "../i18n/index.js";
 import { saleNo } from "../data/apply.js";
 import { today as localToday } from "./expiry.js";
-import { report, fmtNum, NUM, labelSpan, reportSheet, dataSheet } from "./report.js";
+import { report, fmtNum, NUM, labelSpan, reportSheet, dataSheet, reasonLabel, whoOf } from "./report.js";
 import { xlsxBlob } from "./xlsxw.js";
 import regularUrl from "../assets/fonts/pdf-regular.ttf?url";
 import boldUrl from "../assets/fonts/pdf-bold.ttf?url";
@@ -62,7 +62,23 @@ export const sets = (s) => {
     Sales: [
       // Pack and VAT appended, never inserted. VAT is the sale's VAT shared out
       // over its lines, so a sale's lines add up to its VAT.
-      ["Date", "Receipt", "SKU", "Name", "Qty", "Unit price (LAK)", "Wholesale", "Line total (LAK)", "Method", "Status", "Pack", "VAT (LAK)"],
+      // Void reason and Voided by appended too (025): why a sale was cancelled, and by whom.
+      [
+        "Date",
+        "Receipt",
+        "SKU",
+        "Name",
+        "Qty",
+        "Unit price (LAK)",
+        "Wholesale",
+        "Line total (LAK)",
+        "Method",
+        "Status",
+        "Pack",
+        "VAT (LAK)",
+        "Void reason",
+        "Voided by",
+      ],
       ...(s.saleLines || [])
         .filter((l) => sale.has(l.sale_id))
         .map((l) => {
@@ -80,6 +96,8 @@ export const sets = (s) => {
             x.status,
             l.pack_qty ? `${+l.pack_qty} × ${l.pack_name} (${+l.pack_size})` : "",
             +x.subtotal ? Math.round(((+x.vat || 0) * l.line_total * 100) / x.subtotal) / 100 : 0,
+            x.status == "void" ? reasonLabel(x.void_reason, x.void_reason_text) : "",
+            x.status == "void" ? whoOf(s, x.voided_by) : "",
           ];
         }),
     ],
@@ -104,8 +122,17 @@ export const sets = (s) => {
       ]),
     ],
     Movements: [
-      ["Date", "SKU", "Type", "Qty", "Note"],
-      ...s.movements.map((m) => [dt(m.created_at), m.sku, m.type == "in" ? "In" : "Out", +m.qty, m.note]),
+      // User and Reason appended (025), never inserted.
+      ["Date", "SKU", "Type", "Qty", "Note", "User", "Reason"],
+      ...s.movements.map((m) => [
+        dt(m.created_at),
+        m.sku,
+        m.type == "in" ? "In" : "Out",
+        +m.qty,
+        m.note,
+        whoOf(s, m.created_by),
+        reasonLabel(m.reason_code, m.reason_text),
+      ]),
     ],
   };
 };

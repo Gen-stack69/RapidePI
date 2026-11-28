@@ -41,6 +41,13 @@ const SIGN = {
 };
 
 const col = (k, type = "s") => ({ h: t("rp.c." + k), type });
+
+/** Why stock left (025): "Damaged", or "Other: fell off the van". */
+export const reasonLabel = (code, text) => (code ? t("reason." + code) + (text ? ": " + text : "") : "");
+/** Who did it: an email when this device knows it (the owner sees the
+ * staff list), else the start of the user id, so two people still differ. */
+export const whoOf = (s, id) =>
+  !id ? "" : id == s.user?.id ? s.user.email || "" : s.people?.members?.find((m) => m.user_id == id)?.email || String(id).slice(0, 8);
 const sum = (rows, i) => rows.reduce((a, r) => a + (+r[i] || 0), 0);
 const oneUnit = (units) => new Set(units.map((u) => String(u || "").trim().toLowerCase())).size <= 1;
 /** A total row: the label first, then the sums at their column numbers. */
@@ -242,9 +249,34 @@ const BUILD = {
       bad = (s.sales || []).filter((x) => x.status == "void"),
       add = (list, f) => list.reduce((a, x) => a + (+x[f] || 0), 0),
       dates = (s.sales || []).map((x) => x.created_at).sort();
+    // One line per voided receipt: when, how much, why and who (025).
+    const voidCols = [col("no", "c"), col("date", "c"), col("receipt", "c"), col("lineTotal", "m"), col("reason"), col("user")],
+      voidRows = number(
+        [...bad]
+          .sort((a, b) => String(a.voided_at || a.created_at).localeCompare(String(b.voided_at || b.created_at)))
+          .map((x) => [
+            dmyhm(x.voided_at || x.created_at),
+            saleNo(x),
+            +x.total,
+            reasonLabel(x.void_reason, x.void_reason_text),
+            whoOf(s, x.voided_by),
+          ]),
+      );
     return {
       period: dates.length ? `${dmy(dates[0])} – ${dmy(dates[dates.length - 1])}` : "",
-      tables: [{ cols, groups, grand: null }],
+      tables: [
+        { cols, groups, grand: null },
+        ...(bad.length
+          ? [
+              {
+                title: t("rp.voidList"),
+                cols: voidCols,
+                groups: [{ title: "", rows: voidRows, total: totalRow(voidCols.length, t("rp.total"), { 3: sum(voidRows, 3) }) }],
+                grand: null,
+              },
+            ]
+          : []),
+      ],
       summary: [
         [t("rp.s.receipts"), ok.length, "n"],
         [t("rp.s.subtotal"), add(ok, "subtotal"), "m"],
@@ -310,14 +342,35 @@ const BUILD = {
     }
     const sumCols = [col("no", "c"), col("sku"), col("name"), col("unit", "c"), col("in", "n"), col("out", "n"), col("net", "n")],
       sumRows = number([...per.values()].sort(byName).map((r) => [r.sku, r.name, unitOf(r.sku), r.in, r.out, r.in - r.out]));
-    const detCols = [col("no", "c"), col("date", "c"), col("sku"), col("name"), col("in", "n"), col("out", "n"), col("note")],
-      detRows = number(list.map((m) => [dmyhm(m.created_at), m.sku, bySku.get(m.sku)?.name || "", inQ(m) || "", outQ(m) || "", m.note || ""]));
-    const tot = (rows, cols) => totalRow(7, t("rp.total"), Object.fromEntries(cols.map((i) => [i, same ? sum(rows, i) : null])));
+    const detCols = [
+        col("no", "c"),
+        col("date", "c"),
+        col("sku"),
+        col("name"),
+        col("in", "n"),
+        col("out", "n"),
+        col("note"),
+        col("reason"),
+        col("user"),
+      ],
+      detRows = number(
+        list.map((m) => [
+          dmyhm(m.created_at),
+          m.sku,
+          bySku.get(m.sku)?.name || "",
+          inQ(m) || "",
+          outQ(m) || "",
+          m.note || "",
+          reasonLabel(m.reason_code, m.reason_text),
+          whoOf(s, m.created_by),
+        ]),
+      );
+    const tot = (rows, cols, n) => totalRow(n, t("rp.total"), Object.fromEntries(cols.map((i) => [i, same ? sum(rows, i) : null])));
     return {
       period: list.length ? `${dmy(list[0].created_at)} – ${dmy(new Date())}` : "",
       tables: [
-        { title: t("rp.byProduct"), cols: sumCols, groups: [{ title: "", rows: sumRows, total: tot(sumRows, [4, 5, 6]) }], grand: null },
-        { title: t("rp.detail"), cols: detCols, groups: [{ title: "", rows: detRows, total: tot(detRows, [4, 5]) }], grand: null },
+        { title: t("rp.byProduct"), cols: sumCols, groups: [{ title: "", rows: sumRows, total: tot(sumRows, [4, 5, 6], 7) }], grand: null },
+        { title: t("rp.detail"), cols: detCols, groups: [{ title: "", rows: detRows, total: tot(detRows, [4, 5], 9) }], grand: null },
       ],
       summary: [[t("rp.s.moves"), list.length, "n"]],
     };

@@ -740,7 +740,7 @@ await ok("the cashier joins as staff (dash and small letters forgiven)", async (
 });
 await rejects("a code works only once", async () => {
   await db.exec(`insert into auth.users values ('00000000-0000-0000-0000-0000000000e1')`);
-  return as("00000000-0000-0000-0000-0000000000e1", "select join_shop($1)", [code]);
+  return as("00000000-0000-0000-0000-0000000002a1", "select join_shop($1)", [code]);
 });
 await rejects("the new staff member cannot delete products", async () => {
   const r = await as(D, "delete from items where shop_id = $1", [shopA]);
@@ -749,7 +749,7 @@ await rejects("the new staff member cannot delete products", async () => {
 await rejects("an expired code is refused", async () => {
   const c2 = (await one(A, "select create_invite($1) c", [shopA])).c;
   await db.exec(`update invites set expires_at = now() - interval '1 minute' where code = '${c2}'`);
-  return as("00000000-0000-0000-0000-0000000000e1", "select join_shop($1)", [c2]);
+  return as("00000000-0000-0000-0000-0000000002a1", "select join_shop($1)", [c2]);
 });
 await ok("the owner sees staff with emails and the open codes", async () => {
   const c3 = (await one(A, "select create_invite($1) c", [shopA])).c;
@@ -1232,6 +1232,126 @@ await ok("every policy is for signed-in users", async () =>
   eq((await db.query("select count(*)::int n from pg_policies where schemaname = 'public' and roles = '{public}'")).rows[0].n, 0, "policies"));
 await ok("device_time and proof_shop have a fixed search_path", async () =>
   eq((await db.query("select count(*)::int n from pg_proc where proname in ('device_time','proof_shop') and proconfig is not null")).rows[0].n, 2, "functions"));
+
+// ---------- 025: reasons, expired stock at the till, one barcode per product ----------
+console.log("\nReasons, expired stock, barcodes (025)");
+const R1 = "00000000-0000-0000-0000-0000000003b1",
+  R2 = "00000000-0000-0000-0000-0000000003b2";
+await db.exec(`insert into auth.users values ('${R1}'), ('${R2}')`);
+const shopR = (await one(R1, "select create_shop('Shop R') id")).id;
+await db.exec(`insert into members values ('${shopR}', '${R2}', 'cashier')`);
+const tillR = (await one(R1, "select register_till($1, 'Front') c", [shopR])).c;
+const rItem = (await one(R1, "insert into items (shop_id, sku, name, price) values ($1, 'R-1', 'Rice', 5000) returning id", [shopR])).id;
+await as(R1, "select adjust_stock($1, 20::numeric, 'manual', null::date, 'r-in-0001', null::timestamptz, false, null::text)", [rItem]);
+const remove = (user, code, text, cid) =>
+  as(user, "select adjust_stock($1, -1::numeric, 'manual', null::date, $2::text, null::timestamptz, false, $3::text, $4::text) q", [
+    rItem,
+    cid,
+    code,
+    text,
+  ]);
+await rejects("taking stock out by hand needs a reason", () => remove(R1, null, null, "r-out-0001"));
+await rejects("an empty reason is no reason", () => remove(R1, "  ", null, "r-out-0002"));
+await rejects("'other' needs words", () => remove(R1, "other", "", "r-out-0003"));
+await rejects("an unknown reason is refused", () => remove(R1, "lunch", null, "r-out-0004"));
+await ok("with a reason it is taken out, and the movement says why and who", async () => {
+  eq((await remove(R1, "damaged", null, "r-out-0005")).rows[0].q, 19, "qty");
+  const m = await one(R1, "select reason_code, reason_text, created_by from movements where item_id = $1 and type = 'out'", [rItem]);
+  eq(m.reason_code, "damaged", "reason");
+  eq(m.created_by, R1, "who");
+  await remove(R1, "other", "  fell off the van  ", "r-out-0006");
+  const o = await one(R1, "select reason_text from movements where item_id = $1 and reason_code = 'other'", [rItem]);
+  eq(o.reason_text, "fell off the van", "text");
+});
+await ok("the reason does not stick to the next stock change", async () => {
+  await as(R1, "select adjust_stock($1, 5::numeric, 'manual', null::date, 'r-in-0002', null::timestamptz, false, null::text)", [rItem]);
+  const m = await one(R1, "select reason_code from movements where item_id = $1 order by created_at desc, type limit 1", [rItem]);
+  eq(m.reason_code, null, "no reason on the delivery");
+});
+await ok("the old adjust_stock (app on phones not yet updated) still works", async () =>
+  eq((await one(R1, "select adjust_stock($1, -1::numeric, 'manual', null::date, 'r-old-0001', null::timestamptz, false) q", [rItem])).q, 22, "qty"));
+
+const sellR = (user, cid, lines, offline = false) =>
+  one(user, "select create_sale($1, $2, $3::jsonb, 0, 'transfer', 0, null, $4, null, $5) id", [
+    shopR,
+    cid,
+    JSON.stringify(lines),
+    tillR,
+    offline,
+  ]);
+await ok("a sale to void", async () => sellR(R1, "r-sale-1", [{ item_id: rItem, qty: 2 }]));
+const voidR = (user, code, text) =>
+  as(user, "select void_sale_by_client($1, 'r-sale-1', null::timestamptz, $2::text, $3::text)", [shopR, code, text]);
+await rejects("a void needs a reason", () => voidR(R1, null, null));
+await rejects("a void reason must be one for voids", () => voidR(R1, "damaged", null));
+await rejects("a cashier cannot void, even with a reason", () => voidR(R2, "wrong_item", null));
+await ok("the owner voids with a reason: kept on the sale and its movements", async () => {
+  await voidR(R1, "changed_mind", null);
+  const s = await one(R1, "select status, void_reason, voided_by from sales where client_id = 'r-sale-1'");
+  eq(s.status, "void", "status");
+  eq(s.void_reason, "changed_mind", "reason");
+  eq(s.voided_by, R1, "who");
+  const m = await one(R1, "select reason_code from movements where note = 'void' and item_id = $1", [rItem]);
+  eq(m.reason_code, "changed_mind", "movement reason");
+});
+
+const eItem = (await one(R1, "insert into items (shop_id, sku, name, price, kind) values ($1, 'R-2', 'Yoghurt', 8000, 'consumable') returning id", [shopR])).id;
+await as(R1, "select adjust_stock($1, 3::numeric, 'manual', (now() - interval '3 days')::date, 'r-e-0001', null::timestamptz, false, null::text)", [eItem]);
+await as(R1, "select adjust_stock($1, 2::numeric, 'manual', (now() + interval '30 days')::date, 'r-e-0002', null::timestamptz, false, null::text)", [eItem]);
+await ok("in-date units sell, expired ones stay", async () => {
+  await sellR(R1, "r-sale-2", [{ item_id: eItem, qty: 2 }]);
+  const f = await one(R1, "select flags from sales where client_id = 'r-sale-2'");
+  eq(f.flags.length, 0, "no flags");
+  eq((await one(R1, "select count(*)::int n from lots where item_id = $1 and expiry < now()", [eItem])).n, 1, "expired lot still there");
+});
+await ok("selling an expired unit is refused at the till", async () => {
+  let threw = "";
+  await sellR(R1, "r-sale-3", [{ item_id: eItem, qty: 1 }]).catch((e) => (threw = e.message));
+  eq(/expired stock: R-2 has 0 in date/.test(threw), true, "refused: " + threw);
+});
+await ok("a sale made offline still goes through, flagged", async () => {
+  await sellR(R1, "r-sale-4", [{ item_id: eItem, qty: 1 }], true);
+  eq((await one(R1, "select flags from sales where client_id = 'r-sale-4'")).flags.join(), "expired", "flag");
+});
+await ok("with 'sell expired stock' on, it sells, flagged", async () => {
+  await as(R1, "update settings set sell_expired = true where shop_id = $1", [shopR]);
+  await sellR(R1, "r-sale-5", [{ item_id: eItem, qty: 1 }]);
+  eq((await one(R1, "select flags from sales where client_id = 'r-sale-5'")).flags.join(), "expired", "flag");
+  await as(R1, "update settings set sell_expired = false where shop_id = $1", [shopR]);
+});
+await rejects("staff cannot turn 'sell expired stock' on", async () => {
+  const r = await as(R2, "update settings set sell_expired = true where shop_id = $1 returning 1", [shopR]);
+  if (!r.rows.length) throw new Error("no rows");
+});
+await ok("a write-off needs a reason, and keeps it", async () => {
+  const exp = (await one(R1, "select to_char(expiry, 'YYYY-MM-DD') e from lots where item_id = $1", [eItem])).e;
+  const wo = (code, cid) =>
+    as(R1, "select write_off_expiry($1, $2::date, null::numeric, 'expired', $3::text, null::timestamptz, $4::text)", [eItem, exp, cid, code]);
+  let threw = false;
+  await wo(null, "r-wo-0001").catch(() => (threw = true));
+  eq(threw, true, "refused without a reason");
+  await wo("expired", "r-wo-0002");
+  eq((await one(R1, "select reason_code from movements where item_id = $1 and note = 'expired'", [eItem])).reason_code, "expired", "reason");
+});
+
+const bA = (await one(R1, "insert into items (shop_id, sku, name, barcode) values ($1, 'BA', 'Coke', '555') returning id", [shopR])).id;
+await rejects("a second product with the same barcode is refused", () =>
+  as(R1, "insert into items (shop_id, sku, name, barcode) values ($1, 'BB', 'Pepsi', '555')", [shopR]));
+await rejects("a barcode equal to another product's code is refused", () =>
+  as(R1, "insert into items (shop_id, sku, name, barcode) values ($1, 'BC', 'Fanta', 'r-1')", [shopR]));
+await ok("a product's own box may carry its barcode", async () =>
+  as(R1, "insert into packs (shop_id, item_id, name, size, barcode) values ($1, $2, 'Carton', 24, '555')", [shopR, bA]));
+await rejects("a box of another product may not", () =>
+  as(R1, "insert into packs (shop_id, item_id, name, size, barcode) values ($1, $2, 'Carton', 24, '555')", [shopR, rItem]));
+await ok("the message names the product", async () => {
+  let threw = "";
+  await as(R1, "insert into packs (shop_id, item_id, name, size, barcode) values ($1, $2, 'Box', 6, '555')", [shopR, eItem]).catch(
+    (e) => (threw = e.message),
+  );
+  eq(/barcode taken: Coke/.test(threw), true, threw);
+});
+await ok("editing a product without touching its barcode is not checked", async () =>
+  as(R1, "update items set name = 'Coca-Cola' where id = $1", [bA]));
 
 console.log(failures ? `\n${failures} FAILED` : "\nAll database checks passed");
 process.exit(failures ? 1 : 0);
