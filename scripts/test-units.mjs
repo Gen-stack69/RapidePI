@@ -985,5 +985,73 @@ await ok("CSV export: the CSV buttons and the ZIP both write through toCsv", asy
   eq(src.includes("toCsv(sets(s)[k])"), true, "the CSV button uses toCsv");
   eq(src.includes('z.file(k + ".csv", "\uFEFF" + toCsv(all[k]))'), true, "the ZIP uses toCsv");});
 
+// QA 2026-11-28 #3 and #4 (025), as the demo and the offline copy work them out.
+const shop025 = () => {
+  const shopId = "s",
+    day = (n) => new Date(Date.now() + n * 864e5).toISOString().slice(0, 10);
+  return {
+    shopId,
+    d: {
+      items: [{ id: "y", shop_id: shopId, sku: "Y", name: "Yoghurt", qty: 5, price: 8000, min_qty: 0 }],
+      packs: [],
+      lots: [
+        { id: "old", shop_id: shopId, item_id: "y", expiry: day(-3), qty: 3 },
+        { id: "new", shop_id: shopId, item_id: "y", expiry: day(30), qty: 2 },
+      ],
+      ulots: [],
+      movements: [],
+      sales: [],
+      sale_lines: [],
+      orders: [],
+      customers: [],
+      settings: { [shopId]: {} },
+    },
+  };
+};
+await ok("expired stock: in-date units sell, an expired one is refused (= 025)", async () => {
+  const { shopId, d } = shop025(),
+    sell = (cid, qty, ctx = {}) => AP.sale(d, { shopId, ...ctx }, { client_id: cid, lines: [{ item_id: "y", qty }], method: "transfer" });
+  eq(sell("a", 2).flags.length, 0, "2 in date: no flag");
+  let threw = "";
+  try {
+    sell("b", 1);
+  } catch (e) {
+    threw = e.code;
+  }
+  eq(threw, "err.expiredSale", "refused");
+  eq(d.items[0].qty, 3, "nothing taken by the refused sale");
+  eq(sell("c", 1, { short: true }).flags.join(), "expired", "offline: goes through, flagged");
+  d.settings[shopId].sell_expired = true;
+  eq(sell("d", 1).flags.join(), "expired", "allowed: sells, flagged");
+});
+await ok("reasons: kept on the movements and the void (= 025)", async () => {
+  const { shopId, d } = shop025();
+  AP.stockMove(d, { shopId, userId: "u1", reason: "other", reasonText: "  fell off the van " }, "y", -1, "manual");
+  const m = d.movements.at(-1);
+  eq([m.reason_code, m.reason_text, m.created_by].join("|"), "other|fell off the van|u1", "movement");
+  AP.stockMove(d, { shopId, userId: "u1" }, "y", 1, "manual");
+  eq(d.movements.at(-1).reason_code, null, "no reason on stock coming in");
+  const s = AP.sale(d, { shopId }, { client_id: "v", lines: [{ item_id: "y", qty: 1 }], method: "transfer" });
+  AP.voidSale(d, { shopId, userId: "u1", reason: "wrong_item" }, s);
+  eq([s.status, s.void_reason, s.voided_by].join("|"), "void|wrong_item|u1", "void");
+  eq(d.movements.at(-1).reason_code, "wrong_item", "the stock coming back says why");
+});
+await ok("reasons: checked as the database checks them (= 025)", async () => {
+  const { checkReason } = await import("../src/data/fields.js");
+  const bad = (kind, r) => {
+    try {
+      checkReason(kind, r);
+      return false;
+    } catch (e) {
+      return e.code == "err.needReason";
+    }
+  };
+  eq(bad("remove", null), true, "none");
+  eq(bad("remove", { code: "other", text: "  " }), true, "other without words");
+  eq(bad("remove", { code: "wrong_item" }), true, "a void reason for a removal");
+  eq(bad("void", { code: "damaged" }), true, "a removal reason for a void");
+  eq(checkReason("remove", { code: "damaged" }).code, "damaged", "fine");
+});
+
 console.log(fails ? `\n${fails} FAILED` : "\nAll unit checks passed");
 process.exit(fails ? 1 : 0);

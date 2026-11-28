@@ -41,6 +41,13 @@ const SIGN = {
 };
 
 const col = (k, type = "s") => ({ h: t("rp.c." + k), type });
+
+/** Why stock left (025): "Damaged", or "Other: fell off the van". */
+export const reasonLabel = (code, text) => (code ? t("reason." + code) + (text ? ": " + text : "") : "");
+/** Who did it: an email when this device knows it (the owner sees the
+ * staff list), else the start of the user id, so two people still differ. */
+export const whoOf = (s, id) =>
+  !id ? "" : id == s.user?.id ? s.user.email || "" : s.people?.members?.find((m) => m.user_id == id)?.email || String(id).slice(0, 8);
 const sum = (rows, i) => rows.reduce((a, r) => a + (+r[i] || 0), 0);
 const oneUnit = (units) => new Set(units.map((u) => String(u || "").trim().toLowerCase())).size <= 1;
 /** A total row: the label first, then the sums at their column numbers. */
@@ -310,14 +317,35 @@ const BUILD = {
     }
     const sumCols = [col("no", "c"), col("sku"), col("name"), col("unit", "c"), col("in", "n"), col("out", "n"), col("net", "n")],
       sumRows = number([...per.values()].sort(byName).map((r) => [r.sku, r.name, unitOf(r.sku), r.in, r.out, r.in - r.out]));
-    const detCols = [col("no", "c"), col("date", "c"), col("sku"), col("name"), col("in", "n"), col("out", "n"), col("note")],
-      detRows = number(list.map((m) => [dmyhm(m.created_at), m.sku, bySku.get(m.sku)?.name || "", inQ(m) || "", outQ(m) || "", m.note || ""]));
-    const tot = (rows, cols) => totalRow(7, t("rp.total"), Object.fromEntries(cols.map((i) => [i, same ? sum(rows, i) : null])));
+    const detCols = [
+        col("no", "c"),
+        col("date", "c"),
+        col("sku"),
+        col("name"),
+        col("in", "n"),
+        col("out", "n"),
+        col("note"),
+        col("reason"),
+        col("user"),
+      ],
+      detRows = number(
+        list.map((m) => [
+          dmyhm(m.created_at),
+          m.sku,
+          bySku.get(m.sku)?.name || "",
+          inQ(m) || "",
+          outQ(m) || "",
+          m.note || "",
+          reasonLabel(m.reason_code, m.reason_text),
+          whoOf(s, m.created_by),
+        ]),
+      );
+    const tot = (rows, cols, n) => totalRow(n, t("rp.total"), Object.fromEntries(cols.map((i) => [i, same ? sum(rows, i) : null])));
     return {
       period: list.length ? `${dmy(list[0].created_at)} – ${dmy(new Date())}` : "",
       tables: [
-        { title: t("rp.byProduct"), cols: sumCols, groups: [{ title: "", rows: sumRows, total: tot(sumRows, [4, 5, 6]) }], grand: null },
-        { title: t("rp.detail"), cols: detCols, groups: [{ title: "", rows: detRows, total: tot(detRows, [4, 5]) }], grand: null },
+        { title: t("rp.byProduct"), cols: sumCols, groups: [{ title: "", rows: sumRows, total: tot(sumRows, [4, 5, 6], 7) }], grand: null },
+        { title: t("rp.detail"), cols: detCols, groups: [{ title: "", rows: detRows, total: tot(detRows, [4, 5], 9) }], grand: null },
       ],
       summary: [[t("rp.s.moves"), list.length, "n"]],
     };

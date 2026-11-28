@@ -4,6 +4,7 @@ import { t, tn, locale, lang } from "../i18n/index.js";
 import { status } from "../lib/expiry.js";
 import { dt } from "../lib/util.js";
 import { saleNo, moveFlow } from "../data/apply.js";
+import { reasonLabel } from "../lib/report.js";
 import { errText } from "../i18n/index.js";
 import { isOwner } from "../data/store.js";
 import { waitingBoxes } from "../data/fields.js";
@@ -155,7 +156,9 @@ function activity(s) {
         at: x.created_at,
         ic: "🧾",
         tone: "t-in",
-        what: t(x.status == "void" ? "act.void" : "act.sale", { n: E(saleNo(x)) }),
+        what:
+          t(x.status == "void" ? "act.void" : "act.sale", { n: E(saleNo(x)) }) +
+          (x.status == "void" && x.void_reason ? ` · ${E(reasonLabel(x.void_reason, x.void_reason_text))}` : ""),
         amt: fmtIn(x.total, ui.cur),
       })),
       ...s.movements
@@ -165,7 +168,8 @@ function activity(s) {
           ic: m.type == "in" ? "▲" : "▼",
           tone: m.type == "in" ? "t-val" : "t-warn",
           what: t(m.type == "in" ? "act.in" : "act.out", { n: num(Math.abs(+m.qty)), name: E(name.get(m.sku) || m.sku || "") }),
-          amt: m.note ? E(m.note) : "",
+          // why it left (025), else the note it was logged with
+          amt: E(reasonLabel(m.reason_code, m.reason_text) || m.note || ""),
         })),
     ]
       .filter((r) => r.at)

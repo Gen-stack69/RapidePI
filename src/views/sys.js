@@ -157,7 +157,9 @@ function prices(s) {
   const own = !isOwner() ? " disabled" : "";
   return `<div class="card"><h3>${t("sys.prices")}</h3><label class="mt">${t("sys.vatRate")}<input type="number" min="0" max="100" step="any" data-input="setting" data-key="vat_rate" data-num="1" value="${E(
     s.settings.vat_rate ?? 10,
-  )}"${own}></label><p class="mut">${t("sys.vatNote")}</p></div>`;
+  )}"${own}></label><p class="mut">${t("sys.vatNote")}</p><label class="chk mt"><input type="checkbox" data-input="setting" data-key="sell_expired"${
+    s.settings.sell_expired ? " checked" : ""
+  }${own}> ${t("sys.sellExpired")}</label><p class="mut">${t("sys.sellExpiredNote")}</p></div>`;
 }
 
 export default function sys(s) {

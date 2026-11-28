@@ -9,7 +9,8 @@
 // db: { items, packs, pack_receipts, customers, lots, ulots, movements, sales, sale_lines, orders, settings }, where
 // lots are the dated batches and ulots the no-date ones (019: a delivery with a batch no. but no date),
 // settings maps shop id → { auto_reorder, vat_rate, ... }. Lists are changed in place.
-// ctx: { shopId, userId, at (ISO time it happened), short (may go below zero) }
+// ctx: { shopId, userId, at (ISO time it happened), short (may go below zero),
+//        reason, reasonText (why stock left by hand, a void, a write-off: 025) }
 import { err } from "../i18n/index.js";
 import { today } from "../lib/expiry.js";
 
@@ -21,6 +22,16 @@ const drop = (list, gone) => {
   for (let i = list.length; i--; ) if (gone(list[i])) list.splice(i, 1);
 };
 const at = (ctx) => ctx.at || new Date().toISOString();
+// Who and why, on every movement (025): the reason only when one was given.
+const why = (ctx) => ({
+  reason_code: ctx.reason || null,
+  reason_text: (ctx.reason && String(ctx.reasonText || "").trim()) || null,
+  created_by: ctx.userId ?? null,
+});
+
+/** The units of a product that are past their date (in its dated batches). */
+export const expiredQty = (db, itemId, now = today()) =>
+  db.lots.filter((l) => l.item_id == itemId && l.expiry && l.expiry < now).reduce((a, l) => a + +l.qty, 0);
 const U = (db) => (db.ulots ||= []);
 
 // Same rule as create_sale(): the wholesale price from the wholesale quantity.
@@ -67,6 +78,7 @@ export function stockMove(db, ctx, itemId, delta, note, expiry = null, saleId = 
       batch: batch || null,
       sale_id: saleId,
       created_at: at(ctx),
+      ...why(ctx),
     });
   if (delta > 0) {
     // Lots never hold more than the stock: units that only fill a hole left
@@ -211,6 +223,16 @@ export function sale(
     let { price, ws, pack, base } = priceOf(db, it, { qty, pack_id, expiry });
     if (ctx.short && sold != null) price = sold;
     else if (!(price > 0)) fail("err.noPrice", { sku: it.sku });
+    // 025: in-date stock goes first; expired units only when there is not
+    // enough of it, or the line is an expired batch. Refused unless the shop
+    // allows it; a sale made offline goes through (the goods are gone), flagged.
+    const old = expiredQty(db, item_id),
+      now = today();
+    if ((expiry && expiry < now) || (old > 0 && base > +it.qty - old)) {
+      if (!ctx.short && !db.settings[ctx.shopId]?.sell_expired)
+        fail("err.expiredSale", { name: it.name, n: Math.max(+it.qty - old, 0) });
+      if (!s.flags.includes("expired")) s.flags.push("expired");
+    }
     stockMove(db, ctx, item_id, -base, "sale", null, s.id, expiry);
     db.sale_lines.push({
       id: uid(),
@@ -336,6 +358,9 @@ export function voidSale(db, ctx, s) {
   }
   s.status = "void";
   s.voided_at = at(ctx);
+  s.void_reason = ctx.reason || null;
+  s.void_reason_text = (ctx.reason && String(ctx.reasonText || "").trim()) || null;
+  s.voided_by = ctx.userId ?? null;
 }
 
 /** receive_pack(): boxes of a pack arrive. With a count, boxes x size go into
@@ -404,6 +429,7 @@ export function writeOff(db, ctx, itemId, expiry, qty, note = "expired") {
     batch,
     sale_id: null,
     created_at: at(ctx),
+    ...why(ctx),
   });
   autoReorder(db, it);
   return it.qty;

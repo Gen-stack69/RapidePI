@@ -4,7 +4,7 @@ import { $, E, dt, download } from "./util.js";
 import { t, lang } from "../i18n/index.js";
 import { saleNo } from "../data/apply.js";
 import { today as localToday } from "./expiry.js";
-import { report, fmtNum, NUM, labelSpan, reportSheet, dataSheet } from "./report.js";
+import { report, fmtNum, NUM, labelSpan, reportSheet, dataSheet, reasonLabel, whoOf } from "./report.js";
 import { xlsxBlob } from "./xlsxw.js";
 import regularUrl from "../assets/fonts/pdf-regular.ttf?url";
 import boldUrl from "../assets/fonts/pdf-bold.ttf?url";
@@ -104,8 +104,17 @@ export const sets = (s) => {
       ]),
     ],
     Movements: [
-      ["Date", "SKU", "Type", "Qty", "Note"],
-      ...s.movements.map((m) => [dt(m.created_at), m.sku, m.type == "in" ? "In" : "Out", +m.qty, m.note]),
+      // User and Reason appended (025), never inserted.
+      ["Date", "SKU", "Type", "Qty", "Note", "User", "Reason"],
+      ...s.movements.map((m) => [
+        dt(m.created_at),
+        m.sku,
+        m.type == "in" ? "In" : "Out",
+        +m.qty,
+        m.note,
+        whoOf(s, m.created_by),
+        reasonLabel(m.reason_code, m.reason_text),
+      ]),
     ],
   };
 };
